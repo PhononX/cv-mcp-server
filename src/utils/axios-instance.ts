@@ -33,7 +33,6 @@ interface ErrorResponseData {
 // Create the axios instance
 const getAxiosInstance = (): AxiosInstance => {
   const baseUrl = env.CARBON_VOICE_BASE_URL || 'https://api.carbonvoice.app';
-  const simplifiedApiUrl = `${baseUrl}/simplified`;
 
   if (!env.CARBON_VOICE_API_KEY) {
     throw {
@@ -49,7 +48,7 @@ const getAxiosInstance = (): AxiosInstance => {
   }
 
   const instance = axios.create({
-    baseURL: simplifiedApiUrl,
+    baseURL: baseUrl,
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': env.CARBON_VOICE_API_KEY,
@@ -229,6 +228,9 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
   }
 }
 
+// Create the singleton instance
+const axiosInstance = getAxiosInstance();
+
 // Define the mutator function that Orval expects
 export async function mutator<T>({
   url,
@@ -238,7 +240,6 @@ export async function mutator<T>({
   headers,
 }: AxiosRequestConfig): Promise<T> {
   try {
-    const axiosInstance = getAxiosInstance();
     const response = await axiosInstance({
       url,
       method,
@@ -246,7 +247,8 @@ export async function mutator<T>({
       data,
       headers,
     });
-    return response.data;
+
+    return response.data as T;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const axiosError = handleAxiosError(error);
@@ -269,7 +271,7 @@ export async function mutator<T>({
 }
 
 // Export the instance for other uses
-export const customAxios = getAxiosInstance();
+export const customAxios = axiosInstance;
 
 // Export error types for use in other files
 export type { ApiError, NetworkError, ErrorResponseData };
