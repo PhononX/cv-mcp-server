@@ -1,0 +1,2928 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/prompts": {
+      "get": {
+        "operationId": "AIPromptController_getPrompts",
+        "parameters": [
+          {
+            "name": "owner_type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": ["user", "workspace", "system"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "required": false,
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/AIPrompt" }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AI"]
+      },
+      "post": {
+        "operationId": "AIPromptController_createPrompt",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAIPrompt" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AIPrompt" }
+              }
+            }
+          }
+        },
+        "tags": ["AI"]
+      }
+    },
+    "/prompts/{id}": {
+      "delete": {
+        "operationId": "AIPromptController_deletePrompt",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "",
+            "content": {
+              "application/json": { "schema": { "type": "boolean" } }
+            }
+          }
+        },
+        "tags": ["AI"]
+      }
+    },
+    "/responses": {
+      "get": {
+        "operationId": "AIResponseController_getAllResponses",
+        "parameters": [
+          {
+            "name": "message_id",
+            "required": false,
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "prompt_id",
+            "required": false,
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "channel_id",
+            "required": false,
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": { "default": 50, "type": "number" }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "schema": { "enum": ["older", "newer"], "type": "string" }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "schema": { "format": "date-time", "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/AIResponse" }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AI"]
+      },
+      "post": {
+        "operationId": "AIResponseController_createResponse",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAIResponse" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AIResponse" }
+              }
+            }
+          }
+        },
+        "tags": ["AI"]
+      }
+    },
+    "/responses/prompt/{prompt_id}/latest-ten": {
+      "get": {
+        "operationId": "AIResponseController_getLatestTenAIResponseByPrompt",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of 10 recent ai prompt responses including (messages, conversations and creator) for given prompt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenRecentAIPromptResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AI"]
+      }
+    },
+    "/responses/share-link": {
+      "post": {
+        "operationId": "createShareLinkAIResponse",
+        "summary": "Generate AI Prompt Response by share-link-ids",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShareLinkAIResponse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AIShareLinkResponse" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["AI"]
+      }
+    },
+    "/responses/{id}": {
+      "delete": {
+        "operationId": "AIResponseController_deletePrompt",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "",
+            "content": {
+              "application/json": { "schema": { "type": "boolean" } }
+            }
+          }
+        },
+        "tags": ["AI"]
+      }
+    },
+    "/apps": {
+      "get": {
+        "operationId": "get_my_apps",
+        "summary": "Get List of My Apps",
+        "description": "Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/App" }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Apps"]
+      }
+    },
+    "/apps/{client_id}/subscribe": {
+      "post": {
+        "operationId": "subscribe_user_into_app",
+        "summary": "Subscribe user into app",
+        "parameters": [
+          {
+            "name": "client_id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubscribeUserPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SubscribedUser" }
+              }
+            }
+          }
+        },
+        "tags": ["Apps"]
+      }
+    },
+    "/apps/{client_id}/unsubscribe": {
+      "delete": {
+        "operationId": "unsubscribe_user_from_app",
+        "summary": "Unsubscribe user from app",
+        "parameters": [
+          {
+            "name": "client_id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "204": { "description": "" } },
+        "tags": ["Apps"]
+      }
+    },
+    "/languages/all": {
+      "get": {
+        "operationId": "LanguageController_getAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get all languages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Language" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simplified/messages/latest-ten": {
+      "get": {
+        "operationId": "getTenRecentMessagesResponse",
+        "summary": "Get last ten recent Messages including (Conversation, Creator, Labels)",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "required": false,
+            "in": "query",
+            "description": "Conversation ID (optional)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language (optional) - Original language will be used if not provided or not found.",
+            "example": "english",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenRecentMessagesResponse"
+                }
+              }
+            }
+          },
+          "403": { "description": "" }
+        },
+        "tags": ["Messages"]
+      }
+    },
+    "/simplified/messages/{id}": {
+      "get": {
+        "operationId": "getMessageById",
+        "summary": "Get Message By ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language (optional) - Original language will be used if not provided or not found.",
+            "example": "english",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "fields",
+            "required": false,
+            "in": "query",
+            "description": "Fields (optional) - Additional fields to include in the response. Possible values: conversation, creator, labels.",
+            "example": "conversation, creator, labels",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GetMessageResponse" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Messages"]
+      }
+    },
+    "/simplified/messages": {
+      "get": {
+        "operationId": "listMessages",
+        "summary": "List Messages",
+        "description": "By default return messages created in last 5 days.\n\nThe **maximum** allowed range between dates is **30 days**.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "format": "int32",
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Max number of results per page is: **50**",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort_direction",
+            "required": false,
+            "in": "query",
+            "description": "The field used to sort results is **Creation Date**",
+            "schema": {
+              "default": "DESC",
+              "enum": ["ASC", "DESC"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "start_date",
+            "required": false,
+            "in": "query",
+            "description": "Start Date range",
+            "example": "2024-01-01T04:25:00.000Z",
+            "schema": { "format": "date-time", "type": "string" }
+          },
+          {
+            "name": "end_date",
+            "required": false,
+            "in": "query",
+            "description": "End Date range",
+            "example": "2024-01-10T04:25:00.000Z",
+            "schema": { "format": "date-time", "type": "string" }
+          },
+          {
+            "name": "workspace_id",
+            "required": false,
+            "in": "query",
+            "description": "Workspace ID (optional)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "conversation_id",
+            "required": false,
+            "in": "query",
+            "description": "Conversation ID (optional)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language (optional)",
+            "example": "english",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Type (optional)",
+            "example": "channel",
+            "schema": {
+              "enum": [
+                "channel",
+                "prerecorded",
+                "voicememo",
+                "stored",
+                "welcome"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMessagesResponse"
+                }
+              }
+            }
+          },
+          "403": { "description": "" }
+        },
+        "tags": ["Messages"]
+      }
+    },
+    "/simplified/messages/{id}/attachments/bulk/link": {
+      "post": {
+        "operationId": "addLinkAttachmentsToMessage",
+        "summary": "Add Link Attachments to a message",
+        "description": "Max number of links is **100** per API call. If you want to add more, should make another api call.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLinkAttachmentPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddAttachmentsResponse"
+                }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Messages"]
+      }
+    },
+    "/simplified/messages/conversation/{id}": {
+      "post": {
+        "operationId": "createConversationMessage",
+        "summary": "Send a Message to a Conversation",
+        "description": "In order to create a Message, you must provide **transcript** or **link** attachments.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationMessage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GetMessageResponse" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Messages"]
+      }
+    },
+    "/simplified/messages/direct": {
+      "post": {
+        "operationId": "sendDirectMessage",
+        "summary": "Send a Direct Message to a User or a Group of Users",
+        "description": "In order to create a Message, you must provide **transcript** or **link** attachments.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SendDirectMessage" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GetMessageResponse" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Messages"]
+      }
+    },
+    "/simplified/users/search": {
+      "get": {
+        "operationId": "searchUser",
+        "summary": "Search user by email or phone",
+        "description": "It's required to inform one of (**email**, **phone**)",
+        "parameters": [
+          {
+            "name": "email",
+            "required": false,
+            "in": "query",
+            "description": "Email Address",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "phone",
+            "required": false,
+            "in": "query",
+            "description": "Phone Number",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Users"]
+      }
+    },
+    "/simplified/users/{id}": {
+      "get": {
+        "operationId": "getById",
+        "summary": "Get User By ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Users"]
+      }
+    },
+    "/simplified/conversations/all": {
+      "get": {
+        "operationId": "getAllConversations",
+        "summary": "Get all user conversations (Only _id and name available",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllConversationsResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Conversations"]
+      }
+    },
+    "/simplified/workspaces/basic-info": {
+      "get": {
+        "operationId": "getAllWithBasicInfo",
+        "summary": "Get all Workspaces that user has access to with basic info",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/WorkspaceBasicInfo" }
+                }
+              }
+            }
+          },
+          "403": { "description": "" }
+        },
+        "tags": ["Workspaces"]
+      }
+    },
+    "/simplified/public/system-prompts": {
+      "get": {
+        "operationId": "getSystemAIPrompts",
+        "summary": "List of System AI Prompts",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SimplifiedAIPrompt" }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Public"]
+      }
+    },
+    "/simplified/public/responses/prompt/{prompt_id}/sample": {
+      "get": {
+        "operationId": "getAiSystemPromptResponse",
+        "summary": "Get Sample AI Responses for a System AI Prompt",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIPromptWithMessagesResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Public"]
+      }
+    },
+    "/simplified/folders": {
+      "get": {
+        "operationId": "getAllRootFolders",
+        "summary": "Get all root Folders",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "description": "Folder Type",
+            "schema": { "enum": ["voicememo", "prerecorded"], "type": "string" }
+          },
+          {
+            "name": "include_all_tree",
+            "required": false,
+            "in": "query",
+            "description": "Return all folders tree",
+            "schema": { "default": false, "type": "boolean" }
+          },
+          {
+            "name": "workspace_id",
+            "required": false,
+            "in": "query",
+            "description": "Workspace ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "sort_direction",
+            "required": false,
+            "in": "query",
+            "description": "Sort order direction",
+            "schema": {
+              "default": "ASC",
+              "enum": ["ASC", "DESC"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "in": "query",
+            "description": "Field to sort by",
+            "schema": {
+              "default": "name",
+              "enum": ["created_at", "last_updated_at", "name"],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ListFoldersResponse" }
+              }
+            }
+          },
+          "403": { "description": "" }
+        },
+        "tags": ["Folders"]
+      },
+      "post": {
+        "operationId": "createFolder",
+        "summary": "Create a new Folder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateFolderPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Folder" }
+              }
+            }
+          },
+          "400": { "description": "" },
+          "403": { "description": "" }
+        },
+        "tags": ["Folders"]
+      }
+    },
+    "/simplified/folders/count-by-workspace": {
+      "get": {
+        "operationId": "getCountsGroupedByWorkspace",
+        "summary": "Get count of all folders, messages and message_ids not in folders grouped by workspace",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "description": "Folder Type",
+            "schema": { "enum": ["voicememo", "prerecorded"], "type": "string" }
+          },
+          {
+            "name": "workspace_id",
+            "required": false,
+            "in": "query",
+            "description": "Workspace ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListCountFoldersGroupedByWorkspace"
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "" }
+        },
+        "tags": ["Folders"]
+      }
+    },
+    "/simplified/folders/{id}/messages": {
+      "get": {
+        "operationId": "getFolderMessages",
+        "summary": "Get Folder with Messages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FolderWithMessages" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Folders"]
+      }
+    },
+    "/simplified/folders/{id}": {
+      "get": {
+        "operationId": "getById",
+        "summary": "Get Folder by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "include_first_level_tree",
+            "required": false,
+            "in": "query",
+            "description": "Defines if the first level of the folder tree should be returned",
+            "schema": { "default": false, "type": "boolean" }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Direction of the results (newer or older)",
+            "schema": {
+              "default": "newer",
+              "enum": ["older", "newer"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Return only Subfolders updated based on the date and direction (must inform include_first_level_tree = true)",
+            "schema": {
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Folder" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Folders"]
+      },
+      "patch": {
+        "operationId": "updateFolderName",
+        "summary": "Update Folder Name",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFolderNamePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Folder" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" },
+          "409": { "description": "" }
+        },
+        "tags": ["Folders"]
+      },
+      "delete": {
+        "operationId": "deleteFolder",
+        "summary": "Delete Folder and all subfolders and messages in nested folders",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "" },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Folders"]
+      }
+    },
+    "/simplified/folders/message": {
+      "patch": {
+        "operationId": "addMessageToFolderOrWorkspace",
+        "summary": "Move a message into specific Folder or into a Workspace",
+        "description": "Only allowed to move messages of type: voicememo,prerecorded.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMessageToFolderPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageV2" }
+              }
+            }
+          },
+          "400": { "description": "" },
+          "403": { "description": "" },
+          "404": { "description": "" }
+        },
+        "tags": ["Folders"]
+      }
+    },
+    "/simplified/folders/{id}/move": {
+      "patch": {
+        "operationId": "moveFolder",
+        "summary": "Move a Folder into another Folder or into a Workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MoveFolderPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Folder" }
+              }
+            }
+          },
+          "403": { "description": "" },
+          "404": { "description": "" },
+          "409": { "description": "" }
+        },
+        "tags": ["Folders"]
+      }
+    }
+  },
+  "info": {
+    "title": "Carbon Voice Simplified API",
+    "description": "# Introduction\n\nThe simplified version of the Carbon Voice API is designed to enhance usability for third-party clients looking to \nseamlessly integrate with our application. By streamlining authentication methods, providing clear error handling guidelines, \nand implementing straightforward rate limiting policies, we ensure that developers can quickly and efficiently connect to our services. \nThis user-friendly approach minimizes complexity, making it easier for external applications to leverage the powerful communication \nfeatures of Carbon Voice without extensive technical overhead.\n\nThis API is designed for people who feel comfortable integrating with RESTful APIs.\n\n## Full API Version\nWe also have a full version of the API. You can find it [here](/docs).\n\n## Terminology\n \n* **Workspace**: An area that groups together people and Conversations.\n* **Conversation**: A channel of communication. A grouping of people and messages related to a given topic.\n* **Collaborators**: A group of people who are part of a Conversation.\n* **Discussion**: Any post into a conversation\n* **CarbonLink**: A link (on a website, QR code, or phone call) to start a conversation.\n\n## BaseURL\n\nThis API is served over HTTPS.\n\nAll URLs referenced in the documentation have the following base: https://api.carbonvoice.app/api/simplified.\n\n## Authentication\n\nThere are three ways to authenticate with this API:\n\n* with an OAuth2 Access Token in the Authorization request header field \n(which uses the Bearer authentication scheme to transmit the Access Token)\n* with your Client ID and Client Secret credentials\n* with a PXToken\n\nEach endpoint supports only one option.\n\n<SecurityDefinitions />\n\n## Errors\n\nWhen an error occurs, you will receive an error object. Most of these error objects \ncontain an error code and an error description so that your applications can more \nefficiently identify the problem.\n\nIf you get an 4xx HTTP response code, then you can assume that there is a bad request\nfrom your end. In this case, check the [Error Responses section](#section/Introduction/Error-Responses) for more context.\n\n5xx errors suggest a problem on our end, so in this case, check [Carbon Voice's Status](https://status.carbonvoice.app)\n to see how our systems are doing.\n\nIn any other case you can use our support options.\n\n## Error Responses\n\n`{ \"success\": false, requestId: \"uuid\", errmsg: \"error message\"`\n\n## Rate-Limiting \n\nThis API is subject to rate limiting. The limits differ per endpoint.\n\nIf you exceed the provided rate limit for a given endpoint, you will receive the 429\nToo Many Requests response with the following message: Too many requests. Check the\nX-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset headers.\n\nFor details on rate limiting, refer to Rate Limit Policy.\n\n## Support\n\nIf you have problems or need help with your case, you can always reach out to our Support.\n",
+    "version": "1.0.0",
+    "contact": {},
+    "termsOfService": "https://carbonvoice.app/terms"
+  },
+  "tags": [],
+  "servers": [{ "url": "http://localhost:8081" }],
+  "components": {
+    "securitySchemes": {
+      "cookie": { "type": "apiKey", "in": "cookie", "name": "PXToken" },
+      "oauth2": {
+        "type": "oauth2",
+        "flows": {
+          "implicit": {
+            "scopes": {
+              "admin": "Admin",
+              "identity": "View information about a user's identity",
+              "profile:read": "View a user's profile",
+              "profile:write": "Manage user's profile information: emails, phones, videocall, and more",
+              "channels:read": "View basic information about users's channels",
+              "channels:write": "Manage user's channels and create new ones on a user's behalf",
+              "channels:join": "Join user to an existing channel"
+            },
+            "authorizationUrl": "http://localhost:8081/oauth/authorize"
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AIPrompt": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "last_updated_at": { "format": "date-time", "type": "string" },
+          "creator_id": { "type": "string" },
+          "workspace_id": { "type": "string" },
+          "prompt": { "type": "string" },
+          "name": { "type": "string", "maxLength": 100 },
+          "description": { "type": "string", "maxLength": 500 },
+          "format_instructions": { "type": "string" },
+          "response_format": { "type": "string", "enum": ["text", "json"] },
+          "owner_type": {
+            "type": "string",
+            "enum": ["user", "workspace", "system"]
+          },
+          "category_number": { "type": "number", "format": "int32" },
+          "order_in_category": { "type": "number", "format": "int32" }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "last_updated_at",
+          "creator_id",
+          "prompt",
+          "name",
+          "owner_type"
+        ]
+      },
+      "CreateAIPrompt": {
+        "type": "object",
+        "properties": {
+          "workspace_id": { "type": "string" },
+          "prompt": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "format_instructions": { "type": "string" },
+          "response_format": { "type": "string", "enum": ["text", "json"] },
+          "owner_type": {
+            "type": "string",
+            "enum": ["user", "workspace", "system"]
+          }
+        },
+        "required": ["prompt", "name", "response_format", "owner_type"]
+      },
+      "ResponseByLanguage": {
+        "type": "object",
+        "properties": {
+          "language": { "type": "string", "description": "Language" },
+          "json": {
+            "type": "object",
+            "description": "Json format",
+            "additionalProperties": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "number" },
+                { "type": "boolean" },
+                { "type": "object" },
+                { "type": "array" }
+              ],
+              "items": { "type": "string" }
+            }
+          },
+          "text": { "type": "string", "description": "Text format" },
+          "html": { "type": "string", "description": "Html format" },
+          "markdown": { "type": "string", "description": "Markdown format" }
+        },
+        "required": ["language"]
+      },
+      "AIResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "prompt_id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "responses": {
+            "description": "Responses by language",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ResponseByLanguage" }
+          },
+          "message_ids": { "type": "array", "items": { "type": "string" } },
+          "workspace_id": { "type": "string" },
+          "channel_id": { "type": "string" }
+        },
+        "required": [
+          "id",
+          "creator_id",
+          "prompt_id",
+          "created_at",
+          "last_updated_at",
+          "responses",
+          "message_ids"
+        ]
+      },
+      "PromptResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "prompt_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "responses": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ResponseByLanguage" }
+          },
+          "message_ids": { "type": "array", "items": { "type": "string" } },
+          "workspace_id": { "type": "string" },
+          "channel_id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "prompt_id",
+          "creator_id",
+          "responses",
+          "message_ids",
+          "user_id",
+          "last_updated_at",
+          "created_at"
+        ]
+      },
+      "Attachment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "type": { "type": "string", "enum": ["link", "file", "location"] },
+          "link": { "type": "string" },
+          "active_begin": { "type": "string", "format": "date-time" },
+          "active_end": { "type": "string", "format": "date-time" },
+          "filename": { "type": "string" },
+          "mime_type": { "type": "string" },
+          "length_in_bytes": { "type": "number", "format": "int32" },
+          "location": { "type": "object" }
+        },
+        "required": ["id", "creator_id", "created_at", "type", "link"]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "ID" },
+          "name": { "type": "string", "description": "Name" },
+          "link": { "type": "string", "description": "Link to Message" },
+          "creator_id": { "type": "string", "description": "Creator ID" },
+          "conversation_id": {
+            "type": "string",
+            "description": "Conversation ID"
+          },
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "deleted_at": { "type": "string", "format": "date-time" },
+          "duration_ms": {
+            "type": "number",
+            "description": "The length of the message in milliseconds",
+            "format": "int32"
+          },
+          "audio_url": {
+            "type": "string",
+            "description": "The URL for the message audio file"
+          },
+          "audio_stream_url": {
+            "type": "string",
+            "description": "The URL for the message audio stream"
+          },
+          "transcript": {
+            "type": "string",
+            "description": "Transcript of the message"
+          },
+          "ai_summary": {
+            "type": "string",
+            "description": "AI Summary generated of the message"
+          },
+          "waveform_url": {
+            "type": "string",
+            "description": "The URL for the message waveform image"
+          },
+          "reply_count": {
+            "type": "number",
+            "description": "The number of replies to the message",
+            "format": "int32"
+          },
+          "parent_message_id": {
+            "type": "string",
+            "description": "Parent Message unique ID (only available for replies)"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language for the message (Transcript, AI summary, Audio...)",
+            "default": "english"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "paused",
+              "processing",
+              "scheduled",
+              "active",
+              "deleted",
+              "account-deleted",
+              "initializing",
+              "inprogress",
+              "canceled",
+              "failed"
+            ],
+            "description": "Current status of the Message"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "channel",
+              "prerecorded",
+              "voicememo",
+              "stored",
+              "welcome"
+            ],
+            "description": "Type of the Message"
+          },
+          "attachments": {
+            "description": "List of attachments for the message",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Attachment" }
+          },
+          "share_link_id": {
+            "type": "string",
+            "description": "Share Link ID to a message"
+          }
+        },
+        "required": [
+          "id",
+          "link",
+          "creator_id",
+          "created_at",
+          "last_updated_at",
+          "duration_ms",
+          "reply_count",
+          "status",
+          "type"
+        ]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": " ID" },
+          "link": { "type": "string", "description": "Link to User" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "first_name": { "type": "string", "description": "First Name" },
+          "last_name": { "type": "string", "description": "Last Name" },
+          "full_name": { "type": "string", "description": "Full Name" },
+          "image_url": { "type": "string", "description": "Image Url" },
+          "emails": {
+            "description": "List of emails (First one is the primary)",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "phones": {
+            "description": "List of phones (First one is the primary)",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "languages": {
+            "description": "List of languages (First one is the primary)",
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["id", "link", "created_at", "first_name", "full_name"]
+      },
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "total_duration_milliseconds": {
+            "type": "number",
+            "description": "Total duration in milliseconds",
+            "format": "int64"
+          },
+          "total_heard_milliseconds": {
+            "type": "number",
+            "description": "Total heard in milliseconds",
+            "format": "int64"
+          },
+          "total_engaged_percentage": {
+            "type": "number",
+            "description": "Total engaged percentage",
+            "format": "int64"
+          },
+          "total_messages_posted": {
+            "type": "number",
+            "description": "Total messages posted",
+            "format": "int64"
+          },
+          "total_users": {
+            "type": "number",
+            "format": "int64",
+            "description": "Total users"
+          }
+        },
+        "required": [
+          "total_duration_milliseconds",
+          "total_heard_milliseconds",
+          "total_engaged_percentage",
+          "total_messages_posted",
+          "total_users"
+        ]
+      },
+      "UserStats": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "User unique ID" },
+          "total_messages_posted": {
+            "type": "number",
+            "description": "Total messages posted",
+            "format": "int64"
+          },
+          "total_sent_milliseconds": {
+            "type": "number",
+            "description": "Total sent in milliseconds",
+            "format": "int64"
+          },
+          "total_heard_milliseconds": {
+            "type": "number",
+            "description": "Total heard in milliseconds",
+            "format": "int64"
+          },
+          "total_engaged_percentage": {
+            "type": "number",
+            "description": "Total engaged percentage",
+            "format": "int64"
+          },
+          "total_heard_messages": {
+            "type": "number",
+            "format": "int64",
+            "description": "Total heard messages"
+          },
+          "total_unheard_messages": {
+            "type": "number",
+            "format": "int64",
+            "description": "Total unheard messages"
+          }
+        },
+        "required": [
+          "user_id",
+          "total_messages_posted",
+          "total_sent_milliseconds",
+          "total_heard_milliseconds",
+          "total_engaged_percentage",
+          "total_heard_messages",
+          "total_unheard_messages"
+        ]
+      },
+      "AsyncConversationStats": {
+        "type": "object",
+        "properties": {
+          "stats": {
+            "description": "Conversation stats",
+            "allOf": [{ "$ref": "#/components/schemas/Stats" }]
+          },
+          "user_stats": {
+            "description": "User stats",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UserStats" }
+          }
+        },
+        "required": ["stats", "user_stats"]
+      },
+      "Conversation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "ID" },
+          "link": { "type": "string", "description": "Link to Conversation" },
+          "name": { "type": "string", "description": "Name" },
+          "description": { "type": "string", "description": "Description" },
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "workspace_name": {
+            "type": "string",
+            "description": "Workspace Name"
+          },
+          "workspace_image_url": {
+            "type": "string",
+            "description": "Workspace Image Url"
+          },
+          "owner_id": { "type": "string", "description": "owner unique ID" },
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "enum": [
+              "directMessage",
+              "customerConversation",
+              "namedConversation",
+              "asyncMeeting"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Visibility",
+            "enum": ["private", "workspace", "public"]
+          },
+          "total_messages": {
+            "type": "number",
+            "description": "Total Messages",
+            "format": "int32"
+          },
+          "total_duration_ms": {
+            "type": "number",
+            "description": "Total duration in milliseconds",
+            "format": "int32"
+          },
+          "image_url": { "type": "string", "description": "Image Url" },
+          "is_private": {
+            "type": "boolean",
+            "description": "Is Private Conversation"
+          },
+          "is_async": {
+            "type": "boolean",
+            "description": "Is Async Conversation"
+          },
+          "async_stats": {
+            "description": "Async Meeting Stats",
+            "allOf": [{ "$ref": "#/components/schemas/AsyncConversationStats" }]
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "deleted_at": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "link",
+          "name",
+          "workspace_id",
+          "workspace_name",
+          "owner_id",
+          "type",
+          "visibility",
+          "total_messages",
+          "total_duration_ms",
+          "is_private",
+          "is_async",
+          "created_at",
+          "last_updated_at"
+        ]
+      },
+      "Label": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "ID" },
+          "name": { "type": "string", "description": "Name" },
+          "behavior": {
+            "type": "string",
+            "description": "Behavior",
+            "enum": ["removeOnListenStart", "removeWhenHeard", "persistent"]
+          },
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "enum": ["personal", "workspace", "system", "reaction"]
+          },
+          "creator_guid": { "type": "string", "description": "Creator ID" },
+          "space_guid": { "type": "string", "description": "Workspace ID" },
+          "image_url": { "type": "string", "description": "Image URL" },
+          "automatic_playlist": {
+            "type": "boolean",
+            "description": "Automatic Playlist"
+          },
+          "sort_order": {
+            "type": "number",
+            "description": "Sort Order",
+            "format": "int32"
+          }
+        },
+        "required": ["id", "name", "behavior", "type", "creator_guid"]
+      },
+      "GetMessageResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "$ref": "#/components/schemas/Message" },
+          "creator": { "$ref": "#/components/schemas/User" },
+          "conversation": { "$ref": "#/components/schemas/Conversation" },
+          "labels": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Label" }
+          }
+        },
+        "required": ["message"]
+      },
+      "AIPromptWithMessagesResult": {
+        "type": "object",
+        "properties": {
+          "ai_response": { "$ref": "#/components/schemas/PromptResponse" },
+          "messages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GetMessageResponse" }
+          }
+        },
+        "required": ["ai_response", "messages"]
+      },
+      "GetTenRecentAIPromptResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AIPromptWithMessagesResult"
+            }
+          }
+        }
+      },
+      "CreateShareLinkAIResponse": {
+        "type": "object",
+        "properties": {
+          "prompt_id": { "type": "string" },
+          "share_link_ids": { "type": "array", "items": { "type": "string" } },
+          "language": { "type": "string", "example": "english" }
+        },
+        "required": ["prompt_id", "share_link_ids"]
+      },
+      "AIShareLinkResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "prompt_id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "responses": {
+            "description": "Responses by language",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ResponseByLanguage" }
+          },
+          "share_link_ids": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": [
+          "id",
+          "creator_id",
+          "prompt_id",
+          "created_at",
+          "last_updated_at",
+          "responses",
+          "share_link_ids"
+        ]
+      },
+      "CreateAIResponse": {
+        "type": "object",
+        "properties": {
+          "prompt_id": { "type": "string" },
+          "message_ids": { "type": "array", "items": { "type": "string" } },
+          "channel_id": { "type": "string" },
+          "workspace_id": { "type": "string" },
+          "language": {
+            "type": "string",
+            "description": "The language of the response. Defaults to original message."
+          }
+        },
+        "required": ["prompt_id", "message_ids"]
+      },
+      "App": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "description": "The primary key of the resource."
+          },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "client_id": { "type": "string" },
+          "client_secret": { "type": "string" },
+          "access_token_lifetime_seconds": {
+            "type": "number",
+            "description": "Access token lifetime in seconds"
+          },
+          "refresh_token_lifetime_seconds": {
+            "type": "number",
+            "description": "Refresh token lifetime in seconds"
+          },
+          "allowed_callback_urls": {
+            "type": "string",
+            "description": "Allowed callback URLs (comma separated list)"
+          },
+          "webhooks_url": {
+            "type": "string",
+            "description": "Webhook URL to send the data (comma separated list)"
+          },
+          "webhooks_authentication_header": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "example": {
+              "x-api-key": "kNp7vXmL9RqWcYtH2sBnE4aD8fGjK3hU5xZwQ6yVcM1iPuA9nTbS7vFrL4mCxJoN"
+            },
+            "description": "Authentication header configuration for webhooks. Key-value pairs where both key and value are strings."
+          },
+          "allowed_logout_urls": {
+            "type": "string",
+            "description": "Allowed logout URLs (comma separated list)"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Created at"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Updated at"
+          },
+          "deleted_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Deleted at"
+          },
+          "webhooks_url_mode": {
+            "type": "string",
+            "enum": ["one_per_client", "one_per_subscription"],
+            "description": "Webhook URL mode"
+          },
+          "send_invalid_refresh_token_webhook_notification": {
+            "type": "boolean",
+            "description": "Send invalid refresh token webhook notification"
+          },
+          "send_webhook_when_invalid_access_or_refresh_token": {
+            "type": "boolean",
+            "description": "Send webhook when invalid access or refresh token"
+          },
+          "owner_id": { "type": "string" },
+          "user_is_subscribed_with_valid_tokens": {
+            "type": "boolean",
+            "description": "Indicates whether the user is subscribed to the app and has valid authentication tokens (access or refresh)."
+          },
+          "image_url": { "type": "string", "description": "Image URL" }
+        },
+        "required": [
+          "id",
+          "name",
+          "client_id",
+          "created_at",
+          "updated_at",
+          "webhooks_url_mode",
+          "user_is_subscribed_with_valid_tokens"
+        ]
+      },
+      "SubscriptionFilter": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "What is the key to filter the data before sending to the webhook",
+            "example": "name"
+          },
+          "value": {
+            "description": "What is the value to filter the data (string or number)",
+            "example": "John",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          },
+          "operator": {
+            "type": "string",
+            "description": "What is the operator to filter the data",
+            "enum": ["eq", "ne", "in"],
+            "example": "eq",
+            "default": "eq"
+          }
+        },
+        "required": ["key", "value", "operator"]
+      },
+      "SubscriptionAction": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "description": "What is the action to perform",
+            "example": "run_ai_prompt",
+            "enum": ["run_ai_prompt"]
+          },
+          "entity_type": {
+            "type": "string",
+            "description": "What is the entity_type to perform the action on (required when entity_id is provided)",
+            "example": "ai_prompt",
+            "enum": ["ai_prompt"]
+          },
+          "entity_id": {
+            "type": "string",
+            "description": "What is the entity_id to perform the action on (required when entity_type is provided)"
+          }
+        },
+        "required": ["action_id"]
+      },
+      "SubscribeUserPayload": {
+        "type": "object",
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "default": [
+              "message.initializing",
+              "message.started",
+              "message.paused",
+              "message.resumed",
+              "message.offline",
+              "message.processing",
+              "message.finished",
+              "message.deleted",
+              "message.discussion-notes.added",
+              "message.label.added",
+              "message.posted.to.channel",
+              "message.voicememo.created",
+              "channel.created",
+              "channel.deleted",
+              "channel.user.joined",
+              "channel.users.added",
+              "channel.user.left",
+              "channel.user.removed",
+              "channel.async-check.mid",
+              "channel.async-check.ending",
+              "channel.async.ended",
+              "channel.async.extended",
+              "channel.async.shortened",
+              "channel.ai-summary.generated",
+              "workspace.user.joined",
+              "workspace.user.added",
+              "workspace.user.left",
+              "workspace.user.removed",
+              "workspace.findable-channel.created",
+              "access_token.expired",
+              "refresh_token.expired",
+              "ai.prompt.response.generated"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "message.initializing",
+                "message.started",
+                "message.paused",
+                "message.resumed",
+                "message.offline",
+                "message.processing",
+                "message.finished",
+                "message.deleted",
+                "message.discussion-notes.added",
+                "message.label.added",
+                "message.posted.to.channel",
+                "message.voicememo.created",
+                "channel.created",
+                "channel.deleted",
+                "channel.user.joined",
+                "channel.users.added",
+                "channel.user.left",
+                "channel.user.removed",
+                "channel.async-check.mid",
+                "channel.async-check.ending",
+                "channel.async.ended",
+                "channel.async.extended",
+                "channel.async.shortened",
+                "channel.ai-summary.generated",
+                "workspace.user.joined",
+                "workspace.user.added",
+                "workspace.user.left",
+                "workspace.user.removed",
+                "workspace.findable-channel.created",
+                "access_token.expired",
+                "refresh_token.expired",
+                "ai.prompt.response.generated"
+              ]
+            }
+          },
+          "webhookURL": {
+            "type": "string",
+            "description": "Webhook URL to send the data"
+          },
+          "subscription_filters": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SubscriptionFilter" }
+          },
+          "subscription_actions": {
+            "description": "Actions are used only for internal apps. (Not allowed to external apps)",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SubscriptionAction" }
+          }
+        }
+      },
+      "SubscribedUser": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "_id",
+            "description": "The primary key of the resource."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "The date and time at which the resource was created."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "The date and time at which the resource was last updated."
+          },
+          "id": {
+            "type": "string",
+            "title": "id",
+            "description": "The primary key of the resource."
+          },
+          "client_id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "subscriptions": {
+            "type": "array",
+            "example": [
+              "message.initializing",
+              "message.started",
+              "message.paused",
+              "message.resumed",
+              "message.offline",
+              "message.processing",
+              "message.finished",
+              "message.deleted",
+              "message.discussion-notes.added",
+              "message.label.added",
+              "message.posted.to.channel",
+              "message.voicememo.created",
+              "channel.created",
+              "channel.deleted",
+              "channel.user.joined",
+              "channel.users.added",
+              "channel.user.left",
+              "channel.user.removed",
+              "channel.async-check.mid",
+              "channel.async-check.ending",
+              "channel.async.ended",
+              "channel.async.extended",
+              "channel.async.shortened",
+              "channel.ai-summary.generated",
+              "workspace.user.joined",
+              "workspace.user.added",
+              "workspace.user.left",
+              "workspace.user.removed",
+              "workspace.findable-channel.created",
+              "access_token.expired",
+              "refresh_token.expired",
+              "ai.prompt.response.generated"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "message.initializing",
+                "message.started",
+                "message.paused",
+                "message.resumed",
+                "message.offline",
+                "message.processing",
+                "message.finished",
+                "message.deleted",
+                "message.discussion-notes.added",
+                "message.label.added",
+                "message.posted.to.channel",
+                "message.voicememo.created",
+                "channel.created",
+                "channel.deleted",
+                "channel.user.joined",
+                "channel.users.added",
+                "channel.user.left",
+                "channel.user.removed",
+                "channel.async-check.mid",
+                "channel.async-check.ending",
+                "channel.async.ended",
+                "channel.async.extended",
+                "channel.async.shortened",
+                "channel.ai-summary.generated",
+                "workspace.user.joined",
+                "workspace.user.added",
+                "workspace.user.left",
+                "workspace.user.removed",
+                "workspace.findable-channel.created",
+                "access_token.expired",
+                "refresh_token.expired",
+                "ai.prompt.response.generated"
+              ]
+            }
+          },
+          "webhookURL": {
+            "type": "string",
+            "description": "Webhook URL to send the data"
+          },
+          "subscription_filters": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SubscriptionFilter" }
+          },
+          "subscription_actions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SubscriptionAction" }
+          }
+        },
+        "required": [
+          "_id",
+          "created_at",
+          "updated_at",
+          "id",
+          "client_id",
+          "user_id",
+          "subscriptions"
+        ]
+      },
+      "Voice": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["polly", "elevenlabs", "google", "openai"]
+          },
+          "gender": { "type": "string", "enum": ["F", "M"] },
+          "quality": { "type": "string", "enum": ["high", "medium", "low"] },
+          "language_code": { "type": "string" }
+        },
+        "required": ["id", "name", "type", "gender", "quality", "language_code"]
+      },
+      "Language": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "supported": { "type": "boolean" },
+          "voices": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Voice" }
+          }
+        },
+        "required": ["id", "name", "code", "supported", "voices"]
+      },
+      "GetTenRecentMessagesResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "description": "List of 10 recent messages",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GetMessageResponse" }
+          }
+        }
+      },
+      "ListMessagesFilter": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Start Date range",
+            "example": "2024-01-01T04:25:00.000Z"
+          },
+          "end_date": {
+            "format": "date-time",
+            "type": "string",
+            "description": "End Date range",
+            "example": "2024-01-10T04:25:00.000Z"
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Workspace ID (optional)"
+          },
+          "conversation_id": {
+            "type": "string",
+            "description": "Conversation ID (optional)"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language (optional)",
+            "example": "english"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type (optional)",
+            "enum": [
+              "channel",
+              "prerecorded",
+              "voicememo",
+              "stored",
+              "welcome"
+            ],
+            "example": "channel"
+          }
+        }
+      },
+      "ListMessagesResponse": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "default": 1,
+            "minimum": 1,
+            "format": "int32",
+            "example": 1
+          },
+          "size": {
+            "type": "number",
+            "default": 10,
+            "maximum": 50,
+            "minimum": 1,
+            "description": "Max number of results per page is: **50**",
+            "example": 10,
+            "format": "int32"
+          },
+          "sort_direction": {
+            "type": "string",
+            "enum": ["ASC", "DESC"],
+            "default": "DESC",
+            "description": "The field used to sort results is **Creation Date**"
+          },
+          "total": {
+            "type": "number",
+            "description": "Total number of records by applied filters (if any)",
+            "example": 1,
+            "format": "int32"
+          },
+          "results_count": {
+            "type": "number",
+            "description": "Results count (paginated results)",
+            "example": 1,
+            "format": "int32"
+          },
+          "has_next_page": {
+            "type": "boolean",
+            "description": "If there is more data available (omitted by pagination)"
+          },
+          "filters": {
+            "description": "Filters",
+            "allOf": [{ "$ref": "#/components/schemas/ListMessagesFilter" }]
+          },
+          "results": {
+            "description": "List of Messages",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Message" }
+          }
+        },
+        "required": ["total", "results_count", "has_next_page", "results"]
+      },
+      "AddLinkAttachmentPayload": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "description": "Array of links to be attached to the message",
+            "example": [
+              "https://pxassets.s3.us-east-2.amazonaws.com/images/v2/logo.png",
+              "https://pxassets.s3.us-east-2.amazonaws.com/images/v2/Personal+CarbonLink.svg",
+              "https://www.youtube.com/watch?v=36Tn5cektlg"
+            ],
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["links"]
+      },
+      "AddAttachmentsResponse": {
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "description": "List of attachments added to the message",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Attachment" }
+          }
+        },
+        "required": ["attachments"]
+      },
+      "CreateConversationMessage": {
+        "type": "object",
+        "properties": {
+          "transcript": {
+            "type": "string",
+            "description": "The Message transcript will be used to generate audio using text-to-speech"
+          },
+          "links": {
+            "description": "Array of links to be attached to the message",
+            "example": [
+              "https://pxassets.s3.us-east-2.amazonaws.com/images/v2/logo.png",
+              "https://pxassets.s3.us-east-2.amazonaws.com/images/v2/Personal+CarbonLink.svg",
+              "https://www.youtube.com/watch?v=36Tn5cektlg"
+            ],
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "from_message_type": {
+            "type": "string",
+            "description": "From Message type",
+            "enum": ["PreRecorded", "NewMessage", "Forward"],
+            "example": "PreRecorded",
+            "default": "NewMessage"
+          },
+          "from_message_id": {
+            "type": "string",
+            "description": "Message ID to be used as a base for the new message. (Optional only when from_message_type is NewMessage)"
+          }
+        }
+      },
+      "ToRecipient": {
+        "type": "object",
+        "properties": {
+          "user_ids": {
+            "description": "Array of user IDs to send the message to",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "emails": {
+            "description": "Array of email addresses to send the message to",
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "SendDirectMessage": {
+        "type": "object",
+        "properties": {
+          "to": { "$ref": "#/components/schemas/ToRecipient" },
+          "workspace_id": {
+            "type": "string",
+            "description": "The workspace ID to send the message to",
+            "default": "personal"
+          },
+          "transcript": {
+            "type": "string",
+            "description": "The Message transcript will be used to generate audio using text-to-speech"
+          },
+          "links": {
+            "description": "Array of links to be attached to the message",
+            "example": [
+              "https://pxassets.s3.us-east-2.amazonaws.com/images/v2/logo.png",
+              "https://pxassets.s3.us-east-2.amazonaws.com/images/v2/Personal+CarbonLink.svg",
+              "https://www.youtube.com/watch?v=36Tn5cektlg"
+            ],
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "from_message_type": {
+            "type": "string",
+            "description": "From Message type",
+            "enum": ["PreRecorded", "NewMessage", "Forward"],
+            "example": "PreRecorded",
+            "default": "NewMessage"
+          },
+          "from_message_id": {
+            "type": "string",
+            "description": "Message ID to be used as a base for the new message. (Optional only when from_message_type is NewMessage)"
+          }
+        },
+        "required": ["to"]
+      },
+      "ConversationResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "ID" },
+          "name": { "type": "string", "description": "Name" },
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "directMessage",
+              "customerConversation",
+              "namedConversation",
+              "asyncMeeting"
+            ],
+            "description": "Type"
+          }
+        },
+        "required": ["id", "name", "workspace_id", "type"]
+      },
+      "AllConversationsResponse": {
+        "type": "object",
+        "properties": {
+          "results_count": {
+            "type": "number",
+            "description": "Results count",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ConversationResponse" }
+          }
+        },
+        "required": ["results_count"]
+      },
+      "WorkspaceBasicInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" }
+        },
+        "required": ["id", "name"]
+      },
+      "SimplifiedAIPrompt": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Prompt ID" },
+          "name": { "type": "string", "description": "Prompt Name" }
+        },
+        "required": ["id", "name"]
+      },
+      "AIPromptWithMessagesResponse": {
+        "type": "object",
+        "properties": {
+          "ai_response": { "$ref": "#/components/schemas/PromptResponse" },
+          "messages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GetMessageResponse" }
+          }
+        },
+        "required": ["ai_response", "messages"]
+      },
+      "SubFolder": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Unique Identifier" },
+          "name": { "type": "string", "description": "Name" },
+          "creator_id": { "type": "string", "description": "Creator" },
+          "parent_folder_id": {
+            "type": "string",
+            "description": "Parent Folder ID"
+          },
+          "subfolder_ids": {
+            "description": "List of Subfolder IDs",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "message_ids": {
+            "description": "List of Message IDs",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "path": {
+            "description": "Ordered List of all folders in the path from root to this folder",
+            "example": [
+              "Parent Folder ID",
+              "Parent Parent Folder ID",
+              "Root Folder ID"
+            ],
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "total_nested_folders_count": {
+            "type": "number",
+            "description": "Total count for all Nested Folders",
+            "default": 0,
+            "format": "int32"
+          },
+          "total_nested_messages_count": {
+            "type": "number",
+            "description": "Total count for all Nested Messages",
+            "default": 0,
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "description": "Folder type",
+            "enum": ["voicememo", "prerecorded"]
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Workspace ID where folder belongs to"
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "deleted_at": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "name",
+          "creator_id",
+          "total_nested_folders_count",
+          "total_nested_messages_count",
+          "type",
+          "workspace_id",
+          "created_at",
+          "last_updated_at"
+        ]
+      },
+      "Folder": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Unique Identifier" },
+          "name": { "type": "string", "description": "Name" },
+          "creator_id": { "type": "string", "description": "Creator" },
+          "parent_folder_id": {
+            "type": "string",
+            "description": "Parent Folder ID"
+          },
+          "subfolder_ids": {
+            "description": "List of Subfolder IDs",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "message_ids": {
+            "description": "List of Message IDs",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "path": {
+            "description": "Ordered List of all folders in the path from root to this folder",
+            "example": [
+              "Parent Folder ID",
+              "Parent Parent Folder ID",
+              "Root Folder ID"
+            ],
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "total_nested_folders_count": {
+            "type": "number",
+            "description": "Total count for all Nested Folders",
+            "default": 0,
+            "format": "int32"
+          },
+          "total_nested_messages_count": {
+            "type": "number",
+            "description": "Total count for all Nested Messages",
+            "default": 0,
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "description": "Folder type",
+            "enum": ["voicememo", "prerecorded"]
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Workspace ID where folder belongs to"
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "last_updated_at": { "type": "string", "format": "date-time" },
+          "deleted_at": { "type": "string", "format": "date-time" },
+          "subfolders": {
+            "description": "Subfolders (only one deep level)",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SubFolder" }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "creator_id",
+          "total_nested_folders_count",
+          "total_nested_messages_count",
+          "type",
+          "workspace_id",
+          "created_at",
+          "last_updated_at"
+        ]
+      },
+      "ListFoldersResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["voicememo", "prerecorded"],
+            "description": "Folder Type"
+          },
+          "include_all_tree": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return all folders tree"
+          },
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "sort_direction": {
+            "type": "string",
+            "enum": ["ASC", "DESC"],
+            "default": "ASC",
+            "description": "Sort order direction"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": ["created_at", "last_updated_at", "name"],
+            "default": "name",
+            "description": "Field to sort by"
+          },
+          "results": {
+            "description": "List of Folders",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Folder" }
+          }
+        },
+        "required": ["type"]
+      },
+      "ListCountFoldersGroupedByWorkspace": {
+        "type": "object",
+        "properties": {
+          "workspace_id": { "type": "string" },
+          "total_folders": { "type": "number", "format": "int32" },
+          "total_messages": { "type": "number", "format": "int32" },
+          "message_ids_without_folder": {
+            "description": "List of Messages without Folder",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "root_folders": {
+            "description": "List of Root Folders",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Folder" }
+          },
+          "last_updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "workspace_id",
+          "total_folders",
+          "total_messages",
+          "last_updated_at"
+        ]
+      },
+      "CreateFolderPayload": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Name of the Folder" },
+          "type": {
+            "type": "string",
+            "enum": ["voicememo", "prerecorded"],
+            "description": "Folder type"
+          },
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "parent_folder_id": {
+            "type": "string",
+            "description": "Parent Folder ID"
+          }
+        },
+        "required": ["name", "type", "workspace_id"]
+      },
+      "UtmData": {
+        "type": "object",
+        "properties": {
+          "utm_source": { "type": "string" },
+          "utm_medium": { "type": "string" },
+          "utm_campaign": { "type": "string" },
+          "utm_term": { "type": "string" },
+          "utm_content": { "type": "string" }
+        }
+      },
+      "UserReaction": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string" },
+          "reaction_id": { "type": "string" }
+        },
+        "required": ["user_id", "reaction_id"]
+      },
+      "ReactionSummary": {
+        "type": "object",
+        "properties": {
+          "reaction_counts": {
+            "type": "object",
+            "additionalProperties": { "type": "number" }
+          },
+          "top_user_reactions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UserReaction" }
+          }
+        },
+        "required": ["reaction_counts", "top_user_reactions"]
+      },
+      "AudioModelV2": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "url": { "type": "string" },
+          "extension": { "type": "string", "nullable": true },
+          "streaming": { "type": "boolean" },
+          "language": { "type": "string" },
+          "duration_ms": { "type": "number" },
+          "waveform_percentages": {
+            "type": "array",
+            "items": { "type": "number" }
+          },
+          "is_original_audio": { "type": "boolean" }
+        },
+        "required": [
+          "_id",
+          "url",
+          "extension",
+          "streaming",
+          "language",
+          "duration_ms",
+          "waveform_percentages",
+          "is_original_audio"
+        ]
+      },
+      "TimedText": {
+        "type": "object",
+        "properties": {
+          "t": { "type": "string", "description": "The text" },
+          "s": {
+            "type": "number",
+            "description": "The start time in ms",
+            "format": "int64"
+          },
+          "e": {
+            "type": "number",
+            "description": "The end time in ms",
+            "format": "int64"
+          }
+        },
+        "required": ["t", "s", "e"]
+      },
+      "TextModel": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "transcript",
+              "transcript_with_timecode",
+              "summary",
+              "topic",
+              "bullet_list"
+            ]
+          },
+          "audio_id": { "type": "string", "nullable": true },
+          "language_id": { "type": "string" },
+          "value": { "type": "string" },
+          "timecodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TimedText" }
+          }
+        },
+        "required": ["type", "audio_id", "language_id", "value", "timecodes"]
+      },
+      "UsersNotAllowedReceiveNotifications": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string" },
+          "phone": { "type": "string" }
+        },
+        "required": ["user_id", "phone"]
+      },
+      "UsersNotAllowedReceiveNotificationsV2": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string" },
+          "phone": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true }
+        },
+        "required": ["user_id"]
+      },
+      "MessageV2": {
+        "type": "object",
+        "properties": {
+          "message_id": { "type": "string" },
+          "creator_id": { "type": "string" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "deleted_at": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "last_updated_at": { "format": "date-time", "type": "string" },
+          "workspace_ids": { "type": "array", "items": { "type": "string" } },
+          "channel_ids": { "type": "array", "items": { "type": "string" } },
+          "parent_message_id": { "type": "string", "nullable": true },
+          "heard_ms": {
+            "type": "number",
+            "nullable": true,
+            "description": "The number of ms of audio listened to by the user requesting the message",
+            "format": "int64"
+          },
+          "utm_data": {
+            "nullable": true,
+            "allOf": [{ "$ref": "#/components/schemas/UtmData" }]
+          },
+          "attachments": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Attachment" }
+          },
+          "notes": { "type": "string" },
+          "notify": {
+            "type": "boolean",
+            "description": "Has the logged in user cleared the notification for this message"
+          },
+          "last_heard_update": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": false,
+            "description": "Last time we listened/updated notify bit"
+          },
+          "reaction_summary": {
+            "$ref": "#/components/schemas/ReactionSummary"
+          },
+          "name": { "type": "string", "nullable": true },
+          "is_text_message": { "type": "boolean" },
+          "status": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "paused",
+              "processing",
+              "scheduled",
+              "active",
+              "deleted",
+              "account-deleted",
+              "initializing",
+              "inprogress",
+              "canceled",
+              "failed"
+            ]
+          },
+          "label_ids": { "type": "array", "items": { "type": "string" } },
+          "audio_models": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AudioModelV2" }
+          },
+          "text_models": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TextModel" }
+          },
+          "source_message_id": { "type": "string", "nullable": true },
+          "cache_key": { "type": "string" },
+          "audio_delivery": {
+            "type": "string",
+            "enum": ["recording", "streaming"]
+          },
+          "users_not_allowed_to_receive_notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsersNotAllowedReceiveNotifications"
+            }
+          },
+          "users_not_allowed_to_receive_notifications_v2": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsersNotAllowedReceiveNotificationsV2"
+            }
+          },
+          "duration_ms": {
+            "type": "number",
+            "description": "The length of the message in milliseconds",
+            "format": "int32"
+          },
+          "total_heard_ms": {
+            "type": "number",
+            "description": "The number of ms of audio listened to by all users",
+            "format": "int64"
+          },
+          "notified_users": {
+            "type": "number",
+            "description": "Then number of users who have a notification for this message and have not listened to the audio.",
+            "format": "int32"
+          },
+          "users_caught_up": {
+            "type": "string",
+            "enum": ["all", "some", "none"],
+            "description": "The number of users that listened to the audio or removed the notification"
+          },
+          "forward_id": {
+            "type": "string",
+            "description": "The ID of a forwarded message (Deprecated, for new implementations we should start using share_link_id",
+            "nullable": true,
+            "deprecated": true
+          },
+          "share_link_id": {
+            "type": "string",
+            "description": "The ID of a Share Link to a message",
+            "nullable": true
+          },
+          "stream_key": {
+            "type": "string",
+            "description": "The stream key used to add audio to the message",
+            "nullable": true
+          },
+          "socket_disconnects_while_streaming": {
+            "type": "number",
+            "description": "The number of times the socket disconnected while the creator was sending audio",
+            "nullable": false,
+            "default": 0,
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "description": "Message type",
+            "enum": [
+              "channel",
+              "prerecorded",
+              "voicememo",
+              "stored",
+              "welcome"
+            ],
+            "nullable": true
+          },
+          "channel_sequence": {
+            "type": "number",
+            "description": "The sequencial id of the message within the channel",
+            "nullable": false,
+            "format": "int32"
+          },
+          "last_heard_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "The last time anyone listened or cleared notified on this message",
+            "nullable": false
+          },
+          "folder_id": {
+            "type": "string",
+            "description": "Folder ID, only present when the message type is one of: voicememo,prerecorded",
+            "nullable": true
+          }
+        },
+        "required": [
+          "message_id",
+          "creator_id",
+          "created_at",
+          "last_updated_at",
+          "workspace_ids",
+          "channel_ids",
+          "attachments",
+          "notes",
+          "notify",
+          "last_heard_update",
+          "reaction_summary",
+          "is_text_message",
+          "status",
+          "label_ids",
+          "audio_models",
+          "text_models",
+          "source_message_id",
+          "cache_key",
+          "audio_delivery",
+          "duration_ms",
+          "total_heard_ms",
+          "notified_users",
+          "users_caught_up",
+          "socket_disconnects_while_streaming",
+          "type",
+          "channel_sequence",
+          "last_heard_at"
+        ]
+      },
+      "FolderWithMessages": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "Folder",
+            "allOf": [{ "$ref": "#/components/schemas/Folder" }]
+          },
+          "messages": {
+            "description": "List of Messages",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MessageV2" }
+          }
+        },
+        "required": ["folder"]
+      },
+      "AddMessageToFolderPayload": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "description": "Only allowed to add messages of type: voicememo,prerecorded"
+          },
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "folder_id": { "type": "string", "description": "Folder ID" }
+        },
+        "required": ["message_id"]
+      },
+      "UpdateFolderNamePayload": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "New Folder Name" }
+        },
+        "required": ["name"]
+      },
+      "MoveFolderPayload": {
+        "type": "object",
+        "properties": {
+          "workspace_id": { "type": "string", "description": "Workspace ID" },
+          "folder_id": { "type": "string", "description": "Folder ID" }
+        }
+      }
+    }
+  }
+}

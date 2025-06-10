@@ -1,0 +1,32 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Here is your conversation:"
+    },
+    {
+      "type": "json",
+      "data": {
+        "id": "abc123",
+        "title": "Customer Support",
+        "participants": ["Alice", "Bob"]
+      }
+    },
+    {
+      "type": "image",
+      "image_url": "https://example.com/avatar.png",
+      "alt_text": "Avatar of conversation participant"
+    },
+    {
+      "type": "audio",
+      "audio_url": "https://example.com/voice.mp3",
+      "transcript": "Hey team, let’s meet at 10am tomorrow."
+    },
+    {
+      "type": "file",
+      "file_url": "https://example.com/chat.pdf",
+      "name": "Chat Export",
+      "mime_type": "application/pdf"
+    }
+  ]
+}
