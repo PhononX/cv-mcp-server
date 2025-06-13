@@ -118,449 +118,622 @@ import type {
   UpdateFolderNamePayload,
   User,
   WorkspaceBasicInfo,
-} from './zod-schemas';
+} from './models';
 
 import { mutator } from '../utils/axios-instance';
-export const aIPromptControllerGetPrompts = (
-  params?: AIPromptControllerGetPromptsParams,
-) => {
-  return mutator<AIPrompt[]>({ url: `/prompts`, method: 'GET', params });
-};
 
-export const aIPromptControllerCreatePrompt = (
-  createAIPrompt: CreateAIPrompt,
-) => {
-  return mutator<AIPrompt>({
-    url: `/prompts`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: createAIPrompt,
-  });
-};
+export const getCarbonVoiceSimplifiedAPI = () => {
+  const aIPromptControllerGetPrompts = (
+    params?: AIPromptControllerGetPromptsParams,
+  ) => {
+    return mutator<AIPrompt[]>({ url: `/prompts`, method: 'GET', params });
+  };
 
-export const aIPromptControllerDeletePrompt = (id: string) => {
-  return mutator<boolean>({ url: `/prompts/${id}`, method: 'DELETE' });
-};
+  const aIPromptControllerCreatePrompt = (createAIPrompt: CreateAIPrompt) => {
+    return mutator<AIPrompt>({
+      url: `/prompts`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: createAIPrompt,
+    });
+  };
 
-export const aIResponseControllerGetAllResponses = (
-  params?: AIResponseControllerGetAllResponsesParams,
-) => {
-  return mutator<AIResponse[]>({ url: `/responses`, method: 'GET', params });
-};
+  const aIPromptControllerDeletePrompt = (id: string) => {
+    return mutator<boolean>({ url: `/prompts/${id}`, method: 'DELETE' });
+  };
 
-export const aIResponseControllerCreateResponse = (
-  createAIResponse: CreateAIResponse,
-) => {
-  return mutator<AIResponse>({
-    url: `/responses`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: createAIResponse,
-  });
-};
+  const aIResponseControllerGetAllResponses = (
+    params?: AIResponseControllerGetAllResponsesParams,
+  ) => {
+    return mutator<AIResponse[]>({ url: `/responses`, method: 'GET', params });
+  };
 
-export const aIResponseControllerGetLatestTenAIResponseByPrompt = (
-  promptId: string,
-) => {
-  return mutator<GetTenRecentAIPromptResponse>({
-    url: `/responses/prompt/${promptId}/latest-ten`,
-    method: 'GET',
-  });
-};
+  const aIResponseControllerCreateResponse = (
+    createAIResponse: CreateAIResponse,
+  ) => {
+    return mutator<AIResponse>({
+      url: `/responses`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: createAIResponse,
+    });
+  };
 
-/**
- * @summary Generate AI Prompt Response by share-link-ids
- */
-export const createShareLinkAIResponse = (
-  createShareLinkAIResponse: CreateShareLinkAIResponse,
-) => {
-  return mutator<AIShareLinkResponse>({
-    url: `/responses/share-link`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: createShareLinkAIResponse,
-  });
-};
+  const aIResponseControllerGetLatestTenAIResponseByPrompt = (
+    promptId: string,
+  ) => {
+    return mutator<GetTenRecentAIPromptResponse>({
+      url: `/responses/prompt/${promptId}/latest-ten`,
+      method: 'GET',
+    });
+  };
 
-export const aIResponseControllerDeletePrompt = (id: string) => {
-  return mutator<boolean>({ url: `/responses/${id}`, method: 'DELETE' });
-};
+  /**
+   * @summary Generate AI Prompt Response by share-link-ids
+   */
+  const createShareLinkAIResponse = (
+    createShareLinkAIResponse: CreateShareLinkAIResponse,
+  ) => {
+    return mutator<AIShareLinkResponse>({
+      url: `/responses/share-link`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: createShareLinkAIResponse,
+    });
+  };
 
-/**
- * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields.
- * @summary Get List of My Apps
- */
-export const getMyApps = () => {
-  return mutator<App[]>({ url: `/apps`, method: 'GET' });
-};
+  const aIResponseControllerDeletePrompt = (id: string) => {
+    return mutator<boolean>({ url: `/responses/${id}`, method: 'DELETE' });
+  };
 
-/**
- * @summary Subscribe user into app
- */
-export const subscribeUserIntoApp = (
-  clientId: string,
-  subscribeUserPayload: SubscribeUserPayload,
-) => {
-  return mutator<SubscribedUser>({
-    url: `/apps/${clientId}/subscribe`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: subscribeUserPayload,
-  });
-};
+  /**
+   * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields.
+   * @summary Get List of My Apps
+   */
+  const getMyApps = () => {
+    return mutator<App[]>({ url: `/apps`, method: 'GET' });
+  };
 
-/**
- * @summary Unsubscribe user from app
- */
-export const unsubscribeUserFromApp = (clientId: string) => {
-  return mutator<void>({
-    url: `/apps/${clientId}/unsubscribe`,
-    method: 'DELETE',
-  });
-};
+  /**
+   * @summary Subscribe user into app
+   */
+  const subscribeUserIntoApp = (
+    clientId: string,
+    subscribeUserPayload: SubscribeUserPayload,
+  ) => {
+    return mutator<SubscribedUser>({
+      url: `/apps/${clientId}/subscribe`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: subscribeUserPayload,
+    });
+  };
 
-export const languageControllerGetAll = () => {
-  return mutator<Language[]>({ url: `/languages/all`, method: 'GET' });
-};
+  /**
+   * @summary Unsubscribe user from app
+   */
+  const unsubscribeUserFromApp = (clientId: string) => {
+    return mutator<void>({
+      url: `/apps/${clientId}/unsubscribe`,
+      method: 'DELETE',
+    });
+  };
 
-/**
- * @summary Get last ten recent Messages including (Conversation, Creator, Labels)
- */
-export const getTenRecentMessagesResponse = (
-  params?: GetTenRecentMessagesResponseParams,
-) => {
-  return mutator<GetTenRecentMessagesResponse>({
-    url: `/simplified/messages/latest-ten`,
-    method: 'GET',
-    params,
-  });
-};
+  const languageControllerGetAll = () => {
+    return mutator<Language[]>({ url: `/languages/all`, method: 'GET' });
+  };
 
-/**
- * @summary Get Message By ID
- */
-export const getMessageById = (id: string, params?: GetMessageByIdParams) => {
-  return mutator<GetMessageResponse>({
-    url: `/simplified/messages/${id}`,
-    method: 'GET',
-    params,
-  });
-};
+  /**
+   * @summary Get last ten recent Messages including (Conversation, Creator, Labels)
+   */
+  const getTenRecentMessagesResponse = (
+    params?: GetTenRecentMessagesResponseParams,
+  ) => {
+    return mutator<GetTenRecentMessagesResponse>({
+      url: `/simplified/messages/latest-ten`,
+      method: 'GET',
+      params,
+    });
+  };
 
-/**
+  /**
+   * @summary Get Message By ID
+   */
+  const getMessageById = (id: string, params?: GetMessageByIdParams) => {
+    return mutator<GetMessageResponse>({
+      url: `/simplified/messages/${id}`,
+      method: 'GET',
+      params,
+    });
+  };
+
+  /**
  * By default return messages created in last 5 days.
 
 The **maximum** allowed range between dates is **30 days**.
  * @summary List Messages
  */
-export const listMessages = (params?: ListMessagesParams) => {
-  return mutator<ListMessagesResponse>({
-    url: `/simplified/messages`,
-    method: 'GET',
-    params,
-  });
-};
+  const listMessages = (params?: ListMessagesParams) => {
+    return mutator<ListMessagesResponse>({
+      url: `/simplified/messages`,
+      method: 'GET',
+      params,
+    });
+  };
 
-/**
- * Max number of links is **100** per API call. If you want to add more, should make another api call.
- * @summary Add Link Attachments to a message
- */
-export const addLinkAttachmentsToMessage = (
-  id: string,
-  addLinkAttachmentPayload: AddLinkAttachmentPayload,
-) => {
-  return mutator<AddAttachmentsResponse>({
-    url: `/simplified/messages/${id}/attachments/bulk/link`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: addLinkAttachmentPayload,
-  });
-};
+  /**
+   * Max number of links is **100** per API call. If you want to add more, should make another api call.
+   * @summary Add Link Attachments to a message
+   */
+  const addLinkAttachmentsToMessage = (
+    id: string,
+    addLinkAttachmentPayload: AddLinkAttachmentPayload,
+  ) => {
+    return mutator<AddAttachmentsResponse>({
+      url: `/simplified/messages/${id}/attachments/bulk/link`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: addLinkAttachmentPayload,
+    });
+  };
 
-/**
- * In order to create a Message, you must provide **transcript** or **link** attachments.
- * @summary Send a Message to a Conversation
- */
-export const createConversationMessage = (
-  id: string,
-  createConversationMessage: CreateConversationMessage,
-) => {
-  return mutator<GetMessageResponse>({
-    url: `/simplified/messages/conversation/${id}`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: createConversationMessage,
-  });
-};
+  /**
+   * In order to create a Message, you must provide **transcript** or **link** attachments.
+   * @summary Send a Message to a Conversation
+   */
+  const createConversationMessage = (
+    id: string,
+    createConversationMessage: CreateConversationMessage,
+  ) => {
+    return mutator<GetMessageResponse>({
+      url: `/simplified/messages/conversation/${id}`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: createConversationMessage,
+    });
+  };
 
-/**
- * In order to create a Message, you must provide **transcript** or **link** attachments.
- * @summary Send a Direct Message to a User or a Group of Users
- */
-export const sendDirectMessage = (sendDirectMessage: SendDirectMessage) => {
-  return mutator<GetMessageResponse>({
-    url: `/simplified/messages/direct`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: sendDirectMessage,
-  });
-};
+  /**
+   * In order to create a Message, you must provide **transcript** or **link** attachments.
+   * @summary Send a Direct Message to a User or a Group of Users
+   */
+  const sendDirectMessage = (sendDirectMessage: SendDirectMessage) => {
+    return mutator<GetMessageResponse>({
+      url: `/simplified/messages/direct`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: sendDirectMessage,
+    });
+  };
 
-/**
- * It's required to inform one of (**email**, **phone**)
- * @summary Search user by email or phone
- */
-export const searchUser = (params?: SearchUserParams) => {
-  return mutator<User>({
-    url: `/simplified/users/search`,
-    method: 'GET',
-    params,
-  });
-};
+  /**
+   * It's required to inform one of (**email**, **phone**)
+   * @summary Search user by email or phone
+   */
+  const searchUser = (params?: SearchUserParams) => {
+    return mutator<User>({
+      url: `/simplified/users/search`,
+      method: 'GET',
+      params,
+    });
+  };
 
-/**
- * @summary Get Folder by ID
- */
-export const getById = (id: string, params?: GetByIdParams) => {
-  return mutator<Folder>({
-    url: `/simplified/folders/${id}`,
-    method: 'GET',
-    params,
-  });
-};
+  /**
+   * @summary Get Folder by ID
+   */
+  const getById = (id: string, params?: GetByIdParams) => {
+    return mutator<Folder>({
+      url: `/simplified/folders/${id}`,
+      method: 'GET',
+      params,
+    });
+  };
 
-/**
- * @summary Get all user conversations (Only _id and name available
- */
-export const getAllConversations = () => {
-  return mutator<AllConversationsResponse>({
-    url: `/simplified/conversations/all`,
-    method: 'GET',
-  });
-};
+  /**
+   * @summary Get all user conversations (Only _id and name available
+   */
+  const getAllConversations = () => {
+    return mutator<AllConversationsResponse>({
+      url: `/simplified/conversations/all`,
+      method: 'GET',
+    });
+  };
 
-/**
- * @summary Get all Workspaces that user has access to with basic info
- */
-export const getAllWithBasicInfo = () => {
-  return mutator<WorkspaceBasicInfo[]>({
-    url: `/simplified/workspaces/basic-info`,
-    method: 'GET',
-  });
-};
+  /**
+   * @summary Get all Workspaces that user has access to with basic info
+   */
+  const getAllWithBasicInfo = () => {
+    return mutator<WorkspaceBasicInfo[]>({
+      url: `/simplified/workspaces/basic-info`,
+      method: 'GET',
+    });
+  };
 
-/**
- * @summary List of System AI Prompts
- */
-export const getSystemAIPrompts = () => {
-  return mutator<SimplifiedAIPrompt[]>({
-    url: `/simplified/public/system-prompts`,
-    method: 'GET',
-  });
-};
+  /**
+   * @summary List of System AI Prompts
+   */
+  const getSystemAIPrompts = () => {
+    return mutator<SimplifiedAIPrompt[]>({
+      url: `/simplified/public/system-prompts`,
+      method: 'GET',
+    });
+  };
 
-/**
- * @summary Get Sample AI Responses for a System AI Prompt
- */
-export const getAiSystemPromptResponse = (promptId: string) => {
-  return mutator<AIPromptWithMessagesResponse>({
-    url: `/simplified/public/responses/prompt/${promptId}/sample`,
-    method: 'GET',
-  });
-};
+  /**
+   * @summary Get Sample AI Responses for a System AI Prompt
+   */
+  const getAiSystemPromptResponse = (promptId: string) => {
+    return mutator<AIPromptWithMessagesResponse>({
+      url: `/simplified/public/responses/prompt/${promptId}/sample`,
+      method: 'GET',
+    });
+  };
 
-/**
- * @summary Get all root Folders
- */
-export const getAllRootFolders = (params: GetAllRootFoldersParams) => {
-  return mutator<ListFoldersResponse>({
-    url: `/simplified/folders`,
-    method: 'GET',
-    params,
-  });
-};
+  /**
+   * @summary Get all root Folders
+   */
+  const getAllRootFolders = (params: GetAllRootFoldersParams) => {
+    return mutator<ListFoldersResponse>({
+      url: `/simplified/folders`,
+      method: 'GET',
+      params,
+    });
+  };
 
-/**
- * @summary Create a new Folder
- */
-export const createFolder = (createFolderPayload: CreateFolderPayload) => {
-  return mutator<Folder>({
-    url: `/simplified/folders`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    data: createFolderPayload,
-  });
-};
+  /**
+   * @summary Create a new Folder
+   */
+  const createFolder = (createFolderPayload: CreateFolderPayload) => {
+    return mutator<Folder>({
+      url: `/simplified/folders`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: createFolderPayload,
+    });
+  };
 
-/**
- * @summary Get count of all folders, messages and message_ids not in folders grouped by workspace
- */
-export const getCountsGroupedByWorkspace = (
-  params: GetCountsGroupedByWorkspaceParams,
-) => {
-  return mutator<ListCountFoldersGroupedByWorkspace[]>({
-    url: `/simplified/folders/count-by-workspace`,
-    method: 'GET',
-    params,
-  });
-};
+  /**
+   * @summary Get count of all folders, messages and message_ids not in folders grouped by workspace
+   */
+  const getCountsGroupedByWorkspace = (
+    params: GetCountsGroupedByWorkspaceParams,
+  ) => {
+    return mutator<ListCountFoldersGroupedByWorkspace[]>({
+      url: `/simplified/folders/count-by-workspace`,
+      method: 'GET',
+      params,
+    });
+  };
 
-/**
- * @summary Get Folder with Messages
- */
-export const getFolderMessages = (id: string) => {
-  return mutator<FolderWithMessages>({
-    url: `/simplified/folders/${id}/messages`,
-    method: 'GET',
-  });
-};
+  /**
+   * @summary Get Folder with Messages
+   */
+  const getFolderMessages = (id: string) => {
+    return mutator<FolderWithMessages>({
+      url: `/simplified/folders/${id}/messages`,
+      method: 'GET',
+    });
+  };
 
-/**
- * @summary Update Folder Name
- */
-export const updateFolderName = (
-  id: string,
-  updateFolderNamePayload: UpdateFolderNamePayload,
-) => {
-  return mutator<Folder>({
-    url: `/simplified/folders/${id}`,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    data: updateFolderNamePayload,
-  });
-};
+  /**
+   * @summary Update Folder Name
+   */
+  const updateFolderName = (
+    id: string,
+    updateFolderNamePayload: UpdateFolderNamePayload,
+  ) => {
+    return mutator<Folder>({
+      url: `/simplified/folders/${id}`,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      data: updateFolderNamePayload,
+    });
+  };
 
-/**
- * @summary Delete Folder and all subfolders and messages in nested folders
- */
-export const deleteFolder = (id: string) => {
-  return mutator<void>({ url: `/simplified/folders/${id}`, method: 'DELETE' });
-};
+  /**
+   * @summary Delete Folder and all subfolders and messages in nested folders
+   */
+  const deleteFolder = (id: string) => {
+    return mutator<void>({
+      url: `/simplified/folders/${id}`,
+      method: 'DELETE',
+    });
+  };
 
-/**
- * Only allowed to move messages of type: voicememo,prerecorded.
- * @summary Move a message into specific Folder or into a Workspace
- */
-export const addMessageToFolderOrWorkspace = (
-  addMessageToFolderPayload: AddMessageToFolderPayload,
-) => {
-  return mutator<MessageV2>({
-    url: `/simplified/folders/message`,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    data: addMessageToFolderPayload,
-  });
-};
+  /**
+   * Only allowed to move messages of type: voicememo,prerecorded.
+   * @summary Move a message into specific Folder or into a Workspace
+   */
+  const addMessageToFolderOrWorkspace = (
+    addMessageToFolderPayload: AddMessageToFolderPayload,
+  ) => {
+    return mutator<MessageV2>({
+      url: `/simplified/folders/message`,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      data: addMessageToFolderPayload,
+    });
+  };
 
-/**
- * @summary Move a Folder into another Folder or into a Workspace
- */
-export const moveFolder = (
-  id: string,
-  moveFolderPayload: MoveFolderPayload,
-) => {
-  return mutator<Folder>({
-    url: `/simplified/folders/${id}/move`,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    data: moveFolderPayload,
-  });
-};
+  /**
+   * @summary Move a Folder into another Folder or into a Workspace
+   */
+  const moveFolder = (id: string, moveFolderPayload: MoveFolderPayload) => {
+    return mutator<Folder>({
+      url: `/simplified/folders/${id}/move`,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      data: moveFolderPayload,
+    });
+  };
 
+  return {
+    aIPromptControllerGetPrompts,
+    aIPromptControllerCreatePrompt,
+    aIPromptControllerDeletePrompt,
+    aIResponseControllerGetAllResponses,
+    aIResponseControllerCreateResponse,
+    aIResponseControllerGetLatestTenAIResponseByPrompt,
+    createShareLinkAIResponse,
+    aIResponseControllerDeletePrompt,
+    getMyApps,
+    subscribeUserIntoApp,
+    unsubscribeUserFromApp,
+    languageControllerGetAll,
+    getTenRecentMessagesResponse,
+    getMessageById,
+    listMessages,
+    addLinkAttachmentsToMessage,
+    createConversationMessage,
+    sendDirectMessage,
+    searchUser,
+    getById,
+    getAllConversations,
+    getAllWithBasicInfo,
+    getSystemAIPrompts,
+    getAiSystemPromptResponse,
+    getAllRootFolders,
+    createFolder,
+    getCountsGroupedByWorkspace,
+    getFolderMessages,
+    updateFolderName,
+    deleteFolder,
+    addMessageToFolderOrWorkspace,
+    moveFolder,
+  };
+};
 export type AIPromptControllerGetPromptsResult = NonNullable<
-  Awaited<ReturnType<typeof aIPromptControllerGetPrompts>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIPromptControllerGetPrompts']
+    >
+  >
 >;
 export type AIPromptControllerCreatePromptResult = NonNullable<
-  Awaited<ReturnType<typeof aIPromptControllerCreatePrompt>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIPromptControllerCreatePrompt']
+    >
+  >
 >;
 export type AIPromptControllerDeletePromptResult = NonNullable<
-  Awaited<ReturnType<typeof aIPromptControllerDeletePrompt>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIPromptControllerDeletePrompt']
+    >
+  >
 >;
 export type AIResponseControllerGetAllResponsesResult = NonNullable<
-  Awaited<ReturnType<typeof aIResponseControllerGetAllResponses>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIResponseControllerGetAllResponses']
+    >
+  >
 >;
 export type AIResponseControllerCreateResponseResult = NonNullable<
-  Awaited<ReturnType<typeof aIResponseControllerCreateResponse>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIResponseControllerCreateResponse']
+    >
+  >
 >;
 export type AIResponseControllerGetLatestTenAIResponseByPromptResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof aIResponseControllerGetLatestTenAIResponseByPrompt>
+      ReturnType<
+        ReturnType<
+          typeof getCarbonVoiceSimplifiedAPI
+        >['aIResponseControllerGetLatestTenAIResponseByPrompt']
+      >
     >
   >;
 export type CreateShareLinkAIResponseResult = NonNullable<
-  Awaited<ReturnType<typeof createShareLinkAIResponse>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['createShareLinkAIResponse']
+    >
+  >
 >;
 export type AIResponseControllerDeletePromptResult = NonNullable<
-  Awaited<ReturnType<typeof aIResponseControllerDeletePrompt>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIResponseControllerDeletePrompt']
+    >
+  >
 >;
 export type GetMyAppsResult = NonNullable<
-  Awaited<ReturnType<typeof getMyApps>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getMyApps']>
+  >
 >;
 export type SubscribeUserIntoAppResult = NonNullable<
-  Awaited<ReturnType<typeof subscribeUserIntoApp>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['subscribeUserIntoApp']
+    >
+  >
 >;
 export type UnsubscribeUserFromAppResult = NonNullable<
-  Awaited<ReturnType<typeof unsubscribeUserFromApp>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['unsubscribeUserFromApp']
+    >
+  >
 >;
 export type LanguageControllerGetAllResult = NonNullable<
-  Awaited<ReturnType<typeof languageControllerGetAll>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['languageControllerGetAll']
+    >
+  >
 >;
 export type GetTenRecentMessagesResponseResult = NonNullable<
-  Awaited<ReturnType<typeof getTenRecentMessagesResponse>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['getTenRecentMessagesResponse']
+    >
+  >
 >;
 export type GetMessageByIdResult = NonNullable<
-  Awaited<ReturnType<typeof getMessageById>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getMessageById']>
+  >
 >;
 export type ListMessagesResult = NonNullable<
-  Awaited<ReturnType<typeof listMessages>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['listMessages']>
+  >
 >;
 export type AddLinkAttachmentsToMessageResult = NonNullable<
-  Awaited<ReturnType<typeof addLinkAttachmentsToMessage>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['addLinkAttachmentsToMessage']
+    >
+  >
 >;
 export type CreateConversationMessageResult = NonNullable<
-  Awaited<ReturnType<typeof createConversationMessage>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['createConversationMessage']
+    >
+  >
 >;
 export type SendDirectMessageResult = NonNullable<
-  Awaited<ReturnType<typeof sendDirectMessage>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['sendDirectMessage']
+    >
+  >
 >;
 export type SearchUserResult = NonNullable<
-  Awaited<ReturnType<typeof searchUser>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['searchUser']>
+  >
 >;
-export type GetByIdResult = NonNullable<Awaited<ReturnType<typeof getById>>>;
+export type GetByIdResult = NonNullable<
+  Awaited<ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getById']>>
+>;
 export type GetAllConversationsResult = NonNullable<
-  Awaited<ReturnType<typeof getAllConversations>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getAllConversations']
+    >
+  >
 >;
 export type GetAllWithBasicInfoResult = NonNullable<
-  Awaited<ReturnType<typeof getAllWithBasicInfo>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getAllWithBasicInfo']
+    >
+  >
 >;
 export type GetSystemAIPromptsResult = NonNullable<
-  Awaited<ReturnType<typeof getSystemAIPrompts>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getSystemAIPrompts']
+    >
+  >
 >;
 export type GetAiSystemPromptResponseResult = NonNullable<
-  Awaited<ReturnType<typeof getAiSystemPromptResponse>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['getAiSystemPromptResponse']
+    >
+  >
 >;
 export type GetAllRootFoldersResult = NonNullable<
-  Awaited<ReturnType<typeof getAllRootFolders>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getAllRootFolders']
+    >
+  >
 >;
 export type CreateFolderResult = NonNullable<
-  Awaited<ReturnType<typeof createFolder>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['createFolder']>
+  >
 >;
 export type GetCountsGroupedByWorkspaceResult = NonNullable<
-  Awaited<ReturnType<typeof getCountsGroupedByWorkspace>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['getCountsGroupedByWorkspace']
+    >
+  >
 >;
 export type GetFolderMessagesResult = NonNullable<
-  Awaited<ReturnType<typeof getFolderMessages>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getFolderMessages']
+    >
+  >
 >;
 export type UpdateFolderNameResult = NonNullable<
-  Awaited<ReturnType<typeof updateFolderName>>
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['updateFolderName']
+    >
+  >
 >;
 export type DeleteFolderResult = NonNullable<
-  Awaited<ReturnType<typeof deleteFolder>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['deleteFolder']>
+  >
 >;
 export type AddMessageToFolderOrWorkspaceResult = NonNullable<
-  Awaited<ReturnType<typeof addMessageToFolderOrWorkspace>>
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['addMessageToFolderOrWorkspace']
+    >
+  >
 >;
 export type MoveFolderResult = NonNullable<
-  Awaited<ReturnType<typeof moveFolder>>
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['moveFolder']>
+  >
 >;

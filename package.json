@@ -29,10 +29,10 @@
     "axios": "^1.9.0",
     "dotenv": "^16.5.0",
     "openapi-zod-client": "^1.18.3",
-    "winston": "^3.17.0",
-    "zod": "^3.25.56"
+    "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@orval/zod": "^7.9.0",
     "@types/handlebars": "^4.0.40",
     "@types/node": "^22.15.29",
     "@typescript-eslint/eslint-plugin": "^8.33.1",
@@ -47,6 +47,7 @@
     "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "zod": "^3.25.58"
   }
 }

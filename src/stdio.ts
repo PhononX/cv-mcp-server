@@ -1,8 +1,11 @@
+#!/usr/bin/env node
+'use strict';
+
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 import server from './server';
 import { SERVICE_NAME, SERVICE_VERSION } from './constants';
-import logger from './utils/logger';
+import { logger } from './utils';
 
 // Set stdio mode for logger (Needed for the logger to work in stdio mode)
 process.env.MCP_STDIO_MODE = 'true';

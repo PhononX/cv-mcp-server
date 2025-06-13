@@ -10,6 +10,7 @@ const Environment = z.object({
     .enum(['debug', 'info', 'warn', 'error'])
     .optional()
     .default('info'),
+  LOG_DIR: z.string().optional().default('logs'),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {

@@ -19,4 +19,6 @@ const transformer = async (args: any) => {
   });
 };
 
+// Use both CommonJS and ESM exports for compatibility
+module.exports = transformer;
 export default transformer;

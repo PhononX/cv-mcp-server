@@ -48,7 +48,16 @@ const getLogLevel = () => {
 };
 
 // Create file transports
-const logDir = path.join(process.cwd(), 'logs');
+// const logDir = path.join(process.cwd(), 'logs');
+
+// Prefer env var, fallback to project-relative folder
+const logDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
+
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+console.error('logs_dir', logDir);
+
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -86,7 +95,7 @@ const consoleTransport =
     : [];
 
 // Create the logger
-const logger = winston.createLogger({
+export const logger = winston.createLogger({
   level: getLogLevel(),
   levels,
   format: fileFormat,
@@ -118,5 +127,3 @@ export const stream = {
 export const createLogger = (context: string) => {
   return logger.child({ context });
 };
-
-export default logger;

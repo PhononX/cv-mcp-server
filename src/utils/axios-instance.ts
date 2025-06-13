@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import { env } from '../config/env';
-import logger from './logger';
+import { env } from '../config';
+import { logger } from './logger';
 
 // Define common error types
 interface ApiError {

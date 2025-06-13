@@ -1,5 +1,3 @@
-import { getAllConversations } from './generated';
-
 export class CarbonVoiceClient {
   private static instance: CarbonVoiceClient;
 
@@ -13,9 +11,9 @@ export class CarbonVoiceClient {
 
   async listAllConversations(): Promise<any> {
     try {
-      const response = await getAllConversations();
+      // const response = await getAllConversations();
 
-      return response;
+      return {} as any;
     } catch (error) {
       // console.error('Error listing all conversations:', error);
 
