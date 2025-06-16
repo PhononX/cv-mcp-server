@@ -804,53 +804,47 @@ export const searchUserResponse = zod.object({
 
 
 /**
- * @summary Get Folder by ID
+ * @summary Search users by their emails, phones or IDs
  */
-export const getByIdParams = zod.object({
+export const searchUsersBody = zod.object({
+  "emails": zod.array(zod.string()).optional().describe('Email Addresses'),
+  "phones": zod.array(zod.string()).optional().describe('Phone Numbers'),
+  "ids": zod.array(zod.string()).optional().describe('User IDs')
+})
+
+export const searchUsersResponseItem = zod.object({
+  "id": zod.string().describe(' ID'),
+  "link": zod.string().describe('Link to User'),
+  "created_at": zod.string().datetime({}),
+  "first_name": zod.string().describe('First Name'),
+  "last_name": zod.string().optional().describe('Last Name'),
+  "full_name": zod.string().describe('Full Name'),
+  "image_url": zod.string().optional().describe('Image Url'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
+})
+export const searchUsersResponse = zod.array(searchUsersResponseItem)
+
+
+/**
+ * @summary Get User By ID
+ */
+export const getUserByIdParams = zod.object({
   "id": zod.string()
 })
 
-export const getByIdQueryIncludeFirstLevelTreeDefault = false;export const getByIdQueryDirectionDefault = "newer";
-
-export const getByIdQueryParams = zod.object({
-  "include_first_level_tree": zod.boolean().optional().describe('Defines if the first level of the folder tree should be returned'),
-  "direction": zod.enum(['older', 'newer']).default(getByIdQueryDirectionDefault).describe('Direction of the results (newer or older)'),
-  "date": zod.string().datetime({}).nullish().describe('Return only Subfolders updated based on the date and direction (must inform include_first_level_tree = true)')
-})
-
-export const getByIdResponseTotalNestedFoldersCountDefault = 0;export const getByIdResponseTotalNestedMessagesCountDefault = 0;export const getByIdResponseSubfoldersItemTotalNestedFoldersCountDefault = 0;export const getByIdResponseSubfoldersItemTotalNestedMessagesCountDefault = 0;
-
-export const getByIdResponse = zod.object({
-  "id": zod.string().describe('Unique Identifier'),
-  "name": zod.string().describe('Name'),
-  "creator_id": zod.string().describe('Creator'),
-  "parent_folder_id": zod.string().optional().describe('Parent Folder ID'),
-  "subfolder_ids": zod.array(zod.string()).optional().describe('List of Subfolder IDs'),
-  "message_ids": zod.array(zod.string()).optional().describe('List of Message IDs'),
-  "path": zod.array(zod.string()).optional().describe('Ordered List of all folders in the path from root to this folder'),
-  "total_nested_folders_count": zod.number().describe('Total count for all Nested Folders'),
-  "total_nested_messages_count": zod.number().describe('Total count for all Nested Messages'),
-  "type": zod.enum(['voicememo', 'prerecorded']).describe('Folder type'),
-  "workspace_id": zod.string().describe('Workspace ID where folder belongs to'),
+export const getUserByIdResponse = zod.object({
+  "id": zod.string().describe(' ID'),
+  "link": zod.string().describe('Link to User'),
   "created_at": zod.string().datetime({}),
-  "last_updated_at": zod.string().datetime({}),
-  "deleted_at": zod.string().datetime({}).optional(),
-  "subfolders": zod.array(zod.object({
-  "id": zod.string().describe('Unique Identifier'),
-  "name": zod.string().describe('Name'),
-  "creator_id": zod.string().describe('Creator'),
-  "parent_folder_id": zod.string().optional().describe('Parent Folder ID'),
-  "subfolder_ids": zod.array(zod.string()).optional().describe('List of Subfolder IDs'),
-  "message_ids": zod.array(zod.string()).optional().describe('List of Message IDs'),
-  "path": zod.array(zod.string()).optional().describe('Ordered List of all folders in the path from root to this folder'),
-  "total_nested_folders_count": zod.number().describe('Total count for all Nested Folders'),
-  "total_nested_messages_count": zod.number().describe('Total count for all Nested Messages'),
-  "type": zod.enum(['voicememo', 'prerecorded']).describe('Folder type'),
-  "workspace_id": zod.string().describe('Workspace ID where folder belongs to'),
-  "created_at": zod.string().datetime({}),
-  "last_updated_at": zod.string().datetime({}),
-  "deleted_at": zod.string().datetime({}).optional()
-})).optional().describe('Subfolders (only one deep level)')
+  "first_name": zod.string().describe('First Name'),
+  "last_name": zod.string().optional().describe('Last Name'),
+  "full_name": zod.string().describe('Full Name'),
+  "image_url": zod.string().optional().describe('Image Url'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 })
 
 
@@ -1174,6 +1168,57 @@ export const getFolderMessagesResponse = zod.object({
   "last_heard_at": zod.string().datetime({}).describe('The last time anyone listened or cleared notified on this message'),
   "folder_id": zod.string().nullish().describe('Folder ID, only present when the message type is one of: voicememo,prerecorded')
 })).optional().describe('List of Messages')
+})
+
+
+/**
+ * @summary Get Folder by ID
+ */
+export const getFolderByIdParams = zod.object({
+  "id": zod.string()
+})
+
+export const getFolderByIdQueryIncludeFirstLevelTreeDefault = false;export const getFolderByIdQueryDirectionDefault = "newer";
+
+export const getFolderByIdQueryParams = zod.object({
+  "include_first_level_tree": zod.boolean().optional().describe('Defines if the first level of the folder tree should be returned'),
+  "direction": zod.enum(['older', 'newer']).default(getFolderByIdQueryDirectionDefault).describe('Direction of the results (newer or older)'),
+  "date": zod.string().datetime({}).nullish().describe('Return only Subfolders updated based on the date and direction (must inform include_first_level_tree = true)')
+})
+
+export const getFolderByIdResponseTotalNestedFoldersCountDefault = 0;export const getFolderByIdResponseTotalNestedMessagesCountDefault = 0;export const getFolderByIdResponseSubfoldersItemTotalNestedFoldersCountDefault = 0;export const getFolderByIdResponseSubfoldersItemTotalNestedMessagesCountDefault = 0;
+
+export const getFolderByIdResponse = zod.object({
+  "id": zod.string().describe('Unique Identifier'),
+  "name": zod.string().describe('Name'),
+  "creator_id": zod.string().describe('Creator'),
+  "parent_folder_id": zod.string().optional().describe('Parent Folder ID'),
+  "subfolder_ids": zod.array(zod.string()).optional().describe('List of Subfolder IDs'),
+  "message_ids": zod.array(zod.string()).optional().describe('List of Message IDs'),
+  "path": zod.array(zod.string()).optional().describe('Ordered List of all folders in the path from root to this folder'),
+  "total_nested_folders_count": zod.number().describe('Total count for all Nested Folders'),
+  "total_nested_messages_count": zod.number().describe('Total count for all Nested Messages'),
+  "type": zod.enum(['voicememo', 'prerecorded']).describe('Folder type'),
+  "workspace_id": zod.string().describe('Workspace ID where folder belongs to'),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).optional(),
+  "subfolders": zod.array(zod.object({
+  "id": zod.string().describe('Unique Identifier'),
+  "name": zod.string().describe('Name'),
+  "creator_id": zod.string().describe('Creator'),
+  "parent_folder_id": zod.string().optional().describe('Parent Folder ID'),
+  "subfolder_ids": zod.array(zod.string()).optional().describe('List of Subfolder IDs'),
+  "message_ids": zod.array(zod.string()).optional().describe('List of Message IDs'),
+  "path": zod.array(zod.string()).optional().describe('Ordered List of all folders in the path from root to this folder'),
+  "total_nested_folders_count": zod.number().describe('Total count for all Nested Folders'),
+  "total_nested_messages_count": zod.number().describe('Total count for all Nested Messages'),
+  "type": zod.enum(['voicememo', 'prerecorded']).describe('Folder type'),
+  "workspace_id": zod.string().describe('Workspace ID where folder belongs to'),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).optional()
+})).optional().describe('Subfolders (only one deep level)')
 })
 
 

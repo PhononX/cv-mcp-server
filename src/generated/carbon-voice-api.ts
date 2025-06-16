@@ -96,8 +96,8 @@ import type {
   Folder,
   FolderWithMessages,
   GetAllRootFoldersParams,
-  GetByIdParams,
   GetCountsGroupedByWorkspaceParams,
+  GetFolderByIdParams,
   GetMessageByIdParams,
   GetMessageResponse,
   GetTenRecentAIPromptResponse,
@@ -111,6 +111,7 @@ import type {
   MessageV2,
   MoveFolderPayload,
   SearchUserParams,
+  SearchUsersBody,
   SendDirectMessage,
   SimplifiedAIPrompt,
   SubscribeUserPayload,
@@ -319,14 +320,22 @@ The **maximum** allowed range between dates is **30 days**.
   };
 
   /**
-   * @summary Get Folder by ID
+   * @summary Search users by their emails, phones or IDs
    */
-  const getById = (id: string, params?: GetByIdParams) => {
-    return mutator<Folder>({
-      url: `/simplified/folders/${id}`,
-      method: 'GET',
-      params,
+  const searchUsers = (searchUsersBody: SearchUsersBody) => {
+    return mutator<User[]>({
+      url: `/simplified/users/search`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: searchUsersBody,
     });
+  };
+
+  /**
+   * @summary Get User By ID
+   */
+  const getUserById = (id: string) => {
+    return mutator<User>({ url: `/simplified/users/${id}`, method: 'GET' });
   };
 
   /**
@@ -416,6 +425,17 @@ The **maximum** allowed range between dates is **30 days**.
   };
 
   /**
+   * @summary Get Folder by ID
+   */
+  const getFolderById = (id: string, params?: GetFolderByIdParams) => {
+    return mutator<Folder>({
+      url: `/simplified/folders/${id}`,
+      method: 'GET',
+      params,
+    });
+  };
+
+  /**
    * @summary Update Folder Name
    */
   const updateFolderName = (
@@ -487,7 +507,8 @@ The **maximum** allowed range between dates is **30 days**.
     createConversationMessage,
     sendDirectMessage,
     searchUser,
-    getById,
+    searchUsers,
+    getUserById,
     getAllConversations,
     getAllWithBasicInfo,
     getSystemAIPrompts,
@@ -496,6 +517,7 @@ The **maximum** allowed range between dates is **30 days**.
     createFolder,
     getCountsGroupedByWorkspace,
     getFolderMessages,
+    getFolderById,
     updateFolderName,
     deleteFolder,
     addMessageToFolderOrWorkspace,
@@ -650,8 +672,15 @@ export type SearchUserResult = NonNullable<
     ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['searchUser']>
   >
 >;
-export type GetByIdResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getById']>>
+export type SearchUsersResult = NonNullable<
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['searchUsers']>
+  >
+>;
+export type GetUserByIdResult = NonNullable<
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getUserById']>
+  >
 >;
 export type GetAllConversationsResult = NonNullable<
   Awaited<
@@ -709,6 +738,11 @@ export type GetFolderMessagesResult = NonNullable<
     ReturnType<
       ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getFolderMessages']
     >
+  >
+>;
+export type GetFolderByIdResult = NonNullable<
+  Awaited<
+    ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getFolderById']>
   >
 >;
 export type UpdateFolderNameResult = NonNullable<
