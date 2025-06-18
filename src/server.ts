@@ -1,8 +1,55 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-// import { z } from 'zod';
 
 import { SERVICE_NAME, SERVICE_VERSION } from './constants';
-
+import { getCarbonVoiceSimplifiedAPI } from './generated';
+import {
+  addLinkAttachmentsToMessageBody,
+  addLinkAttachmentsToMessageParams,
+  addMessageToFolderOrWorkspaceBody,
+  aIPromptControllerGetPromptsQueryParams,
+  aIResponseControllerCreateResponseBody,
+  aIResponseControllerGetAllResponsesQueryParams,
+  createConversationMessageBody,
+  createConversationMessageParams,
+  createFolderBody,
+  createShareLinkAIResponseBody,
+  createVoiceMemoMessageBody,
+  deleteFolderParams,
+  getAllRootFoldersQueryParams,
+  getConversationByIdParams,
+  getCountsGroupedByWorkspaceQueryParams,
+  getFolderByIdParams,
+  getFolderByIdQueryParams,
+  getFolderMessagesParams,
+  getMessageByIdParams,
+  getMessageByIdQueryParams,
+  getTenRecentMessagesResponseQueryParams,
+  getUserByIdParams,
+  listMessagesQueryParams,
+  moveFolderBody,
+  moveFolderParams,
+  searchUserQueryParams,
+  searchUsersBody,
+  sendDirectMessageBody,
+  updateFolderNameBody,
+  updateFolderNameParams,
+} from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
+import {
+  AddMessageToFolderPayload,
+  AIPromptControllerGetPromptsParams,
+  AIResponseControllerGetAllResponsesParams,
+  CreateAIResponse,
+  CreateFolderPayload,
+  CreateShareLinkAIResponse,
+  CreateVoicememoMessage,
+  GetAllRootFoldersParams,
+  GetCountsGroupedByWorkspaceParams,
+  GetTenRecentMessagesResponseParams,
+  ListMessagesParams,
+  SearchUserParams,
+  SearchUsersBody,
+  SendDirectMessage,
+} from './generated/models';
 import {
   AddLinkAttachmentsToMessageInput,
   CreateConversationMessageInput,
@@ -14,49 +61,6 @@ import {
   UpdateFolderNameInput,
 } from './interfaces';
 import { formatToMCPToolResponse, logger } from './utils';
-import { getCarbonVoiceSimplifiedAPI } from './generated';
-import {
-  createConversationMessageBody,
-  createConversationMessageParams,
-  getUserByIdParams,
-  getMessageByIdParams,
-  getMessageByIdQueryParams,
-  getTenRecentMessagesResponseQueryParams,
-  listMessagesQueryParams,
-  searchUserQueryParams,
-  sendDirectMessageBody,
-  searchUsersBody,
-  addLinkAttachmentsToMessageParams,
-  addLinkAttachmentsToMessageBody,
-  getAllRootFoldersQueryParams,
-  createFolderBody,
-  createVoiceMemoMessageBody,
-  getFolderByIdParams,
-  getFolderByIdQueryParams,
-  updateFolderNameBody,
-  updateFolderNameParams,
-  deleteFolderParams,
-  moveFolderParams,
-  moveFolderBody,
-  addMessageToFolderOrWorkspaceBody,
-  getFolderMessagesParams,
-  getCountsGroupedByWorkspaceQueryParams,
-  getConversationByIdParams,
-} from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
-import {
-  AddMessageToFolderPayload,
-  CreateFolderPayload,
-  CreateVoicememoMessage,
-  GetAllRootFoldersParams,
-  GetCountsGroupedByWorkspaceParams,
-  GetFolderByIdParams,
-  GetTenRecentMessagesResponseParams,
-  ListMessagesParams,
-  SearchUserParams,
-  SearchUsersBody,
-  SendDirectMessage,
-  UpdateFolderNamePayload,
-} from './generated/models';
 
 // Create server instance
 const server = new McpServer({
@@ -116,7 +120,8 @@ server.registerTool(
   'get_recent_messages',
   {
     description:
-      'Get most recent messages, including their associated Conversation, Creator, and Labels information. Returns a maximum of 10 messages.',
+      'Get most recent messages, including their associated Conversation, Creator, and Labels information. ' +
+      'Returns a maximum of 10 messages.',
     inputSchema: getTenRecentMessagesResponseQueryParams.shape,
   },
   async (
@@ -158,7 +163,8 @@ server.registerTool(
   'create_direct_message',
   {
     description:
-      'Send a Direct Message (DM) to a User or a Group of Users. In order to create a Direct Message, you must provide transcript or link attachments.',
+      'Send a Direct Message (DM) to a User or a Group of Users. ' +
+      'In order to create a Direct Message, you must provide transcript or link attachments.',
     inputSchema: sendDirectMessageBody.shape,
   },
   async (args: SendDirectMessage): Promise<McpToolResponse> => {
@@ -230,7 +236,8 @@ server.registerTool(
   'search_user',
   {
     description:
-      'Search for a User by their phone number or email address. (In order to search for a User, you must provide a phone number or email address.)',
+      'Search for a User by their phone number or email address. ' +
+      '(In order to search for a User, you must provide a phone number or email address.)',
     inputSchema: searchUserQueryParams.shape,
   },
   async (args: SearchUserParams): Promise<McpToolResponse> => {
@@ -247,7 +254,8 @@ server.registerTool(
   'search_users',
   {
     description:
-      'Search multiple Users by their phone numbers, email addresses or ids. (In order to search Users, you must provide phone numbers, email addresses or ids.)',
+      'Search multiple Users by their phone numbers, email addresses or ids. ' +
+      '(In order to search Users, you must provide phone numbers, email addresses or ids.)',
     inputSchema: searchUsersBody.shape,
   },
   async (args: SearchUsersBody): Promise<McpToolResponse> => {
@@ -265,7 +273,8 @@ server.registerTool(
   'list_conversations',
   {
     description:
-      'List all conversations. Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
+      'List all conversations. ' +
+      'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
   },
   async (): Promise<McpToolResponse> => {
     try {
@@ -314,7 +323,8 @@ server.registerTool(
   'get_workspace_folders_and_message_counts',
   {
     description:
-      'Returns, for each workspace, the total number of folders and messages, as well as a breakdown of folders, messages, and messages not in any folder.(Required to inform message type:voicememo,prerecorded)',
+      'Returns, for each workspace, the total number of folders and messages, as well as a breakdown of folders, ' +
+      'messages, and messages not in any folder.(Required to inform message type:voicememo,prerecorded)',
     inputSchema: getCountsGroupedByWorkspaceQueryParams.shape,
   },
   async (args: GetCountsGroupedByWorkspaceParams): Promise<McpToolResponse> => {
@@ -333,7 +343,8 @@ server.registerTool(
   'get_root_folders',
   {
     description:
-      'Lists all root folders for a given workspace, including their names, IDs, and basic structure, but does not provide aggregate counts.(Required to inform message type:voicememo,prerecorded)',
+      'Lists all root folders for a given workspace, including their names, IDs, and basic structure, ' +
+      'but does not provide aggregate counts.(Required to inform message type:voicememo,prerecorded)',
     inputSchema: getAllRootFoldersQueryParams.shape,
   },
   async (args: GetAllRootFoldersParams): Promise<McpToolResponse> => {
@@ -415,7 +426,8 @@ server.registerTool(
   'delete_folder',
   {
     description:
-      'Delete a folder by its ID. Deleting a folder will also delete nested folders and all the messages in referenced folders. (This is a destructive action and cannot be undone, so please be careful.)',
+      'Delete a folder by its ID. Deleting a folder will also delete nested folders and all the messages in referenced folders. ' +
+      '(This is a destructive action and cannot be undone, so please be careful.)',
     inputSchema: deleteFolderParams.shape,
   },
   async (args: GetByIdParams): Promise<McpToolResponse> => {
@@ -449,7 +461,8 @@ server.registerTool(
   'move_message_to_folder',
   {
     description:
-      'Move a message to a folder by its ID. Move a Message into another Folder or into a Workspace. Only allowed to move messages of type: voicememo,prerecorded.',
+      'Move a message to a folder by its ID. Move a Message into another Folder or into a Workspace. ' +
+      'Only allowed to move messages of type: voicememo,prerecorded.',
     inputSchema: addMessageToFolderOrWorkspaceBody.shape,
   },
   async (args: AddMessageToFolderPayload): Promise<McpToolResponse> => {
@@ -459,6 +472,105 @@ server.registerTool(
       );
     } catch (error) {
       logger.error('Error moving message to folder:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+// Workspace
+server.registerTool(
+  'get_workspaces_basic_info',
+  {
+    description: 'Get basic information about a workspace.',
+  },
+  async (): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.getAllWorkspacesWithBasicInfo());
+    } catch (error) {
+      logger.error('Error getting workspaces basic info:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+// AI Magic
+server.registerTool(
+  'list_ai_actions',
+  {
+    description:
+      'List AI Actions (Prompts). Optionally, you can filter by owner type and workspace id. ' +
+      'Filtering by owner type, Possible values: "user", "workspace", "system". ' +
+      'Do not use unless the user explicitly requests it.',
+    inputSchema: aIPromptControllerGetPromptsQueryParams.shape,
+  },
+  async (
+    args: AIPromptControllerGetPromptsParams,
+  ): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(
+        await api.aIPromptControllerGetPrompts(args),
+      );
+    } catch (error) {
+      logger.error('Error listing ai actions:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'run_ai_action',
+  {
+    description:
+      'Run an AI Action (Prompt) for a message. You can run an AI Action for a message by its ID or a list of message IDs.',
+    inputSchema: aIResponseControllerCreateResponseBody.shape,
+  },
+  async (args: CreateAIResponse): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(
+        await api.aIResponseControllerCreateResponse(args),
+      );
+    } catch (error) {
+      logger.error('Error running ai action:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'run_ai_action_for_shared_link',
+  {
+    description:
+      'Run an AI Action (Prompt) for a shared link. You can run an AI Action for a shared link by its ID or a list of shared link IDs. ' +
+      'You can also provide the language of the response.',
+    inputSchema: createShareLinkAIResponseBody.shape,
+  },
+  async (args: CreateShareLinkAIResponse): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.createShareLinkAIResponse(args));
+    } catch (error) {
+      logger.error('Error running ai action for shared link:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_ai_action_responses',
+  {
+    description:
+      'Retrieve previously generated AI Action (Prompt) responses by filtering for a specific prompt, message, or conversation ID. ' +
+      'Combine filters to narrow results and view all AI-generated responses related to a particular prompt, message, or conversation.',
+    inputSchema: aIResponseControllerGetAllResponsesQueryParams.shape,
+  },
+  async (
+    args: AIResponseControllerGetAllResponsesParams,
+  ): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(
+        await api.aIResponseControllerGetAllResponses(args),
+      );
+    } catch (error) {
+      logger.error('Error getting ai action responses:', { error });
       return formatToMCPToolResponse(error);
     }
   },
