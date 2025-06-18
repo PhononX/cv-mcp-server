@@ -114,6 +114,7 @@ export * from './CreateConversationMessageFromMessageType';
 export * from './CreateFolderPayload';
 export * from './CreateFolderPayloadType';
 export * from './CreateShareLinkAIResponse';
+export * from './CreateVoicememoMessage';
 export * from './Folder';
 export * from './FolderType';
 export * from './FolderWithMessages';

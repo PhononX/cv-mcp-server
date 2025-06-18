@@ -76,52 +76,14 @@ If you have problems or need help with your case, you can always reach out to ou
 
  * OpenAPI spec version: 1.0.0
  */
-import type { MessageStatus } from './MessageStatus';
-import type { MessageType } from './MessageType';
-import type { Attachment } from './Attachment';
 
-export interface Message {
-  /** ID */
-  id: string;
-  /** Name */
-  name?: string;
-  /** Link to Message */
-  link: string;
-  /** Creator ID */
-  creator_id: string;
-  /** Conversation ID */
-  conversation_id?: string;
-  /** Workspace ID */
-  workspace_id?: string;
-  created_at: string;
-  last_updated_at: string;
-  deleted_at?: string;
-  /** The length of the message in milliseconds */
-  duration_ms: number;
-  /** The URL for the message audio file */
-  audio_url?: string;
-  /** The URL for the message audio stream */
-  audio_stream_url?: string;
-  /** Transcript of the message */
+export interface CreateVoicememoMessage {
+  /** The Message transcript will be used to generate audio using text-to-speech */
   transcript?: string;
-  /** AI Summary generated of the message */
-  ai_summary?: string;
-  /** The URL for the message waveform image */
-  waveform_url?: string;
-  /** The number of replies to the message */
-  reply_count: number;
-  /** Parent Message unique ID (only available for replies) */
-  parent_message_id?: string;
-  /** Language for the message (Transcript, AI summary, Audio...) */
-  language?: string;
-  /** Current status of the Message */
-  status: MessageStatus;
-  /** Type of the Message */
-  type: MessageType;
-  /** List of attachments for the message */
-  attachments?: Attachment[];
-  /** Share Link ID to a message */
-  share_link_id?: string;
-  /** Folder ID where the message is stored */
+  /** Array of links to be attached to the message */
+  links?: string[];
+  /** Folder ID (not allowed when workspace_id specified is different from the folder_id) */
   folder_id?: string;
+  /** Workspace ID (not allowed when folder_id specified is different from the folder_id) */
+  workspace_id?: string;
 }

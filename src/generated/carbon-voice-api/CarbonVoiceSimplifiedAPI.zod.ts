@@ -231,7 +231,8 @@ export const aIResponseControllerGetLatestTenAIResponseByPromptResponse = zod.ob
 
 }).optional()
 })).optional().describe('List of attachments for the message'),
-  "share_link_id": zod.string().optional().describe('Share Link ID to a message')
+  "share_link_id": zod.string().optional().describe('Share Link ID to a message'),
+  "folder_id": zod.string().optional().describe('Folder ID where the message is stored')
 }),
   "creator": zod.object({
   "id": zod.string().describe(' ID'),
@@ -464,7 +465,8 @@ export const getTenRecentMessagesResponseResponse = zod.object({
 
 }).optional()
 })).optional().describe('List of attachments for the message'),
-  "share_link_id": zod.string().optional().describe('Share Link ID to a message')
+  "share_link_id": zod.string().optional().describe('Share Link ID to a message'),
+  "folder_id": zod.string().optional().describe('Folder ID where the message is stored')
 }),
   "creator": zod.object({
   "id": zod.string().describe(' ID'),
@@ -582,7 +584,8 @@ export const getMessageByIdResponse = zod.object({
 
 }).optional()
 })).optional().describe('List of attachments for the message'),
-  "share_link_id": zod.string().optional().describe('Share Link ID to a message')
+  "share_link_id": zod.string().optional().describe('Share Link ID to a message'),
+  "folder_id": zod.string().optional().describe('Folder ID where the message is stored')
 }),
   "creator": zod.object({
   "id": zod.string().describe(' ID'),
@@ -651,7 +654,7 @@ export const getMessageByIdResponse = zod.object({
 /**
  * By default return messages created in last 5 days.
 
-The **maximum** allowed range between dates is **30 days**.
+The **maximum** allowed range between dates is **31 days**.
  * @summary List Messages
  */
 export const listMessagesQueryPageDefault = 1;export const listMessagesQuerySizeDefault = 10;
@@ -667,7 +670,8 @@ export const listMessagesQueryParams = zod.object({
   "workspace_id": zod.string().optional().describe('Workspace ID (optional)'),
   "conversation_id": zod.string().optional().describe('Conversation ID (optional)'),
   "language": zod.string().optional().describe('Language (optional)'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).optional().describe('Type (optional)')
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).optional().describe('Type (optional)'),
+  "folder_id": zod.string().optional().describe('Folder ID (optional)')
 })
 
 export const listMessagesResponsePageDefault = 1;export const listMessagesResponseSizeDefault = 10;
@@ -687,7 +691,8 @@ export const listMessagesResponse = zod.object({
   "workspace_id": zod.string().optional().describe('Workspace ID (optional)'),
   "conversation_id": zod.string().optional().describe('Conversation ID (optional)'),
   "language": zod.string().optional().describe('Language (optional)'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).optional().describe('Type (optional)')
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).optional().describe('Type (optional)'),
+  "folder_id": zod.string().optional().describe('Folder ID (optional)')
 }).optional().describe('Filters'),
   "results": zod.array(zod.object({
   "id": zod.string().describe('ID'),
@@ -725,7 +730,8 @@ export const listMessagesResponse = zod.object({
 
 }).optional()
 })).optional().describe('List of attachments for the message'),
-  "share_link_id": zod.string().optional().describe('Share Link ID to a message')
+  "share_link_id": zod.string().optional().describe('Share Link ID to a message'),
+  "folder_id": zod.string().optional().describe('Folder ID where the message is stored')
 })).describe('List of Messages')
 })
 
@@ -777,6 +783,18 @@ export const sendDirectMessageBody = zod.object({
   "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message'),
   "from_message_type": zod.enum(['PreRecorded', 'NewMessage', 'Forward']).default(sendDirectMessageBodyFromMessageTypeDefault).describe('From Message type'),
   "from_message_id": zod.string().optional().describe('Message ID to be used as a base for the new message. (Optional only when from_message_type is NewMessage)')
+})
+
+
+/**
+ * In order to create a voicememo message, you must provide **transcript** or **link** attachments.
+ * @summary Create a Voicememo Message
+ */
+export const createVoiceMemoMessageBody = zod.object({
+  "transcript": zod.string().optional().describe('The Message transcript will be used to generate audio using text-to-speech'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message'),
+  "folder_id": zod.string().optional().describe('Folder ID (not allowed when workspace_id specified is different from the folder_id)'),
+  "workspace_id": zod.string().optional().describe('Workspace ID (not allowed when folder_id specified is different from the folder_id)')
 })
 
 

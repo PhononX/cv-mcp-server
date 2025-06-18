@@ -91,4 +91,6 @@ export interface ListMessagesFilter {
   language?: string;
   /** Type (optional) */
   type?: ListMessagesFilterType;
+  /** Folder ID (optional) */
+  folder_id?: string;
 }

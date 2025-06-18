@@ -93,6 +93,7 @@ import type {
   CreateConversationMessage,
   CreateFolderPayload,
   CreateShareLinkAIResponse,
+  CreateVoicememoMessage,
   Folder,
   FolderWithMessages,
   GetAllRootFoldersParams,
@@ -251,7 +252,7 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   /**
  * By default return messages created in last 5 days.
 
-The **maximum** allowed range between dates is **30 days**.
+The **maximum** allowed range between dates is **31 days**.
  * @summary List Messages
  */
   const listMessages = (params?: ListMessagesParams) => {
@@ -304,6 +305,21 @@ The **maximum** allowed range between dates is **30 days**.
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       data: sendDirectMessage,
+    });
+  };
+
+  /**
+   * In order to create a voicememo message, you must provide **transcript** or **link** attachments.
+   * @summary Create a Voicememo Message
+   */
+  const createVoiceMemoMessage = (
+    createVoicememoMessage: CreateVoicememoMessage,
+  ) => {
+    return mutator<GetMessageResponse>({
+      url: `/simplified/messages/voicememo`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: createVoicememoMessage,
     });
   };
 
@@ -506,6 +522,7 @@ The **maximum** allowed range between dates is **30 days**.
     addLinkAttachmentsToMessage,
     createConversationMessage,
     sendDirectMessage,
+    createVoiceMemoMessage,
     searchUser,
     searchUsers,
     getUserById,
@@ -664,6 +681,13 @@ export type SendDirectMessageResult = NonNullable<
   Awaited<
     ReturnType<
       ReturnType<typeof getCarbonVoiceSimplifiedAPI>['sendDirectMessage']
+    >
+  >
+>;
+export type CreateVoiceMemoMessageResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['createVoiceMemoMessage']
     >
   >
 >;

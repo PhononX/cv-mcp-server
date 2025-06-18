@@ -7,8 +7,11 @@ import {
   AddLinkAttachmentsToMessageInput,
   CreateConversationMessageInput,
   GetByIdParams,
+  GetFolderInput,
   GetMessageInput,
   McpToolResponse,
+  MoveFolderInput,
+  UpdateFolderNameInput,
 } from './interfaces';
 import { formatToMCPToolResponse, logger } from './utils';
 import { getCarbonVoiceSimplifiedAPI } from './generated';
@@ -25,14 +28,33 @@ import {
   searchUsersBody,
   addLinkAttachmentsToMessageParams,
   addLinkAttachmentsToMessageBody,
+  getAllRootFoldersQueryParams,
+  createFolderBody,
+  createVoiceMemoMessageBody,
+  getFolderByIdParams,
+  getFolderByIdQueryParams,
+  updateFolderNameBody,
+  updateFolderNameParams,
+  deleteFolderParams,
+  moveFolderParams,
+  moveFolderBody,
+  addMessageToFolderOrWorkspaceBody,
+  getFolderMessagesParams,
+  getCountsGroupedByWorkspaceQueryParams,
 } from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 import {
-  AddLinkAttachmentPayload,
+  AddMessageToFolderPayload,
+  CreateFolderPayload,
+  CreateVoicememoMessage,
+  GetAllRootFoldersParams,
+  GetCountsGroupedByWorkspaceParams,
+  GetFolderByIdParams,
   GetTenRecentMessagesResponseParams,
   ListMessagesParams,
   SearchUserParams,
   SearchUsersBody,
   SendDirectMessage,
+  UpdateFolderNamePayload,
 } from './generated/models';
 
 // Create server instance
@@ -149,6 +171,23 @@ server.registerTool(
 );
 
 server.registerTool(
+  'create_voicememo_message',
+  {
+    description:
+      'Create a VoiceMemo Message. In order to create a VoiceMemo Message, you must provide a transcript or link attachments.',
+    inputSchema: createVoiceMemoMessageBody.shape,
+  },
+  async (args: CreateVoicememoMessage): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.createVoiceMemoMessage(args));
+    } catch (error) {
+      logger.error('Error creating voicememo message:', { args, error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
   'add_attachments_to_message',
   {
     description:
@@ -232,6 +271,161 @@ server.registerTool(
       return formatToMCPToolResponse(await api.getAllConversations());
     } catch (error) {
       logger.error('Error listing conversations:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+// Folders
+server.registerTool(
+  'get_workspace_folders_and_message_counts',
+  {
+    description:
+      'Returns, for each workspace, the total number of folders and messages, as well as a breakdown of folders, messages, and messages not in any folder.(Required to inform message type:voicememo,prerecorded)',
+    inputSchema: getCountsGroupedByWorkspaceQueryParams.shape,
+  },
+  async (args: GetCountsGroupedByWorkspaceParams): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(
+        await api.getCountsGroupedByWorkspace(args),
+      );
+    } catch (error) {
+      logger.error('Error listing workspace folders:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_root_folders',
+  {
+    description:
+      'Lists all root folders for a given workspace, including their names, IDs, and basic structure, but does not provide aggregate counts.(Required to inform message type:voicememo,prerecorded)',
+    inputSchema: getAllRootFoldersQueryParams.shape,
+  },
+  async (args: GetAllRootFoldersParams): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.getAllRootFolders(args));
+    } catch (error) {
+      logger.error('Error listing root folders:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'create_folder',
+  {
+    description: 'Create a new folder.',
+    inputSchema: createFolderBody.shape,
+  },
+  async (args: CreateFolderPayload): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.createFolder(args));
+    } catch (error) {
+      logger.error('Error creating folder:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_folder',
+  {
+    description: 'Get a folder by its ID.',
+    inputSchema: getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
+  },
+  async (args: GetFolderInput): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.getFolderById(args.id, args));
+    } catch (error) {
+      logger.error('Error getting folder by id:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_folder_with_messages',
+  {
+    description:
+      'Get a folder including its messages by its ID. (Only messages at folder level are returned.)',
+    inputSchema: getFolderMessagesParams.shape,
+  },
+  async (args: GetByIdParams): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.getFolderMessages(args.id));
+    } catch (error) {
+      logger.error('Error getting folder with messages:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'update_folder_name',
+  {
+    description: 'Update a folder name by its ID.',
+    inputSchema: updateFolderNameParams.merge(updateFolderNameBody).shape,
+  },
+  async (args: UpdateFolderNameInput): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.updateFolderName(args.id, args));
+    } catch (error) {
+      logger.error('Error updating folder name:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'delete_folder',
+  {
+    description:
+      'Delete a folder by its ID. Deleting a folder will also delete nested folders and all the messages in referenced folders. (This is a destructive action and cannot be undone, so please be careful.)',
+    inputSchema: deleteFolderParams.shape,
+  },
+  async (args: GetByIdParams): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.deleteFolder(args.id));
+    } catch (error) {
+      logger.error('Error deleting folder:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'move_folder',
+  {
+    description:
+      'Move a folder by its ID. Move a Folder into another Folder or into a Workspace.',
+    inputSchema: moveFolderParams.merge(moveFolderBody).shape,
+  },
+  async (args: MoveFolderInput): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.moveFolder(args.id, args));
+    } catch (error) {
+      logger.error('Error moving folder:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'move_message_to_folder',
+  {
+    description:
+      'Move a message to a folder by its ID. Move a Message into another Folder or into a Workspace. Only allowed to move messages of type: voicememo,prerecorded.',
+    inputSchema: addMessageToFolderOrWorkspaceBody.shape,
+  },
+  async (args: AddMessageToFolderPayload): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(
+        await api.addMessageToFolderOrWorkspace(args),
+      );
+    } catch (error) {
+      logger.error('Error moving message to folder:', { error });
       return formatToMCPToolResponse(error);
     }
   },

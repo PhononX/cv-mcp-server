@@ -113,4 +113,8 @@ export type ListMessagesParams = {
    * Type (optional)
    */
   type?: ListMessagesType;
+  /**
+   * Folder ID (optional)
+   */
+  folder_id?: string;
 };
