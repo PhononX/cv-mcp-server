@@ -881,6 +881,75 @@ export const getAllConversationsResponse = zod.object({
 
 
 /**
+ * @summary Get a conversation by id
+ */
+export const getConversationByIdParams = zod.object({
+  "id": zod.string()
+})
+
+export const getConversationByIdResponse = zod.object({
+  "id": zod.string().describe('ID'),
+  "link": zod.string().describe('Link to Conversation'),
+  "name": zod.string().describe('Name'),
+  "description": zod.string().optional().describe('Description'),
+  "workspace_id": zod.string().describe('Workspace ID'),
+  "workspace_name": zod.string().describe('Workspace Name'),
+  "workspace_image_url": zod.string().optional().describe('Workspace Image Url'),
+  "owner_id": zod.string().describe('owner unique ID'),
+  "type": zod.enum(['directMessage', 'customerConversation', 'namedConversation', 'asyncMeeting']).describe('Type'),
+  "visibility": zod.enum(['private', 'workspace', 'public']).describe('Visibility'),
+  "total_messages": zod.number().describe('Total Messages'),
+  "total_duration_ms": zod.number().describe('Total duration in milliseconds'),
+  "image_url": zod.string().optional().describe('Image Url'),
+  "is_private": zod.boolean().describe('Is Private Conversation'),
+  "is_async": zod.boolean().describe('Is Async Conversation'),
+  "async_stats": zod.object({
+  "stats": zod.object({
+  "total_duration_milliseconds": zod.number().describe('Total duration in milliseconds'),
+  "total_heard_milliseconds": zod.number().describe('Total heard in milliseconds'),
+  "total_engaged_percentage": zod.number().describe('Total engaged percentage'),
+  "total_messages_posted": zod.number().describe('Total messages posted'),
+  "total_users": zod.number().describe('Total users')
+}).describe('Conversation stats'),
+  "user_stats": zod.array(zod.object({
+  "user_id": zod.string().describe('User unique ID'),
+  "total_messages_posted": zod.number().describe('Total messages posted'),
+  "total_sent_milliseconds": zod.number().describe('Total sent in milliseconds'),
+  "total_heard_milliseconds": zod.number().describe('Total heard in milliseconds'),
+  "total_engaged_percentage": zod.number().describe('Total engaged percentage'),
+  "total_heard_messages": zod.number().describe('Total heard messages'),
+  "total_unheard_messages": zod.number().describe('Total unheard messages')
+})).describe('User stats')
+}).optional().describe('Async Meeting Stats'),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).optional()
+})
+
+
+/**
+ * @summary Get Conversation Users
+ */
+export const getConversationUsersParams = zod.object({
+  "id": zod.string()
+})
+
+export const getConversationUsersResponseItem = zod.object({
+  "id": zod.string().describe(' ID'),
+  "link": zod.string().describe('Link to User'),
+  "created_at": zod.string().datetime({}),
+  "first_name": zod.string().describe('First Name'),
+  "last_name": zod.string().optional().describe('Last Name'),
+  "full_name": zod.string().describe('Full Name'),
+  "image_url": zod.string().optional().describe('Image Url'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
+})
+export const getConversationUsersResponse = zod.array(getConversationUsersResponseItem)
+
+
+/**
  * @summary Get all Workspaces that user has access to with basic info
  */
 export const getAllWithBasicInfoResponseItem = zod.object({

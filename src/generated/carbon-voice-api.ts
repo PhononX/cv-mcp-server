@@ -88,6 +88,7 @@ import type {
   AddMessageToFolderPayload,
   AllConversationsResponse,
   App,
+  Conversation,
   CreateAIPrompt,
   CreateAIResponse,
   CreateConversationMessage,
@@ -365,6 +366,26 @@ The **maximum** allowed range between dates is **31 days**.
   };
 
   /**
+   * @summary Get a conversation by id
+   */
+  const getConversationById = (id: string) => {
+    return mutator<Conversation>({
+      url: `/simplified/conversations/${id}`,
+      method: 'GET',
+    });
+  };
+
+  /**
+   * @summary Get Conversation Users
+   */
+  const getConversationUsers = (id: string) => {
+    return mutator<User[]>({
+      url: `/simplified/conversations/${id}/users`,
+      method: 'GET',
+    });
+  };
+
+  /**
    * @summary Get all Workspaces that user has access to with basic info
    */
   const getAllWithBasicInfo = () => {
@@ -527,6 +548,8 @@ The **maximum** allowed range between dates is **31 days**.
     searchUsers,
     getUserById,
     getAllConversations,
+    getConversationById,
+    getConversationUsers,
     getAllWithBasicInfo,
     getSystemAIPrompts,
     getAiSystemPromptResponse,
@@ -710,6 +733,20 @@ export type GetAllConversationsResult = NonNullable<
   Awaited<
     ReturnType<
       ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getAllConversations']
+    >
+  >
+>;
+export type GetConversationByIdResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getConversationById']
+    >
+  >
+>;
+export type GetConversationUsersResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getConversationUsers']
     >
   >
 >;

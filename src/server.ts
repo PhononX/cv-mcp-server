@@ -41,6 +41,7 @@ import {
   addMessageToFolderOrWorkspaceBody,
   getFolderMessagesParams,
   getCountsGroupedByWorkspaceQueryParams,
+  getConversationByIdParams,
 } from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 import {
   AddMessageToFolderPayload,
@@ -271,6 +272,38 @@ server.registerTool(
       return formatToMCPToolResponse(await api.getAllConversations());
     } catch (error) {
       logger.error('Error listing conversations:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_conversation',
+  {
+    description: 'Get a conversation by its ID.',
+    inputSchema: getConversationByIdParams.shape,
+  },
+  async (args: GetByIdParams): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.getConversationById(args.id));
+    } catch (error) {
+      logger.error('Error getting conversation by id:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_conversation_users',
+  {
+    description: 'Get users in a conversation.',
+    inputSchema: getConversationByIdParams.shape,
+  },
+  async (args: GetByIdParams): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(await api.getConversationUsers(args.id));
+    } catch (error) {
+      logger.error('Error getting conversation users:', { error });
       return formatToMCPToolResponse(error);
     }
   },
