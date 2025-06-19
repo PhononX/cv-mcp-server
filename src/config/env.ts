@@ -3,7 +3,10 @@ import { z } from 'zod';
 
 import { CV_API_BASE_URL, LOG_DIR } from '../constants';
 
-dotenv.config();
+// Only loads .env file in development
+if (process.env.NODE_ENV === 'development') {
+  dotenv.config();
+}
 
 const Environment = z.object({
   CARBON_VOICE_BASE_URL: z
