@@ -9,7 +9,7 @@
   "bugs": "https://github.com/PhononX/cv-mcp-server/issues",
   "main": "./dist/stdio.js",
   "bin": {
-    "server-carbonvoice": "dist/stdio.js"
+    "cv-mcp-server": "dist/stdio.js"
   },
   "scripts": {
     "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
@@ -58,7 +58,7 @@
     "nodemon": "^3.1.10",
     "orval": "^7.9.0",
     "prettier": "^3.5.3",
-    "shx": "^0.4.0",
+    "shx": "^0.3.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3",
