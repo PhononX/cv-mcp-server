@@ -122,8 +122,6 @@ export * from './GetAllRootFoldersParams';
 export * from './GetAllRootFoldersSortBy';
 export * from './GetAllRootFoldersSortDirection';
 export * from './GetAllRootFoldersType';
-export * from './GetByIdDirection';
-export * from './GetByIdParams';
 export * from './GetCountsGroupedByWorkspaceParams';
 export * from './GetCountsGroupedByWorkspaceType';
 export * from './GetFolderByIdDirection';

@@ -13,17 +13,12 @@
   },
   "scripts": {
     "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
-    "prepare": "npm run build",
-    "start": "node dist/index.js",
     "pre": "npm run build",
+    "lint:fix": "eslint src --fix",
     "mcp:inspector": "npx --env-file=.env @modelcontextprotocol/inspector node dist/stdio.js",
-    "dev": "dotenv -e .env -- node dist/index.js",
-    "debug": "dotenv -e .env -- nodemon --watch src --ext ts --exec \"node --loader ts-node/esm\" src/server.ts",
-    "debug:stdio": "dotenv -e .env -- nodemon --watch src --ext ts --exec \"node --loader ts-node/esm\" src/stdio.ts",
+    "dev:stdio": "npx --env-file=.env -- node dist/stdio.js",
     "auto:build": "nodemon --watch src --ext ts --exec npm run build",
-    "pregenerate:api": "tsc src/utils/zod-transformer.ts --outDir dist/utils && mv dist/utils/zod-transformer.js dist/utils/zod-transformer.cjs",
-    "generate:api": "npm run pregenerate:api && orval --config orval.config.ts",
-    "lint:fix": "eslint src --fix"
+    "generate:api": "orval --config orval.config.ts"
   },
   "files": [
     "dist"
@@ -38,11 +33,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "axios": "^1.9.0",
-    "dotenv": "^16.5.0",
     "openapi-zod-client": "^1.18.3",
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "dotenv": "^16.5.0",
     "@eslint/js": "^9.29.0",
     "@orval/zod": "^7.9.0",
     "@types/handlebars": "^4.0.40",

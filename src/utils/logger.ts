@@ -4,6 +4,7 @@ import path from 'path';
 import winston from 'winston';
 
 import { env } from '../config';
+import { LOG_DIR } from '../constants';
 
 // Custom log levels
 const levels = {
@@ -53,16 +54,16 @@ const getLogLevel = () => {
 // const logDir = path.join(process.cwd(), 'logs');
 
 // Prefer env var, fallback to project-relative folder
-const logDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
+const logDir = process.env.LOG_DIR || LOG_DIR;
 
 if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+  } catch (error) {
+    console.error('Error creating log directory', error);
+  }
 }
 console.error('logs_dir', logDir);
-
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
-}
 
 // Create log files
 const errorLogFile = path.join(logDir, 'error.log');
