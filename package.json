@@ -12,7 +12,7 @@
     "server-carbonvoice": "dist/stdio.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc && chmod 755 dist/stdio.js",
+    "build": "rm -rf dist && tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "pre": "npm run build",
