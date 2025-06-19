@@ -1,6 +1,6 @@
 {
   "name": "@modelcontextprotocol/server-carbonvoice",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for using the Carbon Voice Simplified API",
   "author": "Carbon Voice, (https://getcarbon.app)",
   "homepage": "https://getcarbon.app",
