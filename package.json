@@ -12,7 +12,7 @@
     "server-carbonvoice": "dist/stdio.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc && shx chmod +x dist/*.js",
+    "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "pre": "npm run build",
@@ -58,6 +58,7 @@
     "nodemon": "^3.1.10",
     "orval": "^7.9.0",
     "prettier": "^3.5.3",
+    "shx": "^0.4.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3",
