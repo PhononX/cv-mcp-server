@@ -1,8 +1,10 @@
 {
-  "name": "@modelcontextprotocol/server-carbonvoice",
+  "name": "@carbonvoice/cv-mcp-server",
   "version": "1.0.1",
-  "description": "MCP server for using the Carbon Voice Simplified API",
-  "author": "Carbon Voice, (https://getcarbon.app)",
+  "description": "Server implementation for integrating with Carbon Voice's API, providing tools and endpoints for voice messaging, conversations, and workspace management through MCP (Model Context Protocol)",
+  "author": "Carbon Voice",
+  "license": "ISC",
+  "private": false,
   "homepage": "https://getcarbon.app",
   "bugs": "https://github.com/PhononX/cv-mcp-server/issues",
   "main": "dist/stdio.js",
@@ -25,8 +27,13 @@
   "files": [
     "dist"
   ],
-  "keywords": [],
-  "license": "ISC",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "mcp-server-carbonvoice",
+    "carbonvoice",
+    "carbonvoice-mcp-server"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "axios": "^1.9.0",
