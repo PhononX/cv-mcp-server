@@ -1,0 +1,67 @@
+name: Build and Deploy into NPM
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build the project
+        run: npm run build
+
+      - name: Bump version and push tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add -A
+          git commit -m "Commit changes before version bump [skip ci]" || echo "No changes to commit"
+          npm version patch -m "Bump to %s [skip ci]"
+          git push --follow-tags
+
+      - name: Configure npm for publishing
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Publish to npm
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: npm publish
+
+      - name: Get version
+        id: package
+        run: echo "::set-output name=version::$(jq -r .version package.json)"
+
+      - name: Create a GitHub release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/create-release@v1
+        with:
+          tag_name: v${{ steps.package.outputs.version }}
+          release_name: Release v${{ steps.package.outputs.version }}
+          body: |
+            New release for version ${{ steps.package.outputs.version }}.
+            - Built and published to npm
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

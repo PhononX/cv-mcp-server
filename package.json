@@ -1,30 +1,32 @@
 {
-  "name": "cv-mcp-server",
+  "name": "@modelcontextprotocol/server-carbonvoice",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "MCP server for using the Carbon Voice Simplified API",
+  "author": "Carbon Voice, (https://getcarbon.app)",
+  "homepage": "https://getcarbon.app",
+  "bugs": "https://github.com/PhononX/cv-mcp-server/issues",
+  "main": "dist/stdio.js",
   "bin": {
-    "cv-mcp-server": "./build/index.js"
+    "mcp-server-carbonvoice": "./dist/stdio.js"
   },
   "scripts": {
-    "build": "rm -rf build && tsc && chmod 755 build/stdio.js",
-    "start": "node build/index.js",
+    "build": "rm -rf dist && tsc && chmod 755 dist/stdio.js",
+    "start": "node dist/index.js",
     "pre": "npm run build",
-    "mcp:inspector": "npx --env-file=.env @modelcontextprotocol/inspector node build/stdio.js",
-    "dev": "dotenv -e .env -- node build/index.js",
+    "mcp:inspector": "npx --env-file=.env @modelcontextprotocol/inspector node dist/stdio.js",
+    "dev": "dotenv -e .env -- node dist/index.js",
     "debug": "dotenv -e .env -- nodemon --watch src --ext ts --exec \"node --loader ts-node/esm\" src/server.ts",
     "debug:stdio": "dotenv -e .env -- nodemon --watch src --ext ts --exec \"node --loader ts-node/esm\" src/stdio.ts",
     "auto:build": "nodemon --watch src --ext ts --exec npm run build",
-    "pregenerate:api": "tsc src/utils/zod-transformer.ts --outDir build/utils && mv build/utils/zod-transformer.js build/utils/zod-transformer.cjs",
+    "pregenerate:api": "tsc src/utils/zod-transformer.ts --outDir dist/utils && mv dist/utils/zod-transformer.js dist/utils/zod-transformer.cjs",
     "generate:api": "npm run pregenerate:api && orval --config orval.config.ts",
     "lint:fix": "eslint src --fix"
   },
   "files": [
-    "build"
+    "dist"
   ],
   "keywords": [],
-  "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "axios": "^1.9.0",

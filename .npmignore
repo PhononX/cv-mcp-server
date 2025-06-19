@@ -1,0 +1,21 @@
+# folders
+.github/*
+.git/*
+.vscode/*
+node_modules
+dist/
+src/
+logs/
+docs/
+
+# files
+.env
+.editorconfig
+.eslintignore
+.eslintrc.config.mjs
+.orval.config.ts
+.gitignore
+.npmignore
+.prettierrc
+tsconfig.json
+tsconfig.tsbuildinfo
