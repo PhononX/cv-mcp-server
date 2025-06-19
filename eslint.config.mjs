@@ -1,4 +1,4 @@
-import { defineConfig } from 'eslint/config';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import unusedImports from 'eslint-plugin-unused-imports';
 import globals from 'globals';
@@ -61,4 +61,5 @@ export default defineConfig([
     },
   },
   tseslint.configs.recommended,
+  globalIgnores(['src/generated/*', 'orval.config.ts']),
 ]);

@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+
 import {
   getMessageByIdParams,
   getMessageByIdQueryParams,
@@ -9,5 +10,3 @@ export const getMessageByIdSchema = z.object({
   ...getMessageByIdParams.shape, // This includes the 'id' field
   ...getMessageByIdQueryParams.shape, // This includes 'language' and 'fields'
 });
-
-type GetMessageByIdInput = z.infer<typeof getMessageByIdSchema>;

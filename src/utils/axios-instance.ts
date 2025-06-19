@@ -1,6 +1,8 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import { env } from '../config';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
+
 import { logger } from './logger';
+
+import { env } from '../config';
 
 // Define common error types
 interface ApiError {
@@ -9,7 +11,7 @@ interface ApiError {
     error: {
       code: string;
       message: string;
-      details?: Record<string, any>;
+      details?: Record<string, unknown>;
     };
   };
 }
@@ -20,14 +22,14 @@ interface NetworkError {
     error: {
       code: 'NETWORK_ERROR';
       message: string;
-      details?: Record<string, any>;
+      details?: Record<string, unknown>;
     };
   };
 }
 
 interface ErrorResponseData {
   message?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 // Create the axios instance
@@ -126,7 +128,8 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
             error: {
               code: 'BAD_REQUEST',
               message: errorData?.message || 'Invalid request parameters',
-              details: errorData?.details || errorData,
+              details:
+                errorData?.details || (errorData as Record<string, unknown>),
             },
           },
         };
@@ -195,7 +198,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
             error: {
               code: 'UNKNOWN_ERROR',
               message: errorData?.message || 'An unexpected error occurred',
-              details: errorData,
+              details: errorData as Record<string, unknown>,
             },
           },
         };

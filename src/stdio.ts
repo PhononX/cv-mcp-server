@@ -3,8 +3,8 @@
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import server from './server';
 import { SERVICE_NAME, SERVICE_VERSION } from './constants';
+import server from './server';
 import { logger } from './utils';
 
 // Set stdio mode for logger (Needed for the logger to work in stdio mode)

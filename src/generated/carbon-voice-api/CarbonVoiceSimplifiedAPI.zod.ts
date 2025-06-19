@@ -952,11 +952,11 @@ export const getConversationUsersResponse = zod.array(getConversationUsersRespon
 /**
  * @summary Get all Workspaces that user has access to with basic info
  */
-export const getAllWithBasicInfoResponseItem = zod.object({
+export const getAllWorkspacesWithBasicInfoResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string()
 })
-export const getAllWithBasicInfoResponse = zod.array(getAllWithBasicInfoResponseItem)
+export const getAllWorkspacesWithBasicInfoResponse = zod.array(getAllWorkspacesWithBasicInfoResponseItem)
 
 
 /**

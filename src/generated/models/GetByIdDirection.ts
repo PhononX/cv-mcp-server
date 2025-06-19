@@ -80,7 +80,6 @@ If you have problems or need help with your case, you can always reach out to ou
 export type GetByIdDirection =
   (typeof GetByIdDirection)[keyof typeof GetByIdDirection];
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GetByIdDirection = {
   older: 'older',
   newer: 'newer',

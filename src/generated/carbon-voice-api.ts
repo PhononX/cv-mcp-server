@@ -388,7 +388,7 @@ The **maximum** allowed range between dates is **31 days**.
   /**
    * @summary Get all Workspaces that user has access to with basic info
    */
-  const getAllWithBasicInfo = () => {
+  const getAllWorkspacesWithBasicInfo = () => {
     return mutator<WorkspaceBasicInfo[]>({
       url: `/simplified/workspaces/basic-info`,
       method: 'GET',
@@ -550,7 +550,7 @@ The **maximum** allowed range between dates is **31 days**.
     getAllConversations,
     getConversationById,
     getConversationUsers,
-    getAllWithBasicInfo,
+    getAllWorkspacesWithBasicInfo,
     getSystemAIPrompts,
     getAiSystemPromptResponse,
     getAllRootFolders,
@@ -750,10 +750,12 @@ export type GetConversationUsersResult = NonNullable<
     >
   >
 >;
-export type GetAllWithBasicInfoResult = NonNullable<
+export type GetAllWorkspacesWithBasicInfoResult = NonNullable<
   Awaited<
     ReturnType<
-      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getAllWithBasicInfo']
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['getAllWorkspacesWithBasicInfo']
     >
   >
 >;

@@ -15,7 +15,8 @@
     "debug:stdio": "dotenv -e .env -- nodemon --watch src --ext ts --exec \"node --loader ts-node/esm\" src/stdio.ts",
     "auto:build": "nodemon --watch src --ext ts --exec npm run build",
     "pregenerate:api": "tsc src/utils/zod-transformer.ts --outDir build/utils && mv build/utils/zod-transformer.js build/utils/zod-transformer.cjs",
-    "generate:api": "npm run pregenerate:api && orval --config orval.config.ts"
+    "generate:api": "npm run pregenerate:api && orval --config orval.config.ts",
+    "lint:fix": "eslint src --fix"
   },
   "files": [
     "build"
