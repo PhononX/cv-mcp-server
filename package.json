@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
     "pre": "npm run build",
     "lint:fix": "eslint src --fix",
     "mcp:inspector": "npx --env-file=.env @modelcontextprotocol/inspector node dist/stdio.js",
