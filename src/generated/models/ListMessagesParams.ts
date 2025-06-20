@@ -117,4 +117,8 @@ export type ListMessagesParams = {
    * Folder ID (optional)
    */
   folder_id?: string;
+  /**
+   * User IDs (optional). List of user IDs to filter messages by. If not provided, all users will be included.
+   */
+  user_ids?: string[];
 };

@@ -17,7 +17,7 @@
     "lint:fix": "eslint src --fix",
     "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node dist/stdio.js",
     "auto:build": "env-cmd nodemon --watch src --ext ts --exec npm run build",
-    "generate:api": "orval --config orval.config.ts"
+    "generate:api": "env-cmd orval --config orval.config.ts"
   },
   "files": [
     "dist"

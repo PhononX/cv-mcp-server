@@ -74,9 +74,6 @@ const server = new McpServer({
 
 const api = getCarbonVoiceSimplifiedAPI();
 
-// type GetMessageInput = z.infer<typeof getMessageByIdParams> &
-//   z.infer<typeof getMessageByIdQueryParams>;
-
 /**********************
  * Tools
  *********************/
