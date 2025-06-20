@@ -14,11 +14,9 @@
   "scripts": {
     "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "pre": "npm run build",
     "lint:fix": "eslint src --fix",
-    "mcp:inspector": "cross-env NODE_ENV=development npx @modelcontextprotocol/inspector node dist/stdio.js",
-    "dev:stdio": "cross-env NODE_ENV=development npx node dist/stdio.js",
-    "auto:build": "cross-env NODE_ENV=development npx nodemon --watch src --ext ts --exec npm run build",
+    "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node dist/stdio.js",
+    "auto:build": "env-cmd nodemon --watch src --ext ts --exec npm run build",
     "generate:api": "orval --config orval.config.ts"
   },
   "files": [
@@ -44,8 +42,7 @@
     "@types/node": "^22.15.29",
     "@typescript-eslint/eslint-plugin": "^8.33.1",
     "@typescript-eslint/parser": "^8.33.1",
-    "cross-env": "^7.0.3",
-    "dotenv": "^16.5.0",
+    "env-cmd": "^10.1.0",
     "eslint": "^9.29.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-prettier": "^5.4.1",
