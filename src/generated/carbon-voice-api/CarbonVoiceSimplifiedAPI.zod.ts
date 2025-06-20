@@ -693,7 +693,8 @@ export const listMessagesResponse = zod.object({
   "conversation_id": zod.string().optional().describe('Conversation ID (optional)'),
   "language": zod.string().optional().describe('Language (optional)'),
   "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).optional().describe('Type (optional)'),
-  "folder_id": zod.string().optional().describe('Folder ID (optional)')
+  "folder_id": zod.string().optional().describe('Folder ID (optional)'),
+  "user_ids": zod.array(zod.string()).optional().describe('User IDs (optional). List of user IDs to filter messages by. If not provided, all users will be included.')
 }).optional().describe('Filters'),
   "results": zod.array(zod.object({
   "id": zod.string().describe('ID'),

@@ -1,1 +1,0 @@
-import '@dotenvx/dotenvx/config';
