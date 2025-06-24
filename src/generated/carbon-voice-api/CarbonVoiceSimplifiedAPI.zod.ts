@@ -652,12 +652,10 @@ export const getMessageByIdResponse = zod.object({
 
 
 /**
- * By default return messages created in last 5 days.
-
-The **maximum** allowed range between dates is **31 days**.
+ * By default return most recent messages. The **maximum** allowed range between dates is **31 days**.
  * @summary List Messages
  */
-export const listMessagesQueryPageDefault = 1;export const listMessagesQuerySizeDefault = 10;
+export const listMessagesQueryPageDefault = 1;export const listMessagesQuerySizeDefault = 20;
 export const listMessagesQuerySizeMax = 50;
 export const listMessagesQuerySortDirectionDefault = "DESC";
 
@@ -675,7 +673,7 @@ export const listMessagesQueryParams = zod.object({
   "user_ids": zod.array(zod.string()).optional().describe('User IDs (optional). List of user IDs to filter messages by. If not provided, all users will be included.')
 })
 
-export const listMessagesResponsePageDefault = 1;export const listMessagesResponseSizeDefault = 10;
+export const listMessagesResponsePageDefault = 1;export const listMessagesResponseSizeDefault = 20;
 export const listMessagesResponseSizeMax = 50;
 export const listMessagesResponseSortDirectionDefault = "DESC";export const listMessagesResponseResultsItemLanguageDefault = "english";
 

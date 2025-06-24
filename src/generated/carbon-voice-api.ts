@@ -251,11 +251,9 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   };
 
   /**
- * By default return messages created in last 5 days.
-
-The **maximum** allowed range between dates is **31 days**.
- * @summary List Messages
- */
+   * By default return most recent messages. The **maximum** allowed range between dates is **31 days**.
+   * @summary List Messages
+   */
   const listMessages = (params?: ListMessagesParams) => {
     return mutator<ListMessagesResponse>({
       url: `/simplified/messages`,

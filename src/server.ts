@@ -60,6 +60,8 @@ import {
   MoveFolderInput,
   UpdateFolderNameInput,
 } from './interfaces';
+import { SummarizeConversationParams } from './interfaces/conversation.interface';
+import { summarizeConversationParams } from './schemas';
 import { formatToMCPToolResponse, logger } from './utils';
 
 // Create server instance
@@ -83,7 +85,7 @@ server.registerTool(
   'list_messages',
   {
     description:
-      'List Messages. By default returns messages created in last 5 days. The maximum allowed range between dates is 31 days.',
+      'List Messages. By default returns latest 20 messages. The maximum allowed range between dates is 31 days.',
     inputSchema: listMessagesQueryParams.shape,
   },
   async (params: ListMessagesParams): Promise<McpToolResponse> => {
@@ -139,7 +141,8 @@ server.registerTool(
   'create_conversation_message',
   {
     description:
-      'Send a message to a conversation. In order to create a Message, you must provide transcript or link attachments.',
+      'Sends a message to an existing conversation or any type with a conversation_id. ' +
+      'To reply as a thread, included a message_id for "parent_id". You must provide a transcript or attachment.',
     inputSchema: createConversationMessageParams.merge(
       createConversationMessageBody,
     ).shape,
@@ -314,6 +317,69 @@ server.registerTool(
     }
   },
 );
+
+server.registerTool(
+  'summarize_conversation',
+  {
+    description: 'Summarize a conversation.',
+    inputSchema: summarizeConversationParams.shape,
+  },
+  async (args: SummarizeConversationParams): Promise<McpToolResponse> => {
+    try {
+      let message_ids: string[] = args.message_ids || [];
+
+      // If no message ids are provided, get couple of messages from the conversation
+      if (!args.message_ids) {
+        const messages = await api.listMessages(args);
+        message_ids = messages.results?.map((message) => message.id) || [];
+      }
+
+      const aiResponse = await api.aIResponseControllerCreateResponse({
+        prompt_id: args.prompt_id,
+        message_ids: message_ids,
+        channel_id: args.conversation_id,
+        language: args.language,
+      });
+
+      return formatToMCPToolResponse(aiResponse);
+    } catch (error) {
+      logger.error('Error summarizing conversation:', { error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+// TODO: First we need to implement List messages filtered by unread messages
+// server.registerTool(
+//   'catch_up_conversation',
+//   {
+//     description: 'Catch up a conversation.',
+//     inputSchema: catchUpConversationParams.shape,
+//   },
+//   async (args: CatchUpConversationParams): Promise<McpToolResponse> => {
+//     try {
+//       let message_ids: string[] = args.message_ids || [];
+
+//       // If no message ids are provided, get couple of messages from the conversation
+//       if (!args.message_ids?.length) {
+//         const messages = await api.listMessages(args);
+//         message_ids = messages.results?.map((message) => message.id) || [];
+//       }
+
+//       const aiResponse = await api.aIResponseControllerCreateResponse({
+//         prompt_id: args.prompt_id,
+//         message_ids: message_ids,
+//         channel_id: args.conversation_id,
+//         language: args.language,
+//       });
+
+//       return formatToMCPToolResponse(aiResponse);
+//     } catch (error) {
+//       logger.error('Error catching up conversation:', { error });
+//       return formatToMCPToolResponse(error);
+//     }
+//   },
+// );
 
 // Folders
 server.registerTool(
