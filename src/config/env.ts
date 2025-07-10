@@ -9,7 +9,7 @@ const Environment = z.object({
     .nullable()
     .optional()
     .transform((val) => val || CV_API_BASE_URL),
-  CARBON_VOICE_API_KEY: z.string().nonempty(),
+  CARBON_VOICE_API_KEY: z.string().optional(),
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error'])
     .optional()
@@ -18,6 +18,8 @@ const Environment = z.object({
     .string()
     .optional()
     .transform((val) => val || LOG_DIR),
+  PORT: z.string().optional().default('3005'),
+  LOG_TRANSPORT: z.enum(['console', 'file']).optional().default('file'),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {

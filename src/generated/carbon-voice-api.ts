@@ -125,50 +125,77 @@ import type {
 
 import { mutator } from '../utils/axios-instance';
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 export const getCarbonVoiceSimplifiedAPI = () => {
   const aIPromptControllerGetPrompts = (
     params?: AIPromptControllerGetPromptsParams,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<AIPrompt[]>({ url: `/prompts`, method: 'GET', params });
+    return mutator<AIPrompt[]>(
+      { url: `/prompts`, method: 'GET', params },
+      options,
+    );
   };
 
-  const aIPromptControllerCreatePrompt = (createAIPrompt: CreateAIPrompt) => {
-    return mutator<AIPrompt>({
-      url: `/prompts`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: createAIPrompt,
-    });
+  const aIPromptControllerCreatePrompt = (
+    createAIPrompt: CreateAIPrompt,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<AIPrompt>(
+      {
+        url: `/prompts`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createAIPrompt,
+      },
+      options,
+    );
   };
 
-  const aIPromptControllerDeletePrompt = (id: string) => {
-    return mutator<boolean>({ url: `/prompts/${id}`, method: 'DELETE' });
+  const aIPromptControllerDeletePrompt = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<boolean>(
+      { url: `/prompts/${id}`, method: 'DELETE' },
+      options,
+    );
   };
 
   const aIResponseControllerGetAllResponses = (
     params?: AIResponseControllerGetAllResponsesParams,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<AIResponse[]>({ url: `/responses`, method: 'GET', params });
+    return mutator<AIResponse[]>(
+      { url: `/responses`, method: 'GET', params },
+      options,
+    );
   };
 
   const aIResponseControllerCreateResponse = (
     createAIResponse: CreateAIResponse,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<AIResponse>({
-      url: `/responses`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: createAIResponse,
-    });
+    return mutator<AIResponse>(
+      {
+        url: `/responses`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createAIResponse,
+      },
+      options,
+    );
   };
 
   const aIResponseControllerGetLatestTenAIResponseByPrompt = (
     promptId: string,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<GetTenRecentAIPromptResponse>({
-      url: `/responses/prompt/${promptId}/latest-ten`,
-      method: 'GET',
-    });
+    return mutator<GetTenRecentAIPromptResponse>(
+      { url: `/responses/prompt/${promptId}/latest-ten`, method: 'GET' },
+      options,
+    );
   };
 
   /**
@@ -176,25 +203,35 @@ export const getCarbonVoiceSimplifiedAPI = () => {
    */
   const createShareLinkAIResponse = (
     createShareLinkAIResponse: CreateShareLinkAIResponse,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<AIShareLinkResponse>({
-      url: `/responses/share-link`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: createShareLinkAIResponse,
-    });
+    return mutator<AIShareLinkResponse>(
+      {
+        url: `/responses/share-link`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createShareLinkAIResponse,
+      },
+      options,
+    );
   };
 
-  const aIResponseControllerDeletePrompt = (id: string) => {
-    return mutator<boolean>({ url: `/responses/${id}`, method: 'DELETE' });
+  const aIResponseControllerDeletePrompt = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<boolean>(
+      { url: `/responses/${id}`, method: 'DELETE' },
+      options,
+    );
   };
 
   /**
    * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields.
    * @summary Get List of My Apps
    */
-  const getMyApps = () => {
-    return mutator<App[]>({ url: `/apps`, method: 'GET' });
+  const getMyApps = (options?: SecondParameter<typeof mutator>) => {
+    return mutator<App[]>({ url: `/apps`, method: 'GET' }, options);
   };
 
   /**
@@ -203,27 +240,39 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   const subscribeUserIntoApp = (
     clientId: string,
     subscribeUserPayload: SubscribeUserPayload,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<SubscribedUser>({
-      url: `/apps/${clientId}/subscribe`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: subscribeUserPayload,
-    });
+    return mutator<SubscribedUser>(
+      {
+        url: `/apps/${clientId}/subscribe`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: subscribeUserPayload,
+      },
+      options,
+    );
   };
 
   /**
    * @summary Unsubscribe user from app
    */
-  const unsubscribeUserFromApp = (clientId: string) => {
-    return mutator<void>({
-      url: `/apps/${clientId}/unsubscribe`,
-      method: 'DELETE',
-    });
+  const unsubscribeUserFromApp = (
+    clientId: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<void>(
+      { url: `/apps/${clientId}/unsubscribe`, method: 'DELETE' },
+      options,
+    );
   };
 
-  const languageControllerGetAll = () => {
-    return mutator<Language[]>({ url: `/languages/all`, method: 'GET' });
+  const languageControllerGetAll = (
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Language[]>(
+      { url: `/languages/all`, method: 'GET' },
+      options,
+    );
   };
 
   /**
@@ -231,35 +280,40 @@ export const getCarbonVoiceSimplifiedAPI = () => {
    */
   const getTenRecentMessagesResponse = (
     params?: GetTenRecentMessagesResponseParams,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<GetTenRecentMessagesResponse>({
-      url: `/simplified/messages/latest-ten`,
-      method: 'GET',
-      params,
-    });
+    return mutator<GetTenRecentMessagesResponse>(
+      { url: `/simplified/messages/latest-ten`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
    * @summary Get Message By ID
    */
-  const getMessageById = (id: string, params?: GetMessageByIdParams) => {
-    return mutator<GetMessageResponse>({
-      url: `/simplified/messages/${id}`,
-      method: 'GET',
-      params,
-    });
+  const getMessageById = (
+    id: string,
+    params?: GetMessageByIdParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<GetMessageResponse>(
+      { url: `/simplified/messages/${id}`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
    * By default return most recent messages. The **maximum** allowed range between dates is **31 days**.
    * @summary List Messages
    */
-  const listMessages = (params?: ListMessagesParams) => {
-    return mutator<ListMessagesResponse>({
-      url: `/simplified/messages`,
-      method: 'GET',
-      params,
-    });
+  const listMessages = (
+    params?: ListMessagesParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ListMessagesResponse>(
+      { url: `/simplified/messages`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
@@ -269,13 +323,17 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   const addLinkAttachmentsToMessage = (
     id: string,
     addLinkAttachmentPayload: AddLinkAttachmentPayload,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<AddAttachmentsResponse>({
-      url: `/simplified/messages/${id}/attachments/bulk/link`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: addLinkAttachmentPayload,
-    });
+    return mutator<AddAttachmentsResponse>(
+      {
+        url: `/simplified/messages/${id}/attachments/bulk/link`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: addLinkAttachmentPayload,
+      },
+      options,
+    );
   };
 
   /**
@@ -285,26 +343,36 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   const createConversationMessage = (
     id: string,
     createConversationMessage: CreateConversationMessage,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<GetMessageResponse>({
-      url: `/simplified/messages/conversation/${id}`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: createConversationMessage,
-    });
+    return mutator<GetMessageResponse>(
+      {
+        url: `/simplified/messages/conversation/${id}`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createConversationMessage,
+      },
+      options,
+    );
   };
 
   /**
    * In order to create a Message, you must provide **transcript** or **link** attachments.
    * @summary Send a Direct Message to a User or a Group of Users
    */
-  const sendDirectMessage = (sendDirectMessage: SendDirectMessage) => {
-    return mutator<GetMessageResponse>({
-      url: `/simplified/messages/direct`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: sendDirectMessage,
-    });
+  const sendDirectMessage = (
+    sendDirectMessage: SendDirectMessage,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<GetMessageResponse>(
+      {
+        url: `/simplified/messages/direct`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: sendDirectMessage,
+      },
+      options,
+    );
   };
 
   /**
@@ -313,127 +381,167 @@ export const getCarbonVoiceSimplifiedAPI = () => {
    */
   const createVoiceMemoMessage = (
     createVoicememoMessage: CreateVoicememoMessage,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<GetMessageResponse>({
-      url: `/simplified/messages/voicememo`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: createVoicememoMessage,
-    });
+    return mutator<GetMessageResponse>(
+      {
+        url: `/simplified/messages/voicememo`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createVoicememoMessage,
+      },
+      options,
+    );
   };
 
   /**
    * It's required to inform one of (**email**, **phone**)
    * @summary Search user by email or phone
    */
-  const searchUser = (params?: SearchUserParams) => {
-    return mutator<User>({
-      url: `/simplified/users/search`,
-      method: 'GET',
-      params,
-    });
+  const searchUser = (
+    params?: SearchUserParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<User>(
+      { url: `/simplified/users/search`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
    * @summary Search users by their emails, phones or IDs
    */
-  const searchUsers = (searchUsersBody: SearchUsersBody) => {
-    return mutator<User[]>({
-      url: `/simplified/users/search`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: searchUsersBody,
-    });
+  const searchUsers = (
+    searchUsersBody: SearchUsersBody,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<User[]>(
+      {
+        url: `/simplified/users/search`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: searchUsersBody,
+      },
+      options,
+    );
   };
 
   /**
    * @summary Get User By ID
    */
-  const getUserById = (id: string) => {
-    return mutator<User>({ url: `/simplified/users/${id}`, method: 'GET' });
+  const getUserById = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<User>(
+      { url: `/simplified/users/${id}`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary Get all user conversations (Only _id and name available
    */
-  const getAllConversations = () => {
-    return mutator<AllConversationsResponse>({
-      url: `/simplified/conversations/all`,
-      method: 'GET',
-    });
+  const getAllConversations = (options?: SecondParameter<typeof mutator>) => {
+    return mutator<AllConversationsResponse>(
+      { url: `/simplified/conversations/all`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary Get a conversation by id
    */
-  const getConversationById = (id: string) => {
-    return mutator<Conversation>({
-      url: `/simplified/conversations/${id}`,
-      method: 'GET',
-    });
+  const getConversationById = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Conversation>(
+      { url: `/simplified/conversations/${id}`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary Get Conversation Users
    */
-  const getConversationUsers = (id: string) => {
-    return mutator<User[]>({
-      url: `/simplified/conversations/${id}/users`,
-      method: 'GET',
-    });
+  const getConversationUsers = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<User[]>(
+      { url: `/simplified/conversations/${id}/users`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary Get all Workspaces that user has access to with basic info
    */
-  const getAllWorkspacesWithBasicInfo = () => {
-    return mutator<WorkspaceBasicInfo[]>({
-      url: `/simplified/workspaces/basic-info`,
-      method: 'GET',
-    });
+  const getAllWorkspacesWithBasicInfo = (
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<WorkspaceBasicInfo[]>(
+      { url: `/simplified/workspaces/basic-info`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary List of System AI Prompts
    */
-  const getSystemAIPrompts = () => {
-    return mutator<SimplifiedAIPrompt[]>({
-      url: `/simplified/public/system-prompts`,
-      method: 'GET',
-    });
+  const getSystemAIPrompts = (options?: SecondParameter<typeof mutator>) => {
+    return mutator<SimplifiedAIPrompt[]>(
+      { url: `/simplified/public/system-prompts`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary Get Sample AI Responses for a System AI Prompt
    */
-  const getAiSystemPromptResponse = (promptId: string) => {
-    return mutator<AIPromptWithMessagesResponse>({
-      url: `/simplified/public/responses/prompt/${promptId}/sample`,
-      method: 'GET',
-    });
+  const getAiSystemPromptResponse = (
+    promptId: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<AIPromptWithMessagesResponse>(
+      {
+        url: `/simplified/public/responses/prompt/${promptId}/sample`,
+        method: 'GET',
+      },
+      options,
+    );
   };
 
   /**
    * @summary Get all root Folders
    */
-  const getAllRootFolders = (params: GetAllRootFoldersParams) => {
-    return mutator<ListFoldersResponse>({
-      url: `/simplified/folders`,
-      method: 'GET',
-      params,
-    });
+  const getAllRootFolders = (
+    params: GetAllRootFoldersParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ListFoldersResponse>(
+      { url: `/simplified/folders`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
    * @summary Create a new Folder
    */
-  const createFolder = (createFolderPayload: CreateFolderPayload) => {
-    return mutator<Folder>({
-      url: `/simplified/folders`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: createFolderPayload,
-    });
+  const createFolder = (
+    createFolderPayload: CreateFolderPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Folder>(
+      {
+        url: `/simplified/folders`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createFolderPayload,
+      },
+      options,
+    );
   };
 
   /**
@@ -441,33 +549,39 @@ export const getCarbonVoiceSimplifiedAPI = () => {
    */
   const getCountsGroupedByWorkspace = (
     params: GetCountsGroupedByWorkspaceParams,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<ListCountFoldersGroupedByWorkspace[]>({
-      url: `/simplified/folders/count-by-workspace`,
-      method: 'GET',
-      params,
-    });
+    return mutator<ListCountFoldersGroupedByWorkspace[]>(
+      { url: `/simplified/folders/count-by-workspace`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
    * @summary Get Folder with Messages
    */
-  const getFolderMessages = (id: string) => {
-    return mutator<FolderWithMessages>({
-      url: `/simplified/folders/${id}/messages`,
-      method: 'GET',
-    });
+  const getFolderMessages = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<FolderWithMessages>(
+      { url: `/simplified/folders/${id}/messages`, method: 'GET' },
+      options,
+    );
   };
 
   /**
    * @summary Get Folder by ID
    */
-  const getFolderById = (id: string, params?: GetFolderByIdParams) => {
-    return mutator<Folder>({
-      url: `/simplified/folders/${id}`,
-      method: 'GET',
-      params,
-    });
+  const getFolderById = (
+    id: string,
+    params?: GetFolderByIdParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Folder>(
+      { url: `/simplified/folders/${id}`, method: 'GET', params },
+      options,
+    );
   };
 
   /**
@@ -476,23 +590,30 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   const updateFolderName = (
     id: string,
     updateFolderNamePayload: UpdateFolderNamePayload,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<Folder>({
-      url: `/simplified/folders/${id}`,
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      data: updateFolderNamePayload,
-    });
+    return mutator<Folder>(
+      {
+        url: `/simplified/folders/${id}`,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        data: updateFolderNamePayload,
+      },
+      options,
+    );
   };
 
   /**
    * @summary Delete Folder and all subfolders and messages in nested folders
    */
-  const deleteFolder = (id: string) => {
-    return mutator<void>({
-      url: `/simplified/folders/${id}`,
-      method: 'DELETE',
-    });
+  const deleteFolder = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<void>(
+      { url: `/simplified/folders/${id}`, method: 'DELETE' },
+      options,
+    );
   };
 
   /**
@@ -501,25 +622,36 @@ export const getCarbonVoiceSimplifiedAPI = () => {
    */
   const addMessageToFolderOrWorkspace = (
     addMessageToFolderPayload: AddMessageToFolderPayload,
+    options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<MessageV2>({
-      url: `/simplified/folders/message`,
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      data: addMessageToFolderPayload,
-    });
+    return mutator<MessageV2>(
+      {
+        url: `/simplified/folders/message`,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        data: addMessageToFolderPayload,
+      },
+      options,
+    );
   };
 
   /**
    * @summary Move a Folder into another Folder or into a Workspace
    */
-  const moveFolder = (id: string, moveFolderPayload: MoveFolderPayload) => {
-    return mutator<Folder>({
-      url: `/simplified/folders/${id}/move`,
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      data: moveFolderPayload,
-    });
+  const moveFolder = (
+    id: string,
+    moveFolderPayload: MoveFolderPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Folder>(
+      {
+        url: `/simplified/folders/${id}/move`,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        data: moveFolderPayload,
+      },
+      options,
+    );
   };
 
   return {

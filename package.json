@@ -7,17 +7,20 @@
   "private": false,
   "homepage": "https://getcarbon.app",
   "bugs": "https://github.com/PhononX/cv-mcp-server/issues",
-  "main": "./dist/stdio.js",
+  "main": "./dist/transports/stdio/stdio.js",
   "bin": {
-    "cv-mcp-server": "dist/stdio.js"
+    "cv-mcp-server": "/dist/transports/stdio/stdio.js"
   },
   "scripts": {
     "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
     "lint:fix": "eslint src --fix",
-    "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node dist/stdio.js",
+    "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node /dist/transports/stdio/stdio.js",
+    "mcp:inspector:http": "env-cmd npx @modelcontextprotocol/inspector http://localhost:3005/mcp",
+    "dev:http": "env-cmd nodemon --inspect dist/transports/http/streamable.js",
     "auto:build": "env-cmd nodemon --watch src --ext ts --exec npm run build",
-    "generate:api": "env-cmd orval --config orval.config.ts"
+    "generate:api": "env-cmd orval --config orval.config.ts",
+    "test:oauth": "node test-oauth.js"
   },
   "files": [
     "dist"
@@ -27,18 +30,29 @@
     "mcp-server",
     "mcp-server-carbonvoice",
     "carbonvoice",
-    "carbonvoice-mcp-server"
+    "carbonvoice-mcp-server",
+    "stdio",
+    "http",
+    "streamable"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "axios": "^1.9.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "http-errors": "^2.0.0",
+    "jsonwebtoken": "^9.0.2",
     "openapi-zod-client": "^1.18.3",
     "winston": "^3.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
     "@orval/zod": "^7.9.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/handlebars": "^4.0.40",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.15.29",
     "@typescript-eslint/eslint-plugin": "^8.33.1",
     "@typescript-eslint/parser": "^8.33.1",

@@ -1,6 +1,10 @@
+import { z } from 'zod';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import { setCarbonVoiceAuthHeader } from './auth/auth-middleware';
 import { SERVICE_NAME, SERVICE_VERSION } from './constants';
+import { getCarbonVoiceAPI } from './cv-api';
 import { getCarbonVoiceSimplifiedAPI } from './generated';
 import {
   addLinkAttachmentsToMessageBody,
@@ -17,7 +21,6 @@ import {
   deleteFolderParams,
   getAllRootFoldersQueryParams,
   getConversationByIdParams,
-  getCountsGroupedByWorkspaceQueryParams,
   getFolderByIdParams,
   getFolderByIdQueryParams,
   getFolderMessagesParams,
@@ -43,7 +46,6 @@ import {
   CreateShareLinkAIResponse,
   CreateVoicememoMessage,
   GetAllRootFoldersParams,
-  GetCountsGroupedByWorkspaceParams,
   GetTenRecentMessagesResponseParams,
   ListMessagesParams,
   SearchUserParams,
@@ -74,7 +76,8 @@ const server = new McpServer({
   },
 });
 
-const api = getCarbonVoiceSimplifiedAPI();
+const simplifiedApi = getCarbonVoiceSimplifiedAPI();
+const cvApi = getCarbonVoiceAPI();
 
 /**********************
  * Tools
@@ -85,12 +88,30 @@ server.registerTool(
   'list_messages',
   {
     description:
-      'List Messages. By default returns latest 20 messages. The maximum allowed range between dates is 31 days.',
+      'List Messages. By default returns latest 20 messages. The maximum allowed range between dates is 31 days. ' +
+      'All presigned URLs returned by this tool are ready to use. ' +
+      'Do not parse, modify, or re-encode them—always present or use the URLs exactly as received.' +
+      'If you want to get messages from a specific date range, you can use the "start_date" and "end_date" parameters. ' +
+      'If you want to get messages from a specific date, you can use the "date" parameter. ' +
+      'If you want to get messages from a specific user, you can use the "user_ids" parameter. ' +
+      'If you want to get messages from a specific conversation, you can use the "conversation_id" parameter. ' +
+      'If you want to get messages from a specific folder, you can use the "folder_id" parameter. ' +
+      'If you want to get messages from a specific workspace, you can use the "workspace_id" parameter. ' +
+      'If you want to get messages for a particular language, you can use the "language" parameter. ',
     inputSchema: listMessagesQueryParams.shape,
   },
-  async (params: ListMessagesParams): Promise<McpToolResponse> => {
+  async (
+    params: ListMessagesParams,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.listMessages(params));
+      // Fallback to regular API
+      return formatToMCPToolResponse(
+        await simplifiedApi.listMessages(
+          params,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error listing messages:', { params, error });
       return formatToMCPToolResponse(error);
@@ -104,10 +125,16 @@ server.registerTool(
     description: 'Get a message by its ID.',
     inputSchema: getMessageByIdParams.merge(getMessageByIdQueryParams).shape,
   },
-  async (args: GetMessageInput): Promise<McpToolResponse> => {
+  async (args: GetMessageInput, { authInfo }): Promise<McpToolResponse> => {
     try {
       const { id, ...queryParams } = args;
-      return formatToMCPToolResponse(await api.getMessageById(id, queryParams));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getMessageById(
+          id,
+          queryParams,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting message by id:', { args, error });
       return formatToMCPToolResponse(error);
@@ -125,10 +152,14 @@ server.registerTool(
   },
   async (
     args: GetTenRecentMessagesResponseParams,
+    { authInfo },
   ): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.getTenRecentMessagesResponse(args),
+        await simplifiedApi.getTenRecentMessagesResponse(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error getting recent messages:', { args, error });
@@ -147,10 +178,17 @@ server.registerTool(
       createConversationMessageBody,
     ).shape,
   },
-  async (args: CreateConversationMessageInput): Promise<McpToolResponse> => {
+  async (
+    args: CreateConversationMessageInput,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.createConversationMessage(args.id, args),
+        await simplifiedApi.createConversationMessage(
+          args.id,
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error creating conversation message:', { args, error });
@@ -167,9 +205,14 @@ server.registerTool(
       'In order to create a Direct Message, you must provide transcript or link attachments.',
     inputSchema: sendDirectMessageBody.shape,
   },
-  async (args: SendDirectMessage): Promise<McpToolResponse> => {
+  async (args: SendDirectMessage, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.sendDirectMessage(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.sendDirectMessage(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error creating direct message:', { args, error });
       return formatToMCPToolResponse(error);
@@ -184,9 +227,17 @@ server.registerTool(
       'Create a VoiceMemo Message. In order to create a VoiceMemo Message, you must provide a transcript or link attachments.',
     inputSchema: createVoiceMemoMessageBody.shape,
   },
-  async (args: CreateVoicememoMessage): Promise<McpToolResponse> => {
+  async (
+    args: CreateVoicememoMessage,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.createVoiceMemoMessage(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.createVoiceMemoMessage(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error creating voicememo message:', { args, error });
       return formatToMCPToolResponse(error);
@@ -203,10 +254,19 @@ server.registerTool(
       addLinkAttachmentsToMessageBody,
     ).shape,
   },
-  async (args: AddLinkAttachmentsToMessageInput): Promise<McpToolResponse> => {
+  async (
+    args: AddLinkAttachmentsToMessageInput,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.addLinkAttachmentsToMessage(args.id, { links: args.links }),
+        await simplifiedApi.addLinkAttachmentsToMessage(
+          args.id,
+          {
+            links: args.links,
+          },
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error adding attachments to message:', { args, error });
@@ -222,9 +282,14 @@ server.registerTool(
     description: 'Get a User by their ID.',
     inputSchema: getUserByIdParams.shape,
   },
-  async (args: GetByIdParams): Promise<McpToolResponse> => {
+  async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getUserById(args.id));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getUserById(
+          args.id,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting user by id:', { args, error });
       return formatToMCPToolResponse(error);
@@ -240,9 +305,14 @@ server.registerTool(
       '(In order to search for a User, you must provide a phone number or email address.)',
     inputSchema: searchUserQueryParams.shape,
   },
-  async (args: SearchUserParams): Promise<McpToolResponse> => {
+  async (args: SearchUserParams, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.searchUser(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.searchUser(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error searching for user:', { args, error });
       return formatToMCPToolResponse(error);
@@ -258,11 +328,34 @@ server.registerTool(
       '(In order to search Users, you must provide phone numbers, email addresses or ids.)',
     inputSchema: searchUsersBody.shape,
   },
-  async (args: SearchUsersBody): Promise<McpToolResponse> => {
+  async (args: SearchUsersBody, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.searchUsers(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.searchUsers(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error searching users:', { args, error });
+      return formatToMCPToolResponse(error);
+    }
+  },
+);
+
+server.registerTool(
+  'me',
+  {
+    description: 'Get the current user information. ',
+    inputSchema: z.object({}).shape, // Needed in order to have access to authInfo
+  },
+  async (params: unknown, { authInfo }): Promise<McpToolResponse> => {
+    try {
+      return formatToMCPToolResponse(
+        await cvApi.getWhoAmI(setCarbonVoiceAuthHeader(authInfo?.token)),
+      );
+    } catch (error) {
+      logger.error('Error searching users:', { params, error });
       return formatToMCPToolResponse(error);
     }
   },
@@ -275,10 +368,15 @@ server.registerTool(
     description:
       'List all conversations. ' +
       'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
+    inputSchema: z.object({}).shape,
   },
-  async (): Promise<McpToolResponse> => {
+  async (args: unknown, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getAllConversations());
+      return formatToMCPToolResponse(
+        await simplifiedApi.getAllConversations(
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error listing conversations:', { error });
       return formatToMCPToolResponse(error);
@@ -292,9 +390,14 @@ server.registerTool(
     description: 'Get a conversation by its ID.',
     inputSchema: getConversationByIdParams.shape,
   },
-  async (args: GetByIdParams): Promise<McpToolResponse> => {
+  async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getConversationById(args.id));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getConversationById(
+          args.id,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting conversation by id:', { error });
       return formatToMCPToolResponse(error);
@@ -308,9 +411,14 @@ server.registerTool(
     description: 'Get users in a conversation.',
     inputSchema: getConversationByIdParams.shape,
   },
-  async (args: GetByIdParams): Promise<McpToolResponse> => {
+  async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getConversationUsers(args.id));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getConversationUsers(
+          args.id,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting conversation users:', { error });
       return formatToMCPToolResponse(error);
@@ -324,22 +432,31 @@ server.registerTool(
     description: 'Summarize a conversation.',
     inputSchema: summarizeConversationParams.shape,
   },
-  async (args: SummarizeConversationParams): Promise<McpToolResponse> => {
+  async (
+    args: SummarizeConversationParams,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
       let message_ids: string[] = args.message_ids || [];
 
       // If no message ids are provided, get couple of messages from the conversation
       if (!args.message_ids) {
-        const messages = await api.listMessages(args);
+        const messages = await simplifiedApi.listMessages(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        );
         message_ids = messages.results?.map((message) => message.id) || [];
       }
 
-      const aiResponse = await api.aIResponseControllerCreateResponse({
-        prompt_id: args.prompt_id,
-        message_ids: message_ids,
-        channel_id: args.conversation_id,
-        language: args.language,
-      });
+      const aiResponse = await simplifiedApi.aIResponseControllerCreateResponse(
+        {
+          prompt_id: args.prompt_id,
+          message_ids: message_ids,
+          channel_id: args.conversation_id,
+          language: args.language,
+        },
+        setCarbonVoiceAuthHeader(authInfo?.token),
+      );
 
       return formatToMCPToolResponse(aiResponse);
     } catch (error) {
@@ -382,25 +499,25 @@ server.registerTool(
 // );
 
 // Folders
-server.registerTool(
-  'get_workspace_folders_and_message_counts',
-  {
-    description:
-      'Returns, for each workspace, the total number of folders and messages, as well as a breakdown of folders, ' +
-      'messages, and messages not in any folder.(Required to inform message type:voicememo,prerecorded)',
-    inputSchema: getCountsGroupedByWorkspaceQueryParams.shape,
-  },
-  async (args: GetCountsGroupedByWorkspaceParams): Promise<McpToolResponse> => {
-    try {
-      return formatToMCPToolResponse(
-        await api.getCountsGroupedByWorkspace(args),
-      );
-    } catch (error) {
-      logger.error('Error listing workspace folders:', { error });
-      return formatToMCPToolResponse(error);
-    }
-  },
-);
+// server.registerTool(
+//   'get_workspace_folders_and_message_counts',
+//   {
+//     description:
+//       'Returns, for each workspace, the total number of folders and messages, as well as a breakdown of folders, ' +
+//       'messages, and messages not in any folder.(Required to inform message type:voicememo,prerecorded)',
+//     inputSchema: getCountsGroupedByWorkspaceQueryParams.shape,
+//   },
+//   async (args: GetCountsGroupedByWorkspaceParams): Promise<McpToolResponse> => {
+//     try {
+//       return formatToMCPToolResponse(
+//         await api.getCountsGroupedByWorkspace(args),
+//       );
+//     } catch (error) {
+//       logger.error('Error listing workspace folders:', { error });
+//       return formatToMCPToolResponse(error);
+//     }
+//   },
+// );
 
 server.registerTool(
   'get_root_folders',
@@ -410,9 +527,17 @@ server.registerTool(
       'but does not provide aggregate counts.(Required to inform message type:voicememo,prerecorded)',
     inputSchema: getAllRootFoldersQueryParams.shape,
   },
-  async (args: GetAllRootFoldersParams): Promise<McpToolResponse> => {
+  async (
+    args: GetAllRootFoldersParams,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getAllRootFolders(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getAllRootFolders(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error listing root folders:', { error });
       return formatToMCPToolResponse(error);
@@ -426,9 +551,14 @@ server.registerTool(
     description: 'Create a new folder.',
     inputSchema: createFolderBody.shape,
   },
-  async (args: CreateFolderPayload): Promise<McpToolResponse> => {
+  async (args: CreateFolderPayload, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.createFolder(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.createFolder(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error creating folder:', { error });
       return formatToMCPToolResponse(error);
@@ -442,9 +572,15 @@ server.registerTool(
     description: 'Get a folder by its ID.',
     inputSchema: getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
   },
-  async (args: GetFolderInput): Promise<McpToolResponse> => {
+  async (args: GetFolderInput, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getFolderById(args.id, args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getFolderById(
+          args.id,
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting folder by id:', { error });
       return formatToMCPToolResponse(error);
@@ -459,9 +595,14 @@ server.registerTool(
       'Get a folder including its messages by its ID. (Only messages at folder level are returned.)',
     inputSchema: getFolderMessagesParams.shape,
   },
-  async (args: GetByIdParams): Promise<McpToolResponse> => {
+  async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getFolderMessages(args.id));
+      return formatToMCPToolResponse(
+        await simplifiedApi.getFolderMessages(
+          args.id,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting folder with messages:', { error });
       return formatToMCPToolResponse(error);
@@ -475,9 +616,18 @@ server.registerTool(
     description: 'Update a folder name by its ID.',
     inputSchema: updateFolderNameParams.merge(updateFolderNameBody).shape,
   },
-  async (args: UpdateFolderNameInput): Promise<McpToolResponse> => {
+  async (
+    args: UpdateFolderNameInput,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.updateFolderName(args.id, args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.updateFolderName(
+          args.id,
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error updating folder name:', { error });
       return formatToMCPToolResponse(error);
@@ -493,9 +643,14 @@ server.registerTool(
       '(This is a destructive action and cannot be undone, so please be careful.)',
     inputSchema: deleteFolderParams.shape,
   },
-  async (args: GetByIdParams): Promise<McpToolResponse> => {
+  async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.deleteFolder(args.id));
+      return formatToMCPToolResponse(
+        await simplifiedApi.deleteFolder(
+          args.id,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error deleting folder:', { error });
       return formatToMCPToolResponse(error);
@@ -510,9 +665,15 @@ server.registerTool(
       'Move a folder by its ID. Move a Folder into another Folder or into a Workspace.',
     inputSchema: moveFolderParams.merge(moveFolderBody).shape,
   },
-  async (args: MoveFolderInput): Promise<McpToolResponse> => {
+  async (args: MoveFolderInput, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.moveFolder(args.id, args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.moveFolder(
+          args.id,
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error moving folder:', { error });
       return formatToMCPToolResponse(error);
@@ -528,10 +689,16 @@ server.registerTool(
       'Only allowed to move messages of type: voicememo,prerecorded.',
     inputSchema: addMessageToFolderOrWorkspaceBody.shape,
   },
-  async (args: AddMessageToFolderPayload): Promise<McpToolResponse> => {
+  async (
+    args: AddMessageToFolderPayload,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.addMessageToFolderOrWorkspace(args),
+        await simplifiedApi.addMessageToFolderOrWorkspace(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error moving message to folder:', { error });
@@ -545,10 +712,15 @@ server.registerTool(
   'get_workspaces_basic_info',
   {
     description: 'Get basic information about a workspace.',
+    inputSchema: z.object({}).shape,
   },
-  async (): Promise<McpToolResponse> => {
+  async (params: unknown, { authInfo }): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.getAllWorkspacesWithBasicInfo());
+      return formatToMCPToolResponse(
+        await simplifiedApi.getAllWorkspacesWithBasicInfo(
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error getting workspaces basic info:', { error });
       return formatToMCPToolResponse(error);
@@ -568,10 +740,14 @@ server.registerTool(
   },
   async (
     args: AIPromptControllerGetPromptsParams,
+    { authInfo },
   ): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.aIPromptControllerGetPrompts(args),
+        await simplifiedApi.aIPromptControllerGetPrompts(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error listing ai actions:', { error });
@@ -587,10 +763,13 @@ server.registerTool(
       'Run an AI Action (Prompt) for a message. You can run an AI Action for a message by its ID or a list of message IDs.',
     inputSchema: aIResponseControllerCreateResponseBody.shape,
   },
-  async (args: CreateAIResponse): Promise<McpToolResponse> => {
+  async (args: CreateAIResponse, { authInfo }): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.aIResponseControllerCreateResponse(args),
+        await simplifiedApi.aIResponseControllerCreateResponse(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error running ai action:', { error });
@@ -607,9 +786,17 @@ server.registerTool(
       'You can also provide the language of the response.',
     inputSchema: createShareLinkAIResponseBody.shape,
   },
-  async (args: CreateShareLinkAIResponse): Promise<McpToolResponse> => {
+  async (
+    args: CreateShareLinkAIResponse,
+    { authInfo },
+  ): Promise<McpToolResponse> => {
     try {
-      return formatToMCPToolResponse(await api.createShareLinkAIResponse(args));
+      return formatToMCPToolResponse(
+        await simplifiedApi.createShareLinkAIResponse(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
+      );
     } catch (error) {
       logger.error('Error running ai action for shared link:', { error });
       return formatToMCPToolResponse(error);
@@ -627,10 +814,14 @@ server.registerTool(
   },
   async (
     args: AIResponseControllerGetAllResponsesParams,
+    { authInfo },
   ): Promise<McpToolResponse> => {
     try {
       return formatToMCPToolResponse(
-        await api.aIResponseControllerGetAllResponses(args),
+        await simplifiedApi.aIResponseControllerGetAllResponses(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        ),
       );
     } catch (error) {
       logger.error('Error getting ai action responses:', { error });

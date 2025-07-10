@@ -235,13 +235,10 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
 const axiosInstance = getAxiosInstance();
 
 // Define the mutator function that Orval expects
-export async function mutator<T>({
-  url,
-  method,
-  params,
-  data,
-  headers,
-}: AxiosRequestConfig): Promise<T> {
+export async function mutator<T>(
+  { url, method, params, data, headers }: AxiosRequestConfig,
+  options?: AxiosRequestConfig,
+): Promise<T> {
   try {
     const response = await axiosInstance({
       url,
@@ -249,6 +246,7 @@ export async function mutator<T>({
       params,
       data,
       headers,
+      ...options,
     });
 
     return response.data as T;
