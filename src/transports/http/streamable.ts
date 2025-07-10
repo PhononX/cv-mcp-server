@@ -97,6 +97,14 @@ function destroySession(sessionId: string) {
   }
 }
 
+app.get('/health', (req, res: Response) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
 app.post(
   '/mcp',
   requireBearerAuth({
