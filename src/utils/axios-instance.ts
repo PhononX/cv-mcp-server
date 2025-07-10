@@ -36,18 +36,18 @@ interface ErrorResponseData {
 const getAxiosInstance = (): AxiosInstance => {
   const baseUrl = env.CARBON_VOICE_BASE_URL || 'https://api.carbonvoice.app';
 
-  if (!env.CARBON_VOICE_API_KEY) {
-    throw {
-      statusCode: 0,
-      body: {
-        error: {
-          code: 'CONFIGURATION_ERROR',
-          message: 'CARBON_VOICE_API_KEY is not set',
-          details: { api_key: env.CARBON_VOICE_API_KEY },
-        },
-      },
-    };
-  }
+  // if (!env.CARBON_VOICE_API_KEY) {
+  //   throw {
+  //     statusCode: 0,
+  //     body: {
+  //       error: {
+  //         code: 'CONFIGURATION_ERROR',
+  //         message: 'CARBON_VOICE_API_KEY is not set',
+  //         details: { api_key: env.CARBON_VOICE_API_KEY },
+  //       },
+  //     },
+  //   };
+  // }
 
   const instance = axios.create({
     baseURL: baseUrl,

@@ -18,6 +18,7 @@
     "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node /dist/transports/stdio/stdio.js",
     "mcp:inspector:http": "env-cmd npx @modelcontextprotocol/inspector http://localhost:3005/mcp",
     "dev:http": "env-cmd nodemon --inspect dist/transports/http/streamable.js",
+    "start:http": "node dist/transports/http/streamable.js",
     "auto:build": "env-cmd nodemon --watch src --ext ts --exec npm run build",
     "generate:api": "env-cmd orval --config orval.config.ts",
     "test:oauth": "node test-oauth.js"
