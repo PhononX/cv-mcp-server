@@ -37,6 +37,7 @@
     "streamable"
   ],
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.844.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
@@ -45,7 +46,8 @@
     "http-errors": "^2.0.0",
     "jsonwebtoken": "^9.0.2",
     "openapi-zod-client": "^1.18.3",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "winston-cloudwatch": "^6.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",

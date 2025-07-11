@@ -19,7 +19,10 @@ const Environment = z.object({
     .optional()
     .transform((val) => val || LOG_DIR),
   PORT: z.string().optional().default('3005'),
-  LOG_TRANSPORT: z.enum(['console', 'file']).optional().default('file'),
+  LOG_TRANSPORT: z
+    .enum(['console', 'file', 'cloudwatch'])
+    .optional()
+    .default('file'),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {

@@ -17,7 +17,7 @@ import { User } from '../../auth/interfaces';
 import { env } from '../../config';
 import { SERVICE_NAME, SERVICE_VERSION } from '../../constants';
 import server from '../../server';
-import { logger } from '../../utils';
+import { formatProcessUptime, logger } from '../../utils';
 
 const app = express();
 const SESSION_TTL_MS = 1000 * 60 * 60; // 1 hour
@@ -98,11 +98,15 @@ function destroySession(sessionId: string) {
 }
 
 app.get('/health', (req, res: Response) => {
-  res.status(200).json({
-    status: 'healthy',
+  const response = {
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
+    uptime: formatProcessUptime(),
+  };
+
+  logger.info('Health check', response);
+
+  res.status(200).json(response);
 });
 
 app.post(

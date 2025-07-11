@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import winston from 'winston';
+import WinstonCloudwatch from 'winston-cloudwatch';
 
 import { env } from '../config';
 import { LOG_DIR } from '../constants';
@@ -49,7 +50,10 @@ const createLogDir = (logDir: string) => {
 const errorLogFile = path.join(logDir, 'error.log');
 const combinedLogFile = path.join(logDir, 'combined.log');
 
-const transports: Record<string, winston.transport[]> = {
+const transports: Record<
+  'file' | 'console' | 'cloudwatch',
+  winston.transport[]
+> = {
   file: [
     // Error log file
     new winston.transports.File({
@@ -83,6 +87,17 @@ const transports: Record<string, winston.transport[]> = {
       ),
     }),
   ],
+  cloudwatch: [
+    new WinstonCloudwatch({
+      logGroupName: 'CarbonVoice-MCP-Server',
+      logStreamName: 'CarbonVoice-MCP-Server',
+      awsRegion: 'us-east-2',
+      retentionInDays: 14,
+      // Credentials are injected by App Runner
+      level: getLogLevel(),
+      jsonMessage: true,
+    }),
+  ],
 };
 
 // File format (JSON)
@@ -98,6 +113,10 @@ const getLogTransports = (): winston.transport[] => {
     createLogDir(logDir);
 
     return transports.file;
+  }
+
+  if (transport === 'cloudwatch') {
+    return transports.cloudwatch;
   }
 
   return transports.console;

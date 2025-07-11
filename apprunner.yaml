@@ -20,4 +20,4 @@ run:
     - name: LOG_LEVEL
       value: 'info'
     - name: LOG_TRANSPORT
-      value: 'console'
+      value: 'cloudwatch'
