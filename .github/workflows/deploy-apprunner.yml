@@ -1,0 +1,63 @@
+# .github/workflows/deploy-apprunner.yml
+name: Deploy to App Runner
+
+on:
+  push:
+    branches: [feat/sse]
+
+env:
+  AWS_REGION: us-east-2
+  SERVICE_ARN: arn:aws:apprunner:us-east-2:336746746018:service/cv-mcp-server/5c92ddf00a544c9dbc6d0ca758d53d68
+
+jobs:
+  deploy:
+    name: Trigger App Runner Deployment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Trigger App Runner deployment
+        run: |
+          echo "🚀 Triggering App Runner deployment..."
+          aws apprunner start-deployment --service-arn ${{ env.SERVICE_ARN }}
+
+          echo "⏳ Waiting for deployment to start..."
+          sleep 30
+
+          # Monitor deployment status
+          for i in {1..20}; do
+            STATUS=$(aws apprunner list-operations \
+              --service-arn ${{ env.SERVICE_ARN }} \
+              --query 'OperationSummaryList[0].Status' \
+              --output text)
+            
+            echo "Deployment status: $STATUS"
+            
+            if [ "$STATUS" = "SUCCEEDED" ]; then
+              echo "✅ Deployment succeeded!"
+              break
+            elif [ "$STATUS" = "FAILED" ]; then
+              echo "❌ Deployment failed!"
+              exit 1
+            fi
+            
+            sleep 30
+          done
+
+      - name: Get service URL
+        run: |
+          SERVICE_URL=$(aws apprunner describe-service \
+            --service-arn ${{ env.SERVICE_ARN }} \
+            --query 'Service.ServiceUrl' \
+            --output text)
+
+          echo "🌐 Service URL: https://$SERVICE_URL"
+
+          # Test health endpoint
+          curl -f "https://$SERVICE_URL/health" || echo "⚠️ Health check failed"
