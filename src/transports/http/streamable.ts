@@ -138,7 +138,16 @@ app.get('/health', (req, res: Response) => {
     uptime: formatProcessUptime(),
   };
 
-  logger.info('Health check', response);
+  logger.info('Health check', {
+    ...response,
+    ENV_VARS: {
+      CARBON_VOICE_BASE_URL: env.CARBON_VOICE_BASE_URL,
+      LOG_LEVEL: env.LOG_LEVEL,
+      PORT: env.PORT,
+      NODE_ENV: process.env.NODE_ENV,
+      LOG_TRANSPORT: env.LOG_TRANSPORT,
+    },
+  });
 
   res.status(200).json(response);
 });
