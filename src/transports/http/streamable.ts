@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-
-import express, { NextFunction, Response } from 'express';
+import cors from 'cors';
+import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
@@ -23,29 +23,62 @@ const app = express();
 const SESSION_TTL_MS = 1000 * 60 * 60; // 1 hour
 const REQUIRED_SCOPES = ['mcp:read', 'mcp:write'];
 
-// Add this before your routes
-// app.use(
-//   cors({
-//     origin: 'http://localhost:3005', // http://localhost:6274
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//     allowedHeaders: [
-//       'Content-Type',
-//       'Authorization',
-//       'WWW-Authenticate',
-//       'MCP_PROXY_AUTH_TOKEN',
-//       'mcp-session-id',
-//       'X-Requested-With',
-//     ],
-//     credentials: true,
-//   }),
-// );
+/**
+ * Sets standard headers for all requests.
+ * @param _req - The request.
+ * @param res - The response.
+ * @param next - The next handler.
+ */
+function standardHeaders(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  // Disables all caching
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
 
+  // if (getConfig().baseUrl.startsWith('https://')) {
+  //   // Only connect to this site and subdomains via HTTPS for the next two years
+  //   // and also include in the preload list
+  //   res.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  // }
+
+  // Set Content Security Policy
+  // As an API server, block everything
+  // See: https://stackoverflow.com/a/45631261/2051724
+  res.set(
+    'Content-Security-Policy',
+    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none';",
+  );
+
+  // Disable browser features
+  res.set(
+    'Permissions-Policy',
+    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()',
+  );
+
+  // Never send the Referer header
+  res.set('Referrer-Policy', 'no-referrer');
+
+  // Prevent browsers from incorrectly detecting non-scripts as scripts
+  res.set('X-Content-Type-Options', 'nosniff');
+
+  // Disallow attempts to iframe site
+  res.set('X-Frame-Options', 'DENY');
+
+  // Block pages from loading when they detect reflected XSS attacks
+  res.set('X-XSS-Protection', '1; mode=block');
+  next();
+}
+
+app.set('x-powered-by', false);
 // Trust proxy for rate limiting - only trust localhost and private networks
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
-
+app.use(standardHeaders);
+app.use(cors());
 // Security middlewares
 app.use(helmet());
-app.use(express.json({ limit: '1mb' }));
 app.use(
   rateLimit({
     windowMs: 60 * 1000, // 1 minute
@@ -54,6 +87,7 @@ app.use(
     // legacyHeaders: false, why??
   }),
 );
+app.use(express.json({ limit: '1mb' }));
 
 // Session management
 type Session = {
@@ -108,6 +142,63 @@ app.get('/health', (req, res: Response) => {
 
   res.status(200).json(response);
 });
+
+// Handle preflight requests
+// app.options('/.well-known/*', (req, res) => {
+//   res.status(204).send();
+// });
+
+// Protected resource metadata (OAuth 2.1 RFC9728 compliant)
+app.get(
+  '/.well-known/oauth-protected-resource',
+  wellKnownCorsHeaders,
+  (req, res) => {
+    logger.info('OAuth Protected Resource metadata requested', {
+      url: req.url,
+      method: req.method,
+    });
+    const protocol = req.get('X-Forwarded-Proto') || req.protocol;
+    const host =
+      req.get('X-Forwarded-Host') || req.get('host') || `localhost:${env.PORT}`;
+    const baseUrl = `${protocol}://${host}`;
+
+    res.json({
+      resource: `${baseUrl}/mcp`,
+      authorization_servers: [env.CARBON_VOICE_BASE_URL],
+      scopes_supported: REQUIRED_SCOPES,
+      bearer_methods_supported: ['header'],
+      resource_name: 'Carbon Voice - HTTP',
+    });
+  },
+);
+
+app.get(
+  '/.well-known/oauth-authorization-server',
+  wellKnownCorsHeaders,
+  (req, res) => {
+    logger.info('OAuth Authorization Server metadata requested', {
+      url: req.url,
+      method: req.method,
+    });
+
+    const issuer = env.CARBON_VOICE_BASE_URL;
+    const metadata = {
+      issuer,
+      authorization_endpoint: `${issuer}/oauth/authorize`,
+      token_endpoint: `${issuer}/oauth/token`,
+      registration_endpoint: `${issuer}/oauth/register`,
+      userinfo_endpoint: `${issuer}/oauth/userinfo`,
+      response_types_supported: ['code', 'token'],
+      response_modes_supported: ['query'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      scopes_supported: REQUIRED_SCOPES,
+      token_endpoint_auth_methods_supported: ['client_secret_basic', 'none'],
+      code_challenge_methods_supported: ['S256'], // PKCE support
+    };
+
+    res.json(metadata);
+  },
+);
 
 app.post(
   '/mcp',
@@ -300,58 +391,6 @@ app.delete(
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
   handleSessionRequest,
-);
-
-// Protected resource metadata (OAuth 2.1 RFC9728 compliant)
-app.get(
-  '/.well-known/oauth-protected-resource',
-  wellKnownCorsHeaders,
-  (req, res) => {
-    logger.info('OAuth Protected Resource metadata requested', {
-      url: req.url,
-      method: req.method,
-    });
-    const protocol = req.get('X-Forwarded-Proto') || req.protocol;
-    const host =
-      req.get('X-Forwarded-Host') || req.get('host') || `localhost:${env.PORT}`;
-    const baseUrl = `${protocol}://${host}`;
-
-    res.json({
-      resource: `${baseUrl}/mcp`,
-      authorization_servers: [env.CARBON_VOICE_BASE_URL],
-      scopes_supported: REQUIRED_SCOPES,
-      bearer_methods_supported: ['header'],
-      resource_name: 'Carbon Voice - HTTP',
-    });
-  },
-);
-
-app.get(
-  '/.well-known/oauth-authorization-server',
-  wellKnownCorsHeaders,
-  (req, res) => {
-    logger.info('OAuth Authorization Server metadata requested', {
-      url: req.url,
-      method: req.method,
-    });
-
-    const issuer = env.CARBON_VOICE_BASE_URL;
-    const metadata = {
-      issuer,
-      authorization_endpoint: `${issuer}/oauth/authorize`,
-      token_endpoint: `${issuer}/oauth/token`,
-      registration_endpoint: `${issuer}/oauth/register`,
-      userinfo_endpoint: `${issuer}/oauth/userinfo`,
-      response_types_supported: ['code', 'token'],
-      response_modes_supported: ['query'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      scopes_supported: REQUIRED_SCOPES,
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'none'],
-      code_challenge_methods_supported: ['S256'], // PKCE support
-    };
-
-    res.json(metadata);
-  },
 );
 
 // app.get('/oauth/authorize', (req, res) => {
