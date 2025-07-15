@@ -22,4 +22,4 @@ run:
     - name: LOG_TRANSPORT
       value: 'cloudwatch'
     - name: CARBON_VOICE_BASE_URL
-      value: 'https://api-stage.carbonvoice.app'
+      value: 'https://api.carbonvoice.app'
