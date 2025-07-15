@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 
 import { logger } from './logger';
+import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
 
 import { env } from '../config';
 
@@ -65,7 +66,7 @@ const getAxiosInstance = (): AxiosInstance => {
         method: config.method,
         params: config.params,
         data: config.data,
-        headers: { ...config.headers, 'x-api-key': '[REDACTED]' },
+        headers: obfuscateAuthHeaders(config.headers),
       });
       return config;
     },

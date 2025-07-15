@@ -9,7 +9,8 @@ import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middlew
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
-import { wellKnownCorsHeaders } from '.';
+import { authErrorLogger, wellKnownCorsHeaders } from '.';
+import { getSessionId } from './utils';
 
 import type { AuthenticatedRequest } from '../../auth';
 import { createOAuthTokenVerifier } from '../../auth/auth-middleware';
@@ -211,69 +212,96 @@ app.get(
 
 app.post(
   '/mcp',
+  authErrorLogger,
   requireBearerAuth({
     verifier: createOAuthTokenVerifier(),
     requiredScopes: REQUIRED_SCOPES,
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
-  async (req: AuthenticatedRequest, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    // Reuse existing session
-    if (sessionId && sessions.has(sessionId)) {
-      logger.info('Reusing session', { sessionId });
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const sessionId = getSessionId(req);
+      // Reuse existing session
+      if (sessionId && sessions.has(sessionId)) {
+        logger.info('Reusing session', { sessionId });
 
-      await sessions
-        .get(sessionId)!
-        .transport!.handleRequest(req, res, req.body);
+        await sessions
+          .get(sessionId)!
+          .transport!.handleRequest(req, res, req.body);
 
-      return;
-    }
+        return;
+      }
 
-    // Create New Session
-    if (!sessionId && isInitializeRequest(req.body)) {
-      const requestorHeaders = req.headers;
-      // TODO: The place I can see info about client is: user-agent
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (transportSessionId: string) => {
-          const user = req.auth?.extra?.user;
+      // Create New Session
+      if (!sessionId && isInitializeRequest(req.body)) {
+        const requestorHeaders = req.headers;
+        // TODO: The place I can see info about client is: user-agent
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (transportSessionId: string) => {
+            const user = req.auth?.extra?.user;
 
-          logger.info('New session initialized', {
-            sessionId: transportSessionId,
-            requestorHeaders,
-            userId: user?.id,
-          });
-          createSession(transport!, user);
-        },
-        enableJsonResponse: true,
+            logger.info('New session initialized', {
+              sessionId: transportSessionId,
+              requestorHeaders,
+              userId: user?.id,
+            });
+            createSession(transport!, user);
+          },
+          enableJsonResponse: true,
+        });
+        transport.onclose = () => {
+          if (transport!.sessionId) destroySession(transport!.sessionId);
+        };
+
+        await server.connect(transport);
+
+        await transport.handleRequest(req, res, req.body);
+
+        return;
+      }
+      // No session ID and no initialize request
+
+      logger.warn('Bad request: No valid session ID provided', {
+        sessionId,
+        headers: req.headers,
       });
-      transport.onclose = () => {
-        if (transport!.sessionId) destroySession(transport!.sessionId);
-      };
 
-      await server.connect(transport);
-
-      await transport.handleRequest(req, res, req.body);
-
-      return;
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: 404,
+          message:
+            'Session Not Found or Expired. Please reinitialize with a new session ID.',
+        },
+        id: null,
+      });
+    } catch (error) {
+      next(error);
     }
-    // No session ID and no initialize request
-
-    logger.warn('Bad request: No valid session ID provided', {
-      sessionId,
-      headers: req.headers,
-    });
-
-    res.status(404).json({
-      jsonrpc: '2.0',
-      error: {
-        code: 404,
-        message:
-          'Session Not Found or Expired. Please reinitialize with a new session ID.',
-      },
-      id: null,
-    });
   },
+);
+
+// GET/DELETE /mcp: server-to-client (SSE) and session termination
+app.get(
+  '/mcp',
+  authErrorLogger,
+  requireBearerAuth({
+    verifier: createOAuthTokenVerifier(),
+    requiredScopes: REQUIRED_SCOPES,
+    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
+  }),
+  handleSessionRequest,
+);
+app.delete(
+  '/mcp',
+  authErrorLogger,
+  requireBearerAuth({
+    verifier: createOAuthTokenVerifier(),
+    requiredScopes: REQUIRED_SCOPES,
+    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
+  }),
+  handleSessionRequest,
 );
 
 // POST /mcp: client-to-server (with authentication)
@@ -288,7 +316,7 @@ app.post(
 //       //   throw new UnauthorizedException();
 //       // }
 
-//       const sessionId = req.headers['mcp-session-id'] as string | undefined;
+//       const sessionId = getSessionId(req);
 //       // Reuse existing session
 //       if (sessionId && sessions.has(sessionId)) {
 //         logger.info('Reusing session', { sessionId });
@@ -359,7 +387,7 @@ async function handleSessionRequest(
   next: NextFunction,
 ) {
   try {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const sessionId = getSessionId(req);
     if (!sessionId || !sessions.has(sessionId)) {
       logger.warn('Invalid or missing session ID', { sessionId });
       res.status(404).json({
@@ -381,26 +409,6 @@ async function handleSessionRequest(
     next(err);
   }
 }
-
-// GET/DELETE /mcp: server-to-client (SSE) and session termination
-app.get(
-  '/mcp',
-  requireBearerAuth({
-    verifier: createOAuthTokenVerifier(),
-    requiredScopes: REQUIRED_SCOPES,
-    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
-  }),
-  handleSessionRequest,
-);
-app.delete(
-  '/mcp',
-  requireBearerAuth({
-    verifier: createOAuthTokenVerifier(),
-    requiredScopes: REQUIRED_SCOPES,
-    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
-  }),
-  handleSessionRequest,
-);
 
 // app.get('/oauth/authorize', (req, res) => {
 //   logger.info('OAuth authorize!!!', {

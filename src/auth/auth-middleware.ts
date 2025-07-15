@@ -8,7 +8,7 @@ import { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { User } from './interfaces';
 
 import { env } from '../config';
-import { logger, UnauthorizedException } from '../utils';
+import { logger, removeLastChars, UnauthorizedException } from '../utils';
 
 type ExtraAuthInfo = Record<string, unknown> & {
   user?: User;
@@ -222,7 +222,7 @@ export const createOAuthTokenVerifier = (): OAuthTokenVerifier => ({
           error_message: (error as Error).message,
           stack: (error as Error).stack,
         },
-        token: token.substring(0, 10) + '...', // Log only first 10 chars for security
+        token: removeLastChars(token),
       });
 
       if (error instanceof InvalidTokenError) {
