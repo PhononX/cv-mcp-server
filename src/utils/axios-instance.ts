@@ -1,5 +1,18 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, {
+  AxiosError,
+  AxiosInstance,
+  AxiosRequestConfig,
+  InternalAxiosRequestConfig,
+} from 'axios';
 
+// Extend the config type to include metadata
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  metadata?: {
+    startTime: number;
+  };
+}
+
+import { getUserIdFromHeaders } from './get-user-id-from-headers';
 import { logger } from './logger';
 import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
 
@@ -67,6 +80,7 @@ const getAxiosInstance = (): AxiosInstance => {
         params: config.params,
         data: config.data,
         headers: obfuscateAuthHeaders(config.headers),
+        userId: getUserIdFromHeaders(config.headers),
       });
       return config;
     },
@@ -83,17 +97,30 @@ const getAxiosInstance = (): AxiosInstance => {
   // Add response interceptor for logging
   instance.interceptors.response.use(
     (response) => {
+      // Calculate request duration
+      const startTime = (response.config as ExtendedAxiosRequestConfig).metadata
+        ?.startTime;
+      const duration = startTime ? Date.now() - startTime : undefined;
+
       logger.debug('API response received', {
         url: response.config.url,
         method: response.config.method,
         status: response.status,
         statusText: response.statusText,
+        userId: getUserIdFromHeaders(response.config.headers),
+        duration: duration ? `${duration}ms` : undefined,
       });
       return response;
     },
     (error) => {
       if (axios.isAxiosError(error)) {
         const axiosError = handleAxiosError(error);
+
+        // Calculate request duration for errors too
+        const startTime = (error.config as ExtendedAxiosRequestConfig)?.metadata
+          ?.startTime;
+        const duration = startTime ? Date.now() - startTime : undefined;
+
         // Log the error with all relevant details
         logger.error('API request failed', {
           error: axiosError,
@@ -103,6 +130,7 @@ const getAxiosInstance = (): AxiosInstance => {
           statusText: error.response?.statusText,
           requestData: error.config?.data,
           responseData: error.response?.data,
+          duration: duration ? `${duration}ms` : undefined,
         });
       } else {
         logger.error('Unexpected error in API request', error);

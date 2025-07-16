@@ -3,14 +3,19 @@ import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import { randomUUID } from 'node:crypto';
 
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
-import { authErrorLogger, wellKnownCorsHeaders } from '.';
-import { getSessionId } from './utils';
+import {
+  addMcpSessionId,
+  addRequestIdMiddleware,
+  authErrorLogger,
+  logRequest,
+  wellKnownCorsHeaders,
+} from '.';
+import { getOrCreateSessionId } from './utils';
 
 import type { AuthenticatedRequest } from '../../auth';
 import { createOAuthTokenVerifier } from '../../auth/auth-middleware';
@@ -18,7 +23,7 @@ import { User } from '../../auth/interfaces';
 import { env } from '../../config';
 import { SERVICE_NAME, SERVICE_VERSION } from '../../constants';
 import server from '../../server';
-import { formatProcessUptime, logger } from '../../utils';
+import { formatProcessUptime, logger, obfuscateAuthHeaders } from '../../utils';
 
 const app = express();
 const SESSION_TTL_MS = 1000 * 60 * 60; // 1 hour
@@ -90,6 +95,11 @@ app.use(
 );
 app.use(express.json({ limit: '1mb' }));
 
+// Add request ID middleware
+app.use(addRequestIdMiddleware);
+// Request logging middleware
+app.use(logRequest);
+
 // Session management
 type Session = {
   transport: StreamableHTTPServerTransport;
@@ -101,22 +111,20 @@ const sessions = new Map<string, Session>();
 
 function createSession(
   transport: StreamableHTTPServerTransport,
-  user?: Session['user'],
+  req: AuthenticatedRequest,
 ): string {
-  const sessionId = transport.sessionId || randomUUID();
-  const isSameSessionIdFromTransport = sessionId === transport.sessionId;
+  const sessionId = getOrCreateSessionId(req);
   // Clean up after TTL
   const timeout = setTimeout(() => {
     logger.info('Session expired', { sessionId });
     destroySession(sessionId);
   }, SESSION_TTL_MS);
 
-  sessions.set(sessionId, { transport, timeout, user });
+  sessions.set(sessionId, { transport, timeout });
 
   logger.info('🆕 Session created', {
     sessionId,
-    isSameSessionIdFromTransport,
-    userId: user?.id,
+    userId: req.auth?.extra?.user?.id,
   });
 
   return sessionId;
@@ -128,7 +136,7 @@ function destroySession(sessionId: string) {
     clearTimeout(session.timeout);
     session.transport.close();
     sessions.delete(sessionId);
-    logger.info('Session destroyed', { sessionId });
+    logger.info('Session destroyed', { sessionId, userId: session?.user?.id });
   }
 }
 
@@ -139,8 +147,13 @@ app.get('/health', (req, res: Response) => {
     uptime: formatProcessUptime(),
   };
 
-  logger.info('Health check', {
-    ...response,
+  logger.info('Health check', response);
+
+  res.status(200).json(response);
+});
+
+app.get('/info', (req, res: Response) => {
+  logger.info('Info', {
     ENV_VARS: {
       CARBON_VOICE_BASE_URL: env.CARBON_VOICE_BASE_URL,
       LOG_LEVEL: env.LOG_LEVEL,
@@ -150,13 +163,8 @@ app.get('/health', (req, res: Response) => {
     },
   });
 
-  res.status(200).json(response);
+  res.status(200).send('OK');
 });
-
-// Handle preflight requests
-// app.options('/.well-known/*', (req, res) => {
-//   res.status(204).send();
-// });
 
 // Protected resource metadata (OAuth 2.1 RFC9728 compliant)
 app.get(
@@ -218,11 +226,12 @@ app.post(
     requiredScopes: REQUIRED_SCOPES,
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
+  addMcpSessionId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const sessionId = getSessionId(req);
+      const sessionId = getOrCreateSessionId(req);
       // Reuse existing session
-      if (sessionId && sessions.has(sessionId)) {
+      if (sessions.has(sessionId)) {
         logger.info('Reusing session', { sessionId });
 
         await sessions
@@ -233,20 +242,18 @@ app.post(
       }
 
       // Create New Session
-      if (!sessionId && isInitializeRequest(req.body)) {
-        const requestorHeaders = req.headers;
-        // TODO: The place I can see info about client is: user-agent
+      if (isInitializeRequest(req.body)) {
         const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => randomUUID(),
+          sessionIdGenerator: () => getOrCreateSessionId(req),
           onsessioninitialized: (transportSessionId: string) => {
             const user = req.auth?.extra?.user;
 
             logger.info('New session initialized', {
               sessionId: transportSessionId,
-              requestorHeaders,
+              requestorHeaders: obfuscateAuthHeaders(req.headers),
               userId: user?.id,
             });
-            createSession(transport!, user);
+            createSession(transport!, req);
           },
           enableJsonResponse: true,
         });
@@ -260,22 +267,16 @@ app.post(
 
         return;
       }
-      // No session ID and no initialize request
 
+      // No session ID and no initialize request
+      // Should never happen since we are gonna always have a session ID
       logger.warn('Bad request: No valid session ID provided', {
         sessionId,
+        userId: req.auth?.extra?.user?.id,
         headers: req.headers,
       });
 
-      res.status(404).json({
-        jsonrpc: '2.0',
-        error: {
-          code: 404,
-          message:
-            'Session Not Found or Expired. Please reinitialize with a new session ID.',
-        },
-        id: null,
-      });
+      throw new Error('No session ID provided');
     } catch (error) {
       next(error);
     }
@@ -291,6 +292,7 @@ app.get(
     requiredScopes: REQUIRED_SCOPES,
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
+  addMcpSessionId,
   handleSessionRequest,
 );
 app.delete(
@@ -301,6 +303,7 @@ app.delete(
     requiredScopes: REQUIRED_SCOPES,
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
+  addMcpSessionId,
   handleSessionRequest,
 );
 
@@ -316,7 +319,7 @@ app.delete(
 //       //   throw new UnauthorizedException();
 //       // }
 
-//       const sessionId = getSessionId(req);
+//       const sessionId = getOrCreateSessionId(req);
 //       // Reuse existing session
 //       if (sessionId && sessions.has(sessionId)) {
 //         logger.info('Reusing session', { sessionId });
@@ -387,7 +390,7 @@ async function handleSessionRequest(
   next: NextFunction,
 ) {
   try {
-    const sessionId = getSessionId(req);
+    const sessionId = getOrCreateSessionId(req);
     if (!sessionId || !sessions.has(sessionId)) {
       logger.warn('Invalid or missing session ID', { sessionId });
       res.status(404).json({
