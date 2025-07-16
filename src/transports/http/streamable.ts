@@ -6,7 +6,10 @@ import helmet from 'helmet';
 
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import {
+  isInitializeRequest,
+  LATEST_PROTOCOL_VERSION,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import {
   addMcpSessionId,
@@ -217,6 +220,18 @@ app.get(
     res.json(metadata);
   },
 );
+
+// Handle HEAD requests without auth
+app.head('/mcp', logRequest, (req, res) => {
+  const mcpProtocolVersion =
+    req.headers['mcp-protocol-version'] || LATEST_PROTOCOL_VERSION;
+
+  res
+    .status(200)
+    .set('Content-Type', 'application/json')
+    .set('MCP-Protocol-Version', mcpProtocolVersion)
+    .end();
+});
 
 app.post(
   '/mcp',

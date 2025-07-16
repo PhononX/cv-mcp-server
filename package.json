@@ -38,7 +38,7 @@
   ],
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.844.0",
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.15.1",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
