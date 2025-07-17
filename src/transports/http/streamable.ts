@@ -108,6 +108,7 @@ type Session = {
   transport: StreamableHTTPServerTransport;
   timeout: NodeJS.Timeout;
   user?: User;
+  destroying?: boolean; // Flag to prevent recursive destruction
 };
 
 const sessions = new Map<string, Session>();
@@ -134,12 +135,18 @@ function createSession(
 }
 
 function destroySession(sessionId: string) {
+  logger.info('🔚 Destroying session', { sessionId });
   const session = sessions.get(sessionId);
-  if (session) {
+  if (session && !session.destroying) {
+    // Mark session as being destroyed to prevent recursive calls
+    session.destroying = true;
+
     clearTimeout(session.timeout);
     session.transport.close();
     sessions.delete(sessionId);
     logger.info('Session destroyed', { sessionId, userId: session?.user?.id });
+  } else if (session?.destroying) {
+    logger.debug('Session already being destroyed, skipping', { sessionId });
   }
 }
 
