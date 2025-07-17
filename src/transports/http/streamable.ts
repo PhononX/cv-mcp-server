@@ -120,7 +120,7 @@ function createSession(
   const sessionId = getOrCreateSessionId(req);
   // Clean up after TTL
   const timeout = setTimeout(() => {
-    logger.info('Session expired', { sessionId });
+    logger.info('⏰ Session timeout triggered', { sessionId });
     destroySession(sessionId);
   }, SESSION_TTL_MS);
 
@@ -129,6 +129,8 @@ function createSession(
   logger.info('🆕 Session created', {
     sessionId,
     userId: req.auth?.extra?.user?.id,
+    totalSessions: sessions.size,
+    stackTrace: new Error().stack?.split('\n').slice(1, 6),
   });
 
   return sessionId;
@@ -280,6 +282,11 @@ app.post(
           enableJsonResponse: true,
         });
         transport.onclose = () => {
+          logger.info('🔴 Transport onclose triggered', {
+            sessionId: transport!.sessionId,
+            hasSessionId: !!transport!.sessionId,
+            stackTrace: new Error().stack?.split('\n').slice(1, 6),
+          });
           if (transport!.sessionId) destroySession(transport!.sessionId);
         };
 
@@ -477,28 +484,17 @@ async function handleSessionRequest(
 // Graceful shutdown
 function shutdown() {
   logger.info('Shutting down server...');
+
+  // Clear the heartbeat interval
+  clearInterval(heartbeatInterval);
+
+  // Clean up all sessions
   for (const sessionId of sessions.keys()) {
     destroySession(sessionId);
   }
+
   process.exit(0);
 }
-
-// Add error handlers for unhandled exceptions
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception - Server will continue', {
-    error: error.message,
-    stack: error.stack,
-    name: error.name,
-  });
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Promise Rejection - Server will continue', {
-    reason: reason instanceof Error ? reason.message : reason,
-    stack: reason instanceof Error ? reason.stack : undefined,
-    promise: promise.toString(),
-  });
-});
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
@@ -506,12 +502,45 @@ process.on('SIGTERM', shutdown);
 // Start server
 const PORT = env.PORT || 3005;
 const serverInstance = app.listen(PORT, () => {
-  logger.info(`MCP HTTP Server listening on port ${PORT}`, {
+  logger.info(`🚀 MCP HTTP Server started successfully on port ${PORT}`, {
     name: SERVICE_NAME,
     version: SERVICE_VERSION,
+    processId: process.pid,
+    nodeVersion: process.version,
+    totalSessions: sessions.size,
   });
 });
 
 serverInstance.on('error', (error) => {
-  logger.error('Error starting MCP HTTP Server', { error });
+  logger.error('❌ Error starting MCP HTTP Server', { error });
 });
+
+// Add additional process-level monitoring
+process.on('uncaughtException', (error) => {
+  logger.error('🚨 Uncaught Exception detected', {
+    error: error.message,
+    stack: error.stack,
+    name: error.name,
+    processId: process.pid,
+    totalSessions: sessions.size,
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('🚨 Unhandled Promise Rejection detected', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise: promise.toString(),
+    processId: process.pid,
+    totalSessions: sessions.size,
+  });
+});
+
+// Log every 30 seconds to show the server is alive
+const heartbeatInterval = setInterval(() => {
+  logger.info('💓 Server heartbeat', {
+    totalSessions: sessions.size,
+    uptime: formatProcessUptime(),
+    memoryUsage: process.memoryUsage(),
+  });
+}, 30000);
