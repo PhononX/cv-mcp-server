@@ -476,6 +476,23 @@ function shutdown() {
   process.exit(0);
 }
 
+// Add error handlers for unhandled exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception - Server will continue', {
+    error: error.message,
+    stack: error.stack,
+    name: error.name,
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Promise Rejection - Server will continue', {
+    reason: reason instanceof Error ? reason.message : reason,
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise: promise.toString(),
+  });
+});
+
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
