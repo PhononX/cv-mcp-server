@@ -18,7 +18,7 @@ run:
     - name: NODE_ENV
       value: 'production'
     - name: LOG_LEVEL
-      value: 'info'
+      value: 'debug'
     - name: LOG_TRANSPORT
       value: 'cloudwatch'
     - name: CARBON_VOICE_BASE_URL
