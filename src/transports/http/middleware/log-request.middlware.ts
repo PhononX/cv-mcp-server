@@ -28,6 +28,7 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
         url: req.url,
         statusCode: res.statusCode,
         responseTime: responseTime,
+        body: req.body,
       },
     );
   });
