@@ -255,7 +255,7 @@ app.post(
       const sessionId = getOrCreateSessionId(req);
       // Reuse existing session
       if (sessions.has(sessionId)) {
-        logger.info('Reusing session', { sessionId });
+        logger.info('🔁 Reusing session', { sessionId });
 
         await sessions
           .get(sessionId)!
@@ -271,7 +271,7 @@ app.post(
           onsessioninitialized: (transportSessionId: string) => {
             const user = req.auth?.extra?.user;
 
-            logger.info('New session initialized', {
+            logger.info('🆕 New session initialized', {
               sessionId: transportSessionId,
               requestorHeaders: obfuscateAuthHeaders(req.headers),
               userId: user?.id,
@@ -297,13 +297,20 @@ app.post(
 
       // No session ID and no initialize request
       // Should never happen since we are gonna always have a session ID
-      logger.warn('Bad request: No valid session ID provided', {
+      logger.warn('❌ Session ID not found', {
         sessionId,
         userId: req.auth?.extra?.user?.id,
         headers: req.headers,
       });
 
-      throw new Error('No session ID provided');
+      return res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: 404,
+          message: 'Session ID not found. Please reinitialize.',
+        },
+        id: null,
+      });
     } catch (error) {
       next(error);
     }
