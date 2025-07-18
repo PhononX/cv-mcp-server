@@ -130,7 +130,6 @@ function createSession(
     sessionId,
     userId: req.auth?.extra?.user?.id,
     totalSessions: sessions.size,
-    stackTrace: new Error().stack?.split('\n').slice(1, 6),
   });
 
   return sessionId;
@@ -285,7 +284,6 @@ app.post(
           logger.info('🔴 Transport onclose triggered', {
             sessionId: transport!.sessionId,
             hasSessionId: !!transport!.sessionId,
-            stackTrace: new Error().stack?.split('\n').slice(1, 6),
           });
           if (transport!.sessionId) destroySession(transport!.sessionId);
         };
@@ -512,7 +510,7 @@ const serverInstance = app.listen(PORT, () => {
 });
 
 serverInstance.on('error', (error) => {
-  logger.error('❌ Error starting MCP HTTP Server', { error });
+  logger.error('❌ Error on MCP HTTP Server', { error });
 });
 
 // Add additional process-level monitoring
