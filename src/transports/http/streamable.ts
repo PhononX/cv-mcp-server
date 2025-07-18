@@ -303,7 +303,7 @@ app.post(
         headers: req.headers,
       });
 
-      return res.status(404).json({
+      res.status(404).json({
         jsonrpc: '2.0',
         error: {
           code: 404,
@@ -311,6 +311,8 @@ app.post(
         },
         id: null,
       });
+
+      return;
     } catch (error) {
       next(error);
     }
