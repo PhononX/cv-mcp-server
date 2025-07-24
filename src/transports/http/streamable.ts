@@ -37,7 +37,7 @@ import {
 } from '../../utils';
 
 const app = express();
-const SESSION_TTL_MS = 1000 * 60 * 5; // 5 minutes (reduced for debugging)
+const SESSION_TTL_MS = 1000 * 60 * 60 * 1; // 1 hour
 
 /**
  * Sets standard headers for all requests.
