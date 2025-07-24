@@ -96,34 +96,21 @@ const transports: Record<
       retentionInDays: 14,
       // Credentials are injected by App Runner
       level: getLogLevel(),
-      jsonMessage: true,
-      messageFormatter: ({ level, message, ...meta }) => {
+      jsonMessage: false, // Set to false to use messageFormatter
+      messageFormatter: ({ level, message, ...rest }) => {
         return JSON.stringify({
+          timestamp: new Date().toISOString(),
           level,
           message,
           environment: env.ENVIRONMENT,
-          ...meta,
+          ...rest,
         });
       },
     }),
   ],
 };
 
-// File format (JSON)
-const fileFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
-  winston.format.errors({ stack: true }),
-  winston.format.json(),
-  winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-    return JSON.stringify({
-      timestamp,
-      level,
-      message,
-      environment: env.ENVIRONMENT,
-      ...metadata,
-    });
-  }),
-);
+// Note: Format is now defined inline in the logger creation
 
 const getLogTransports = (): winston.transport[] => {
   const transport = env.LOG_TRANSPORT || 'file';
@@ -148,7 +135,20 @@ winston.addColors(colors);
 export const logger = winston.createLogger({
   level: getLogLevel(),
   levels,
-  format: fileFormat,
+  format: winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
+    winston.format.errors({ stack: true }),
+    winston.format.json(),
+    winston.format.printf(({ timestamp, level, message, ...metadata }) => {
+      return JSON.stringify({
+        timestamp,
+        level,
+        message,
+        environment: env.ENVIRONMENT,
+        ...metadata,
+      });
+    }),
+  ),
   transports: getLogTransports(),
 });
 

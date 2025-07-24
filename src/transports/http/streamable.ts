@@ -247,7 +247,7 @@ app.get('/info', (req, res: Response) => {
       CARBON_VOICE_BASE_URL: env.CARBON_VOICE_BASE_URL,
       LOG_LEVEL: env.LOG_LEVEL,
       PORT: env.PORT,
-      NODE_ENV: process.env.NODE_ENV,
+      ENVIRONMENT: env.ENVIRONMENT,
       LOG_TRANSPORT: env.LOG_TRANSPORT,
     },
   });
