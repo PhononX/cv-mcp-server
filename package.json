@@ -16,7 +16,7 @@
     "prepare": "npm run build",
     "lint:fix": "eslint src --fix",
     "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node /dist/transports/stdio/stdio.js",
-    "mcp:inspector:http": "env-cmd npx @modelcontextprotocol/inspector http://localhost:3005/mcp",
+    "mcp:inspector:http": "env-cmd npx @modelcontextprotocol/inspector http://localhost:3005",
     "dev:http": "env-cmd nodemon --inspect dist/transports/http/streamable.js",
     "start:http": "node dist/transports/http/streamable.js",
     "auto:build": "env-cmd nodemon --watch src --ext ts --exec npm run build",
