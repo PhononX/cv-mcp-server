@@ -6,3 +6,4 @@ export * from './format-uptime';
 export * from './obfuscate-auth-headers';
 export * from './get-user-id-from-token';
 export * from './get-user-id-from-headers';
+export * from './format-time-to-human';

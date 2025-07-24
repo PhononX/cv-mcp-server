@@ -46,6 +46,24 @@ interface ErrorResponseData {
   details?: Record<string, unknown>;
 }
 
+/**
+ * Routes that should not be logged
+ */
+const NOT_LOG_ROUTES = ['/health'];
+
+const serializeAxiosError = (error: AxiosError): Record<string, unknown> => {
+  return {
+    message: error.message,
+    code: error.code,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    url: error.config?.url,
+    method: error.config?.method?.toUpperCase(),
+    timeout: error.config?.timeout,
+  };
+};
+
 // Create the axios instance
 const getAxiosInstance = (): AxiosInstance => {
   const baseUrl = env.CARBON_VOICE_BASE_URL || 'https://api.carbonvoice.app';
@@ -74,6 +92,10 @@ const getAxiosInstance = (): AxiosInstance => {
   // Add request interceptor for logging
   instance.interceptors.request.use(
     (config) => {
+      if (NOT_LOG_ROUTES.includes(config.url ?? '')) {
+        return config;
+      }
+
       logger.debug('Making API request', {
         url: config.url,
         method: config.method,
@@ -97,6 +119,10 @@ const getAxiosInstance = (): AxiosInstance => {
   // Add response interceptor for logging
   instance.interceptors.response.use(
     (response) => {
+      if (NOT_LOG_ROUTES.includes(response.config.url ?? '')) {
+        return response;
+      }
+
       // Calculate request duration
       const startTime = (response.config as ExtendedAxiosRequestConfig).metadata
         ?.startTime;
@@ -121,9 +147,19 @@ const getAxiosInstance = (): AxiosInstance => {
           ?.startTime;
         const duration = startTime ? Date.now() - startTime : undefined;
 
+        if (NOT_LOG_ROUTES.includes(error.config?.url ?? '')) {
+          return Promise.reject(error);
+        }
+
         // Log the error with all relevant details
         logger.error('API request failed', {
-          error: axiosError,
+          error: {
+            statusCode: axiosError?.statusCode,
+            body: {
+              message: axiosError?.body?.error?.message,
+              code: axiosError?.body?.error?.code,
+            },
+          },
           url: error.config?.url,
           method: error.config?.method,
           status: error.response?.status,
@@ -133,7 +169,15 @@ const getAxiosInstance = (): AxiosInstance => {
           duration: duration ? `${duration}ms` : undefined,
         });
       } else {
-        logger.error('Unexpected error in API request', error);
+        if (NOT_LOG_ROUTES.includes(error.config?.url ?? '')) {
+          return Promise.reject(error);
+        }
+
+        logger.error('Unexpected error in API request', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+        });
       }
       return Promise.reject(error);
     },
@@ -144,10 +188,10 @@ const getAxiosInstance = (): AxiosInstance => {
 
 // Error handling function
 function handleAxiosError(error: AxiosError): ApiError | NetworkError {
+  const serializedError = serializeAxiosError(error);
   if (error.response) {
     const statusCode = error.response.status;
     const errorData = error.response.data as ErrorResponseData;
-
     // Handle different HTTP status codes
     switch (statusCode) {
       case 400:
@@ -157,8 +201,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
             error: {
               code: 'BAD_REQUEST',
               message: errorData?.message || 'Invalid request parameters',
-              details:
-                errorData?.details || (errorData as Record<string, unknown>),
+              details: serializedError,
             },
           },
         };
@@ -191,7 +234,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
             error: {
               code: 'NOT_FOUND',
               message: errorData?.message || 'Resource not found',
-              details: errorData?.details,
+              details: serializedError,
             },
           },
         };
@@ -216,7 +259,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
             error: {
               code: 'SERVER_ERROR',
               message: 'Internal server error',
-              details: { originalError: errorData },
+              details: serializedError,
             },
           },
         };
@@ -227,7 +270,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
             error: {
               code: 'UNKNOWN_ERROR',
               message: errorData?.message || 'An unexpected error occurred',
-              details: errorData as Record<string, unknown>,
+              details: serializedError,
             },
           },
         };
@@ -239,10 +282,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
         error: {
           code: 'NETWORK_ERROR',
           message: 'No response received from server',
-          details: {
-            request: error.request,
-            message: error.message,
-          },
+          details: serializedError,
         },
       },
     };
@@ -253,7 +293,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
         error: {
           code: 'REQUEST_ERROR',
           message: error.message || 'Error setting up the request',
-          details: { originalError: error },
+          details: serializedError,
         },
       },
     };

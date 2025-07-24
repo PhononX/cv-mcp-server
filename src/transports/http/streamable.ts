@@ -16,21 +16,28 @@ import {
   addRequestIdMiddleware,
   authErrorLogger,
   logRequest,
+  oauthAuthorizationServer,
+  oauthProtectedResource,
   wellKnownCorsHeaders,
 } from '.';
+import { REQUIRED_SCOPES } from './constants';
 import { getOrCreateSessionId } from './utils';
 
 import type { AuthenticatedRequest } from '../../auth';
 import { createOAuthTokenVerifier } from '../../auth/auth-middleware';
-import { User } from '../../auth/interfaces';
 import { env } from '../../config';
 import { SERVICE_NAME, SERVICE_VERSION } from '../../constants';
+import { isCarbonVoiceApiWorking } from '../../cv-api';
 import server from '../../server';
-import { formatProcessUptime, logger, obfuscateAuthHeaders } from '../../utils';
+import {
+  formatProcessUptime,
+  formatTimeToHuman,
+  logger,
+  obfuscateAuthHeaders,
+} from '../../utils';
 
 const app = express();
-const SESSION_TTL_MS = 1000 * 60 * 60; // 1 hour
-const REQUIRED_SCOPES = ['mcp:read', 'mcp:write'];
+const SESSION_TTL_MS = 1000 * 60 * 5; // 5 minutes (reduced for debugging)
 
 /**
  * Sets standard headers for all requests.
@@ -84,7 +91,7 @@ function standardHeaders(
 app.set('x-powered-by', false);
 // Trust proxy for rate limiting - only trust localhost and private networks
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
-app.use(standardHeaders);
+// app.use(standardHeaders);
 app.use(cors());
 // Security middlewares
 app.use(helmet());
@@ -103,12 +110,43 @@ app.use(addRequestIdMiddleware);
 // Request logging middleware
 app.use(logRequest);
 
+// app.use((req, res, next) => {
+//   logger.info(`${new Date().toISOString()} - ${req.method} ${req.path}`, {
+//     headers: Object.keys(req.headers),
+//     hasSessionId: !!req.headers['mcp-session-id'],
+//     userAgent: req.headers['user-agent'],
+//   });
+//   next();
+// });
+
 // Session management
+type SessionMetrics = {
+  sessionId: string;
+  userId: string;
+  createdAt: Date;
+  expiresAt: Date;
+  totalInteractions: number;
+  totalToolCalls: number;
+};
+
 type Session = {
   transport: StreamableHTTPServerTransport;
   timeout: NodeJS.Timeout;
-  user?: User;
+  userId: string;
   destroying?: boolean; // Flag to prevent recursive destruction
+  metrics: SessionMetrics;
+};
+
+// Carbon Voice API health cache
+type ApiHealthStatus = {
+  isHealthy: boolean;
+  lastChecked: string;
+  error?: string;
+};
+
+let carbonVoiceApiHealth: ApiHealthStatus = {
+  isHealthy: false,
+  lastChecked: new Date().toISOString(),
 };
 
 const sessions = new Map<string, Session>();
@@ -116,20 +154,37 @@ const sessions = new Map<string, Session>();
 function createSession(
   transport: StreamableHTTPServerTransport,
   req: AuthenticatedRequest,
+  sessionId: string,
 ): string {
-  const sessionId = getOrCreateSessionId(req);
+  // Should never happen
+  if (!req.auth?.extra?.user) {
+    throw new Error('User not found in session creation');
+  }
+
+  // const sessionId = getOrCreateSessionId(req);
   // Clean up after TTL
   const timeout = setTimeout(() => {
     logger.info('⏰ Session timeout triggered', { sessionId });
     destroySession(sessionId);
   }, SESSION_TTL_MS);
-
-  sessions.set(sessionId, { transport, timeout });
+  const userId = req.auth?.extra?.user!.id;
+  sessions.set(sessionId, {
+    transport,
+    timeout,
+    userId,
+    metrics: {
+      sessionId,
+      userId,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+      totalInteractions: 0,
+      totalToolCalls: 0,
+    },
+  });
 
   logger.info('🆕 Session created', {
     sessionId,
-    userId: req.auth?.extra?.user?.id,
-    totalSessions: sessions.size,
+    userId: req.auth?.extra?.user!.id,
   });
 
   return sessionId;
@@ -138,14 +193,26 @@ function createSession(
 function destroySession(sessionId: string) {
   logger.info('🔚 Destroying session', { sessionId });
   const session = sessions.get(sessionId);
+
   if (session && !session.destroying) {
     // Mark session as being destroyed to prevent recursive calls
     session.destroying = true;
 
+    const {} = session.metrics;
     clearTimeout(session.timeout);
     session.transport.close();
     sessions.delete(sessionId);
-    logger.info('Session destroyed', { sessionId, userId: session?.user?.id });
+    const durationInSeconds =
+      (new Date().getTime() - session.metrics.createdAt.getTime()) / 1000;
+    logger.info('❌ Session destroyed', {
+      sessionId,
+      duration: formatTimeToHuman(durationInSeconds),
+      createdAt: session.metrics.createdAt.toISOString(),
+      expiresAt: session.metrics.expiresAt.toISOString(),
+      totalInteractions: session.metrics.totalInteractions,
+      totalToolCalls: session.metrics.totalToolCalls,
+      userId: session.userId,
+    });
   } else if (session?.destroying) {
     logger.debug('Session already being destroyed, skipping', { sessionId });
   }
@@ -153,14 +220,25 @@ function destroySession(sessionId: string) {
 
 app.get('/health', (req, res: Response) => {
   const response = {
-    status: 'ok',
+    status: carbonVoiceApiHealth.isHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: formatProcessUptime(),
+    dependencies: {
+      carbonVoiceApi: {
+        status: carbonVoiceApiHealth.isHealthy ? 'healthy' : 'unhealthy',
+        lastChecked: carbonVoiceApiHealth.lastChecked,
+        ...(carbonVoiceApiHealth.error && {
+          error: carbonVoiceApiHealth.error,
+        }),
+      },
+    },
   };
 
-  logger.info('Health check', response);
+  const logLevel = carbonVoiceApiHealth.isHealthy ? 'info' : 'warn';
+  logger[logLevel]('Health check', response);
 
-  res.status(200).json(response);
+  const statusCode = carbonVoiceApiHealth.isHealthy ? 200 : 503;
+  res.status(statusCode).json(response);
 });
 
 app.get('/info', (req, res: Response) => {
@@ -181,52 +259,12 @@ app.get('/info', (req, res: Response) => {
 app.get(
   '/.well-known/oauth-protected-resource',
   wellKnownCorsHeaders,
-  (req, res) => {
-    logger.info('OAuth Protected Resource metadata requested', {
-      url: req.url,
-      method: req.method,
-    });
-    const protocol = req.get('X-Forwarded-Proto') || req.protocol;
-    const host =
-      req.get('X-Forwarded-Host') || req.get('host') || `localhost:${env.PORT}`;
-    const baseUrl = `${protocol}://${host}`;
-
-    res.json({
-      resource: `${baseUrl}/mcp`,
-      authorization_servers: [env.CARBON_VOICE_BASE_URL],
-      scopes_supported: REQUIRED_SCOPES,
-      bearer_methods_supported: ['header'],
-      resource_name: 'Carbon Voice - HTTP',
-    });
-  },
+  oauthProtectedResource,
 );
-
 app.get(
   '/.well-known/oauth-authorization-server',
   wellKnownCorsHeaders,
-  (req, res) => {
-    logger.info('OAuth Authorization Server metadata requested', {
-      url: req.url,
-      method: req.method,
-    });
-
-    const issuer = env.CARBON_VOICE_BASE_URL;
-    const metadata = {
-      issuer,
-      authorization_endpoint: `${issuer}/oauth/authorize`,
-      token_endpoint: `${issuer}/oauth/token`,
-      registration_endpoint: `${issuer}/oauth/register`,
-      userinfo_endpoint: `${issuer}/oauth/userinfo`,
-      response_types_supported: ['code', 'token'],
-      response_modes_supported: ['query'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      scopes_supported: REQUIRED_SCOPES,
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'none'],
-      code_challenge_methods_supported: ['S256'], // PKCE support
-    };
-
-    res.json(metadata);
-  },
+  oauthAuthorizationServer,
 );
 
 // Handle HEAD requests without auth
@@ -241,6 +279,55 @@ app.head('/mcp', logRequest, (req, res) => {
     .end();
 });
 
+// Single shared transport for all requests
+// const sharedTransport = new StreamableHTTPServerTransport({
+//   sessionIdGenerator: undefined, // Stateless
+//   enableJsonResponse: true,
+// });
+
+// Add error handling
+// sharedTransport.onerror = (error) => {
+//   logger.error('🚨 Transport error', { error: error.message });
+// };
+
+// sharedTransport.onclose = () => {
+//   logger.info('🔴 Transport closed for all requests');
+// };
+
+async function handleSessionRequest(
+  req: AuthenticatedRequest,
+  res: Response,
+  session?: Session,
+) {
+  if (!session) {
+    logger.warn('❌ Session ID not found', {
+      sessionId: getOrCreateSessionId(req),
+      userId: req.auth?.extra?.user?.id,
+      headers: req.headers,
+    });
+
+    res.status(404).json({
+      jsonrpc: '2.0',
+      error: {
+        code: 404,
+        message: 'Session ID not found. Please reinitialize.',
+      },
+      id: null,
+    });
+
+    return;
+  }
+
+  session.metrics.totalInteractions++;
+  if (req.body?.method === 'tools/call') {
+    session.metrics.totalToolCalls++;
+  }
+
+  logger.info('🔁 Reusing session', session.metrics);
+
+  return session.transport.handleRequest(req, res, req.body);
+}
+
 app.post(
   '/mcp',
   authErrorLogger,
@@ -253,14 +340,17 @@ app.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const sessionId = getOrCreateSessionId(req);
+      const session = sessions.get(sessionId);
       // Reuse existing session
-      if (sessions.has(sessionId)) {
-        logger.info('🔁 Reusing session', { sessionId });
+      if (session) {
+        // logger.info('🔁 Reusing session', { sessionId });
 
-        await sessions
-          .get(sessionId)!
-          .transport!.handleRequest(req, res, req.body);
+        // await sessions
+        //   .get(sessionId)!
+        //   .transport!.handleRequest(req, res, req.body);
 
+        // return;
+        await handleSessionRequest(req, res, session);
         return;
       }
 
@@ -268,15 +358,16 @@ app.post(
       if (isInitializeRequest(req.body)) {
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => getOrCreateSessionId(req),
-          onsessioninitialized: (transportSessionId: string) => {
-            const user = req.auth?.extra?.user;
+          // sessionIdGenerator: undefined,
+          onsessioninitialized: (sessionId: string) => {
+            // const user = req.auth?.extra?.user;
 
             logger.info('🆕 New session initialized', {
-              sessionId: transportSessionId,
+              sessionId,
               requestorHeaders: obfuscateAuthHeaders(req.headers),
-              userId: user?.id,
+              userId: req.auth?.extra?.user?.id,
             });
-            createSession(transport!, req);
+            createSession(transport!, req, sessionId);
           },
           enableJsonResponse: true,
         });
@@ -285,7 +376,20 @@ app.post(
             sessionId: transport!.sessionId,
             hasSessionId: !!transport!.sessionId,
           });
-          if (transport!.sessionId) destroySession(transport!.sessionId);
+          if (transport.sessionId) destroySession(transport.sessionId);
+        };
+
+        // Add error handling for the transport
+        transport.onerror = (error) => {
+          logger.error('🚨 Transport error occurred', {
+            sessionId: transport!.sessionId,
+            sessionMetrics: sessions.get(transport!.sessionId!)?.metrics,
+            error: {
+              message: error.message,
+              name: error.name,
+              stack: error.stack,
+            },
+          });
         };
 
         await server.connect(transport);
@@ -293,6 +397,8 @@ app.post(
         await transport.handleRequest(req, res, req.body);
 
         return;
+        // const session = sessions.get(transport!.sessionId!);
+        // await handleSessionRequest(req, res, session!);
       }
 
       // No session ID and no initialize request
@@ -313,11 +419,62 @@ app.post(
       });
 
       return;
+      // await handleSessionRequest(req, res, sessions.get(sessionId));
+
+      // await sharedTransport.handleRequest(req, res, req.body);
     } catch (error) {
+      logger.error('❌ Error in POST /mcp handler', {
+        error: {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        method: req.method,
+        url: req.url,
+        sessionId: getOrCreateSessionId(req),
+        hasInitializeRequest: isInitializeRequest(req.body),
+        userId: req.auth?.extra?.user?.id,
+      });
       next(error);
     }
   },
 );
+
+// GET/DELETE /mcp: server-to-client (SSE) and session termination
+
+// GET/DELETE /mcp: server-to-client (SSE) and session termination
+async function handleSessionRequestGetDelete(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  try {
+    const sessionId = getOrCreateSessionId(req);
+    const session = sessions.get(sessionId);
+    if (!session) {
+      logger.warn('Invalid or missing session ID', { sessionId });
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: 404,
+          message: 'Session not found. Please reinitialize.',
+        },
+        id: null,
+      });
+      return;
+    }
+
+    await session.transport.handleRequest(req, res, req.body);
+    if (req.method === 'DELETE') {
+      destroySession(sessionId);
+    }
+  } catch (err) {
+    logger.error('❌ Error in handleSessionRequestGetDelete', {
+      error: {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      },
+    });
+  }
+}
 
 // GET/DELETE /mcp: server-to-client (SSE) and session termination
 app.get(
@@ -329,7 +486,7 @@ app.get(
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
   addMcpSessionId,
-  handleSessionRequest,
+  handleSessionRequestGetDelete,
 );
 app.delete(
   '/mcp',
@@ -340,8 +497,73 @@ app.delete(
     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
   }),
   addMcpSessionId,
-  handleSessionRequest,
+  handleSessionRequestGetDelete,
 );
+
+// app.get(
+//   '/mcp',
+//   authErrorLogger,
+//   requireBearerAuth({
+//     verifier: createOAuthTokenVerifier(),
+//     requiredScopes: REQUIRED_SCOPES,
+//     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
+//   }),
+//   addMcpSessionId,
+//   (req: AuthenticatedRequest, res: Response) => {
+//     return handleSessionRequest(
+//       req,
+//       res,
+//       sessions.get(getOrCreateSessionId(req)),
+//     );
+//   },
+// );
+
+// app.delete(
+//   '/mcp',
+//   authErrorLogger,
+//   requireBearerAuth({
+//     verifier: createOAuthTokenVerifier(),
+//     requiredScopes: REQUIRED_SCOPES,
+//     resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
+//   }),
+//   addMcpSessionId,
+//   (req: AuthenticatedRequest, res: Response) => {
+//     destroySession(getOrCreateSessionId(req));
+//   },
+// );
+
+// For stateless servers, GET should return 405 Method Not Allowed
+// app.get('/mcp', (req, res) => {
+//   logger.warn('GET request to /mcp (not supported in stateless mode)');
+//   res.writeHead(405, {
+//     'Content-Type': 'application/json',
+//     Allow: 'POST',
+//   });
+//   res.end(
+//     JSON.stringify({
+//       jsonrpc: '2.0',
+//       error: {
+//         code: -32601, // "Method not found"
+//         message: 'GET not supported in stateless mode; use POST at /mcp',
+//       },
+//       id: null,
+//     }),
+//   );
+//   return;
+// });
+
+// For stateless servers, DELETE should return 405 Method Not Allowed
+// app.delete('/mcp', (req, res) => {
+//   logger.warn('DELETE request to /mcp (not supported in stateless mode)');
+//   res.status(405).json({
+//     jsonrpc: '2.0',
+//     error: {
+//       code: -32000,
+//       message: "Method not allowed. Stateless server doesn't support sessions.",
+//     },
+//     id: null,
+//   });
+// });
 
 // POST /mcp: client-to-server (with authentication)
 // app.post(
@@ -420,34 +642,54 @@ app.delete(
 // );
 
 // GET/DELETE /mcp: server-to-client (SSE) and session termination
-async function handleSessionRequest(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const sessionId = getOrCreateSessionId(req);
-    if (!sessionId || !sessions.has(sessionId)) {
-      logger.warn('Invalid or missing session ID', { sessionId });
-      res.status(404).json({
-        jsonrpc: '2.0',
-        error: {
-          code: 404,
-          message: 'Session not found. Please reinitialize.',
-        },
-        id: null,
-      });
-      return;
-    }
-    const transport = sessions.get(sessionId)!.transport;
-    await transport.handleRequest(req, res, req.body);
-    if (req.method === 'DELETE') {
-      destroySession(sessionId);
-    }
-  } catch (err) {
-    next(err);
-  }
-}
+// async function handleSessionRequestWasWorking(
+//   req: AuthenticatedRequest,
+//   res: Response,
+//   next: NextFunction,
+// ) {
+//   try {
+//     // const sessionId = getOrCreateSessionId(req);
+//     // if (!sessionId || !sessions.has(sessionId)) {
+//     //   logger.warn('Invalid or missing session ID', { sessionId });
+//     //   res.status(404).json({
+//     //     jsonrpc: '2.0',
+//     //     error: {
+//     //       code: 404,
+//     //       message: 'Session not found. Please reinitialize.',
+//     //     },
+//     //     id: null,
+//     //   });
+//     //   return;
+//     // }
+
+//     // Add SSE-specific headers for GET requests (which are used for SSE)
+//     if (req.method === 'GET') {
+//       res.setHeader('Content-Type', 'text/event-stream');
+//       res.setHeader('Cache-Control', 'no-cache');
+//       res.setHeader('Connection', 'keep-alive');
+//       res.setHeader('Access-Control-Allow-Origin', '*');
+//       res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+//       res.setHeader('Access-Control-Allow-Credentials', 'true');
+//     }
+
+//     // const transport = sessions.get(sessionId)!.transport;
+//     await sharedTransport.handleRequest(req, res, req.body);
+//     // if (req.method === 'DELETE') {
+//     //   // destroySession(sessionId);
+//     // }
+//   } catch (err) {
+//     logger.error('❌ Error in handleSessionRequest', {
+//       error: {
+//         message: err instanceof Error ? err.message : String(err),
+//         stack: err instanceof Error ? err.stack : undefined,
+//       },
+//       method: req.method,
+//       url: req.url,
+//       sessionId: getOrCreateSessionId(req),
+//     });
+//     next(err);
+//   }
+// }
 
 // app.get('/oauth/authorize', (req, res) => {
 //   logger.info('OAuth authorize!!!', {
@@ -505,16 +747,36 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+process.once('SIGUSR2', () => {
+  logger.info('SIGUSR2 received, shutting down...');
+  // shutdown();
+  // After cleanup, re-emit the signal to let nodemon restart the process
+  process.kill(process.pid, 'SIGUSR2');
+});
 
 // Start server
 const PORT = env.PORT || 3005;
-const serverInstance = app.listen(PORT, () => {
-  logger.info(`🚀 MCP HTTP Server started successfully on port ${PORT}`, {
+const serverInstance = app.listen(PORT, async () => {
+  // Connect server once at startup
+  // await server.connect(sharedTransport);
+
+  // Initialize Carbon Voice API health status
+  const isApiWorking = await isCarbonVoiceApiWorking();
+  carbonVoiceApiHealth = {
+    isHealthy: isApiWorking,
+    lastChecked: new Date().toISOString(),
+  };
+
+  const logLevel = isApiWorking ? 'info' : 'warn';
+  const icon = isApiWorking ? '✅ ' : '⚠️ ';
+
+  logger[logLevel](`${icon} MCP HTTP Server started on port ${PORT}`, {
     name: SERVICE_NAME,
     version: SERVICE_VERSION,
     processId: process.pid,
     nodeVersion: process.version,
     totalSessions: sessions.size,
+    carbonVoiceApiHealth,
   });
 });
 
@@ -544,10 +806,40 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Log every 30 seconds to show the server is alive
-const heartbeatInterval = setInterval(() => {
-  logger.info('💓 Server heartbeat', {
-    totalSessions: sessions.size,
-    uptime: formatProcessUptime(),
-    memoryUsage: process.memoryUsage(),
-  });
+const heartbeatInterval = setInterval(async () => {
+  try {
+    const isApiWorking = await isCarbonVoiceApiWorking();
+
+    // Update Carbon Voice API health cache
+    carbonVoiceApiHealth = {
+      isHealthy: isApiWorking,
+      lastChecked: new Date().toISOString(),
+      ...(carbonVoiceApiHealth.error && isApiWorking && { error: undefined }), // Clear error if now healthy
+    };
+
+    logger.info('💓 Server heartbeat', {
+      totalSessions: sessions.size,
+      isCarbonVoiceApiWorking: isApiWorking,
+      uptime: formatProcessUptime(),
+      memoryUsage: process.memoryUsage(),
+    });
+  } catch (error) {
+    // Update cache with error information
+    carbonVoiceApiHealth = {
+      isHealthy: false,
+      lastChecked: new Date().toISOString(),
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown error checking API health',
+    };
+
+    logger.warn('💓 Server heartbeat - Carbon Voice API check failed', {
+      totalSessions: sessions.size,
+      isCarbonVoiceApiWorking: false,
+      uptime: formatProcessUptime(),
+      memoryUsage: process.memoryUsage(),
+      error: carbonVoiceApiHealth.error,
+    });
+  }
 }, 30000);

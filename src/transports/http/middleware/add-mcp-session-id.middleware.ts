@@ -1,29 +1,39 @@
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, Response } from 'express';
 
+import { AuthenticatedRequest } from '../../../auth';
 import { logger } from '../../../utils';
 import { getOrCreateSessionId } from '../utils';
 
 export const addMcpSessionId = (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ) => {
-  let sessionId = req.headers['mcp-session-id'] as string | undefined;
-  const requestHadSessionId = !!sessionId;
+  const sessionId = getOrCreateSessionId(req);
+  const requestHadSessionId = !!req.headers['mcp-session-id'];
+  const logArgs = {
+    action: 'addMcpSessionId',
+    sessionId,
+    userId: req.auth?.extra?.user?.id,
+    requestHadSessionId,
+  };
+
+  logger.debug('Session ID Middleware', logArgs);
   if (!requestHadSessionId) {
-    logger.debug('❗Request has no session ID, Adding one to the request');
-    sessionId = getOrCreateSessionId(req);
+    logger.debug(
+      '❗Request has no session ID, Adding one to the request',
+      logArgs,
+    );
     req.headers['mcp-session-id'] = sessionId;
   }
 
   if (!res.getHeader('mcp-session-id')) {
-    logger.debug('⬅️ Response has no session ID, Adding one to the response');
+    logger.debug(
+      '⬅️ Response has no session ID, Adding one to the response',
+      logArgs,
+    );
     res.setHeader('mcp-session-id', sessionId!);
   }
 
-  logger.debug('Session ID Middleware', {
-    sessionId,
-    requestHadSessionId,
-  });
   next();
 };
