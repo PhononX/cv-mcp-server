@@ -23,6 +23,7 @@ const Environment = z.object({
     .enum(['console', 'file', 'cloudwatch'])
     .optional()
     .default('file'),
+  ENVIRONMENT: z.enum(['dev', 'prod']).optional().default('prod'),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {

@@ -3,15 +3,14 @@ name: Deploy to App Runner
 
 on:
   push:
-    branches: [feat/sse]
+    branches: [main, develop]
 
 env:
   AWS_REGION: us-east-2
-  SERVICE_ARN: arn:aws:apprunner:us-east-2:336746746018:service/cv-mcp-server/5c92ddf00a544c9dbc6d0ca758d53d68
 
 jobs:
   deploy:
-    name: Trigger App Runner Deployment
+    name: Deploy to App Runner
     runs-on: ubuntu-latest
 
     steps:
@@ -22,10 +21,38 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set deployment variables
+        id: set-vars
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "service_arn=arn:aws:apprunner:us-east-2:336746746018:service/cv-mcp-server/XXXXXXX" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            echo "branch=develop" >> $GITHUB_OUTPUT
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "service_arn=arn:aws:apprunner:us-east-2:336746746018:service/cv-mcp-server/5c92ddf00a544c9dbc6d0ca758d53d68" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Unsupported branch: ${{ github.ref }}"
+            exit 1
+          fi
+
+          echo "🚀 Deploying branch: ${{ steps.set-vars.outputs.branch }}"
+          echo "🌍 Environment: ${{ steps.set-vars.outputs.environment }}"
+          echo "🔗 Service ARN: ${{ steps.set-vars.outputs.service_arn }}"
+
+      - name: Update App Runner environment variables
+        run: |
+          # Update App Runner service with environment variables
+          aws apprunner update-service \
+            --service-arn ${{ steps.set-vars.outputs.service_arn }} \
+            --runtime-environment-variables \
+              BRANCH=${{ steps.set-vars.outputs.branch }},ENVIRONMENT=${{ steps.set-vars.outputs.environment }}
+
       - name: Trigger App Runner deployment
         run: |
           echo "🚀 Triggering App Runner deployment..."
-          aws apprunner start-deployment --service-arn ${{ env.SERVICE_ARN }}
+          aws apprunner start-deployment --service-arn ${{ steps.set-vars.outputs.service_arn }}
 
           echo "⏳ Waiting for deployment to start..."
           sleep 30
@@ -33,7 +60,7 @@ jobs:
           # Monitor deployment status
           for i in {1..20}; do
             STATUS=$(aws apprunner list-operations \
-              --service-arn ${{ env.SERVICE_ARN }} \
+              --service-arn ${{ steps.set-vars.outputs.service_arn }} \
               --query 'OperationSummaryList[0].Status' \
               --output text)
             
@@ -53,11 +80,13 @@ jobs:
       - name: Get service URL
         run: |
           SERVICE_URL=$(aws apprunner describe-service \
-            --service-arn ${{ env.SERVICE_ARN }} \
+            --service-arn ${{ steps.set-vars.outputs.service_arn }} \
             --query 'Service.ServiceUrl' \
             --output text)
 
           echo "🌐 Service URL: https://$SERVICE_URL"
+          echo "🏷️ Branch: ${{ steps.set-vars.outputs.branch }}"
+          echo "🌍 Environment: ${{ steps.set-vars.outputs.environment }}"
 
           # Test health endpoint
           curl -f "https://$SERVICE_URL/health" || echo "⚠️ Health check failed"

@@ -78,8 +78,9 @@ const transports: Record<
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
         winston.format.colorize({ all: true }),
         winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-          let output = `${timestamp} ${level}: ${message}`;
+          let output = `${timestamp} [${env.ENVIRONMENT}] ${level}: ${message}`;
           if (Object.keys(metadata).length > 0) {
+            metadata.environment = env.ENVIRONMENT; // Add environment to metadata
             output += '\n' + JSON.stringify(metadata, null, 2);
           }
           return output;
@@ -90,12 +91,20 @@ const transports: Record<
   cloudwatch: [
     new WinstonCloudwatch({
       logGroupName: 'CarbonVoice-MCP-Server',
-      logStreamName: 'CarbonVoice-MCP-Server',
+      logStreamName: `CarbonVoice-MCP-Server-${env.ENVIRONMENT}`,
       awsRegion: 'us-east-2',
       retentionInDays: 14,
       // Credentials are injected by App Runner
       level: getLogLevel(),
       jsonMessage: true,
+      messageFormatter: ({ level, message, ...meta }) => {
+        return JSON.stringify({
+          level,
+          message,
+          environment: env.ENVIRONMENT,
+          ...meta,
+        });
+      },
     }),
   ],
 };
@@ -103,7 +112,17 @@ const transports: Record<
 // File format (JSON)
 const fileFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
+  winston.format.errors({ stack: true }),
   winston.format.json(),
+  winston.format.printf(({ timestamp, level, message, ...metadata }) => {
+    return JSON.stringify({
+      timestamp,
+      level,
+      message,
+      environment: env.ENVIRONMENT,
+      ...metadata,
+    });
+  }),
 );
 
 const getLogTransports = (): winston.transport[] => {
