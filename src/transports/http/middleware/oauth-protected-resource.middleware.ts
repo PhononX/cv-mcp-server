@@ -10,10 +10,10 @@ export const oauthProtectedResource = (req: Request, res: Response) => {
   const baseUrl = `${protocol}://${host}`;
 
   res.json({
-    resource: `${baseUrl}/mcp`,
+    resource: `${baseUrl}`,
     authorization_servers: [env.CARBON_VOICE_BASE_URL],
     scopes_supported: REQUIRED_SCOPES,
     bearer_methods_supported: ['header'],
-    resource_name: 'Carbon Voice - HTTP',
+    resource_name: 'Carbon Voice MCP Server',
   });
 };

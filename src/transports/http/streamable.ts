@@ -268,7 +268,7 @@ app.get(
 );
 
 // Handle HEAD requests without auth
-app.head('/mcp', logRequest, (req, res) => {
+app.head('/', logRequest, (req, res) => {
   const mcpProtocolVersion =
     req.headers['mcp-protocol-version'] || LATEST_PROTOCOL_VERSION;
 
@@ -329,7 +329,7 @@ async function handleSessionRequest(
 }
 
 app.post(
-  '/mcp',
+  '/',
   authErrorLogger,
   requireBearerAuth({
     verifier: createOAuthTokenVerifier(),
@@ -423,7 +423,7 @@ app.post(
 
       // await sharedTransport.handleRequest(req, res, req.body);
     } catch (error) {
-      logger.error('❌ Error in POST /mcp handler', {
+      logger.error('❌ Error in POST  handler', {
         error: {
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
@@ -439,9 +439,9 @@ app.post(
   },
 );
 
-// GET/DELETE /mcp: server-to-client (SSE) and session termination
+// GET/DELETE : server-to-client (SSE) and session termination
 
-// GET/DELETE /mcp: server-to-client (SSE) and session termination
+// GET/DELETE : server-to-client (SSE) and session termination
 async function handleSessionRequestGetDelete(
   req: AuthenticatedRequest,
   res: Response,
@@ -476,9 +476,9 @@ async function handleSessionRequestGetDelete(
   }
 }
 
-// GET/DELETE /mcp: server-to-client (SSE) and session termination
+// GET/DELETE : server-to-client (SSE) and session termination
 app.get(
-  '/mcp',
+  '/',
   authErrorLogger,
   requireBearerAuth({
     verifier: createOAuthTokenVerifier(),
@@ -489,7 +489,7 @@ app.get(
   handleSessionRequestGetDelete,
 );
 app.delete(
-  '/mcp',
+  '/',
   authErrorLogger,
   requireBearerAuth({
     verifier: createOAuthTokenVerifier(),
@@ -501,7 +501,7 @@ app.delete(
 );
 
 // app.get(
-//   '/mcp',
+//   '/',
 //   authErrorLogger,
 //   requireBearerAuth({
 //     verifier: createOAuthTokenVerifier(),
@@ -519,7 +519,7 @@ app.delete(
 // );
 
 // app.delete(
-//   '/mcp',
+//   '/',
 //   authErrorLogger,
 //   requireBearerAuth({
 //     verifier: createOAuthTokenVerifier(),
@@ -533,8 +533,8 @@ app.delete(
 // );
 
 // For stateless servers, GET should return 405 Method Not Allowed
-// app.get('/mcp', (req, res) => {
-//   logger.warn('GET request to /mcp (not supported in stateless mode)');
+// app.get('/', (req, res) => {
+//   logger.warn('GET request to  (not supported in stateless mode)');
 //   res.writeHead(405, {
 //     'Content-Type': 'application/json',
 //     Allow: 'POST',
@@ -544,7 +544,7 @@ app.delete(
 //       jsonrpc: '2.0',
 //       error: {
 //         code: -32601, // "Method not found"
-//         message: 'GET not supported in stateless mode; use POST at /mcp',
+//         message: 'GET not supported in stateless mode; use POST at ',
 //       },
 //       id: null,
 //     }),
@@ -553,8 +553,8 @@ app.delete(
 // });
 
 // For stateless servers, DELETE should return 405 Method Not Allowed
-// app.delete('/mcp', (req, res) => {
-//   logger.warn('DELETE request to /mcp (not supported in stateless mode)');
+// app.delete('/', (req, res) => {
+//   logger.warn('DELETE request to  (not supported in stateless mode)');
 //   res.status(405).json({
 //     jsonrpc: '2.0',
 //     error: {
@@ -565,9 +565,9 @@ app.delete(
 //   });
 // });
 
-// POST /mcp: client-to-server (with authentication)
+// POST : client-to-server (with authentication)
 // app.post(
-//   '/mcpx',
+//   'x',
 //   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
 //     logger.warn('Verifying access token');
 //     verifyAccessToken(req, res, next);
@@ -641,7 +641,7 @@ app.delete(
 //   },
 // );
 
-// GET/DELETE /mcp: server-to-client (SSE) and session termination
+// GET/DELETE : server-to-client (SSE) and session termination
 // async function handleSessionRequestWasWorking(
 //   req: AuthenticatedRequest,
 //   res: Response,
