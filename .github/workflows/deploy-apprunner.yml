@@ -48,46 +48,56 @@ jobs:
             --service-arn ${{ steps.set-vars.outputs.service_arn }} \
             > service.json
 
-          echo "🔧 Building update payload..."
+          echo "🧪 Extracting fields from service.json..."
 
-          jq -n \
-            --arg arn "${{ steps.set-vars.outputs.service_arn }}" \
-            --arg repoUrl "$(jq -r '.Service.SourceConfiguration.CodeRepository.RepositoryUrl' service.json)" \
-            --arg branch "$(jq -r '.Service.SourceConfiguration.CodeRepository.SourceCodeVersion.Value' service.json)" \
-            --arg configName "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.ConfigurationSource' service.json)" \
-            --arg runtime "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.Runtime' service.json)" \
-            --arg startCommand "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.StartCommand // empty' service.json)" \
-            --arg buildCommand "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.BuildCommand // empty' service.json)" \
-            --arg envName "ENVIRONMENT" \
-            --arg envValue "${{ steps.set-vars.outputs.environment }}" \
-            '{
-              ServiceArn: $arn,
-              SourceConfiguration: {
-                CodeRepository: {
-                  RepositoryUrl: $repoUrl,
-                  SourceCodeVersion: {
-                    Type: "BRANCH",
-                    Value: $branch
-                  },
-                  CodeConfiguration: {
-                    ConfigurationSource: $configName,
-                    CodeConfigurationValues: {
-                      Runtime: $runtime,
-                      StartCommand: ($startCommand | select(. != "")),
-                      BuildCommand: ($buildCommand | select(. != ""))
-                    }
-                  }
+          REPO_URL=$(jq -r '.Service.SourceConfiguration.CodeRepository.RepositoryUrl' service.json)
+          BRANCH=$(jq -r '.Service.SourceConfiguration.CodeRepository.SourceCodeVersion.Value' service.json)
+          CONFIG_SOURCE=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.ConfigurationSource' service.json)
+          RUNTIME=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.Runtime' service.json)
+          START_CMD=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.StartCommand // empty' service.json)
+          BUILD_CMD=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.BuildCommand // empty' service.json)
+
+          echo "📄 REPO_URL=$REPO_URL"
+          echo "🌿 BRANCH=$BRANCH"
+          echo "⚙️ CONFIG_SOURCE=$CONFIG_SOURCE"
+          echo "🚀 RUNTIME=$RUNTIME"
+          echo "▶️ START_CMD=$START_CMD"
+          echo "🔧 BUILD_CMD=$BUILD_CMD"
+
+          # Build JSON payload manually for better control
+          cat > update.json <<EOF
+          {
+            "ServiceArn": "${{ steps.set-vars.outputs.service_arn }}",
+            "SourceConfiguration": {
+              "CodeRepository": {
+                "RepositoryUrl": "$REPO_URL",
+                "SourceCodeVersion": {
+                  "Type": "BRANCH",
+                  "Value": "$BRANCH"
                 },
-                AutoDeploymentsEnabled: true
+                "CodeConfiguration": {
+                  "ConfigurationSource": "$CONFIG_SOURCE",
+                  "CodeConfigurationValues": {
+                    "Runtime": "$RUNTIME"
+                    $( [ -n "$BUILD_CMD" ] && echo ", \"BuildCommand\": \"$BUILD_CMD\"" )
+                    $( [ -n "$START_CMD" ] && echo ", \"StartCommand\": \"$START_CMD\"" )
+                  }
+                }
               },
-              InstanceConfiguration: {
-                EnvironmentVariables: [
-                  { Name: $envName, Value: $envValue }
-                ]
-              }
-            }' > update.json
+              "AutoDeploymentsEnabled": true
+            },
+            "InstanceConfiguration": {
+              "EnvironmentVariables": [
+                {
+                  "Name": "ENVIRONMENT",
+                  "Value": "${{ steps.set-vars.outputs.environment }}"
+                }
+              ]
+            }
+          }
+          EOF
 
-          echo "Generated update.json:"
+          echo "✅ update.json generated:"
           cat update.json
           echo "📤 Updating service with ENVIRONMENT=${{ steps.set-vars.outputs.environment }}..."
           aws apprunner update-service --cli-input-json file://update.json
