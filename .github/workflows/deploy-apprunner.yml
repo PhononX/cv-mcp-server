@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -21,116 +24,40 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set deployment variables
+      - name: Set variables (branch, environment, service ARN)
         id: set-vars
         run: |
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "branch=main" >> $GITHUB_OUTPUT
-            echo "environment=prod" >> $GITHUB_OUTPUT
-            echo "service_arn=arn:aws:apprunner:us-east-2:336746746018:service/cv-mcp-server/XXXXXXX" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
-            echo "branch=develop" >> $GITHUB_OUTPUT
-            echo "environment=dev" >> $GITHUB_OUTPUT
-            echo "service_arn=arn:aws:apprunner:us-east-2:336746746018:service/cv-mcp-server/5c92ddf00a544c9dbc6d0ca758d53d68" >> $GITHUB_OUTPUT
+          BRANCH="${GITHUB_REF##*/}"
+          if [ "$BRANCH" = "main" ]; then
+            ENVIRONMENT="prod"
           else
-            echo "❌ Unsupported branch: ${{ github.ref }}"
-            exit 1
+            ENVIRONMENT="dev"
           fi
 
-          echo "🚀 Deploying branch: ${{ steps.set-vars.outputs.branch }}"
-          echo "🌍 Environment: ${{ steps.set-vars.outputs.environment }}"
-          echo "🔗 Service ARN: ${{ steps.set-vars.outputs.service_arn }}"
+          SERVICE_ARN=$(aws apprunner list-services \
+            --query "ServiceSummaryList[?ServiceName=='cv-mcp-server'].ServiceArn" \
+            --output text)
 
-      - name: Update App Runner ENVIRONMENT variable
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "service_arn=$SERVICE_ARN" >> $GITHUB_OUTPUT
+
+      - name: Set Environment variable based on branch
+        id: set-env
         run: |
-          echo "📥 Fetching current App Runner service config..."
-          aws apprunner describe-service \
-            --service-arn ${{ steps.set-vars.outputs.service_arn }} \
-            > service.json
-
-          echo "🧪 Extracting fields from service.json..."
-
-          REPO_URL=$(jq -r '.Service.SourceConfiguration.CodeRepository.RepositoryUrl' service.json)
-          BRANCH=$(jq -r '.Service.SourceConfiguration.CodeRepository.SourceCodeVersion.Value' service.json)
-          CONFIG_SOURCE=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.ConfigurationSource' service.json)
-          RUNTIME=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.Runtime' service.json)
-          START_CMD=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.StartCommand // empty' service.json)
-          BUILD_CMD=$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.BuildCommand // empty' service.json)
-
-          echo "📄 REPO_URL=$REPO_URL"
-          echo "🌿 BRANCH=$BRANCH"
-          echo "⚙️ CONFIG_SOURCE=$CONFIG_SOURCE"
-          echo "🚀 RUNTIME=$RUNTIME"
-          echo "▶️ START_CMD=$START_CMD"
-          echo "🔧 BUILD_CMD=$BUILD_CMD"
-
-          # Build JSON payload manually for better control
-          if [ "$CONFIG_SOURCE" = "REPOSITORY" ]; then
-            cat > update.json <<EOF
-          {
-            "ServiceArn": "${{ steps.set-vars.outputs.service_arn }}",
-            "SourceConfiguration": {
-              "CodeRepository": {
-                "RepositoryUrl": "$REPO_URL",
-                "SourceCodeVersion": {
-                  "Type": "BRANCH",
-                  "Value": "$BRANCH"
-                },
-                "CodeConfiguration": {
-                  "ConfigurationSource": "REPOSITORY"
-                }
-              },
-              "AutoDeploymentsEnabled": true
-            },
-            "InstanceConfiguration": {
-              "EnvironmentVariables": [
-                {
-                  "Name": "ENVIRONMENT",
-                  "Value": "${{ steps.set-vars.outputs.environment }}"
-                }
-              ]
-            }
-          }
-          EOF
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "env_value=prod" >> $GITHUB_OUTPUT
           else
-            # For MANAGED config, include values like Runtime, StartCommand, BuildCommand
-            cat > update.json <<EOF
-          {
-            "ServiceArn": "${{ steps.set-vars.outputs.service_arn }}",
-            "SourceConfiguration": {
-              "CodeRepository": {
-                "RepositoryUrl": "$REPO_URL",
-                "SourceCodeVersion": {
-                  "Type": "BRANCH",
-                  "Value": "$BRANCH"
-                },
-                "CodeConfiguration": {
-                  "ConfigurationSource": "$CONFIG_SOURCE",
-                  "CodeConfigurationValues": {
-                    "Runtime": "$RUNTIME"
-                    $( [ -n "$BUILD_CMD" ] && echo ", \"BuildCommand\": \"$BUILD_CMD\"" )
-                    $( [ -n "$START_CMD" ] && echo ", \"StartCommand\": \"$START_CMD\"" )
-                  }
-                }
-              },
-              "AutoDeploymentsEnabled": true
-            },
-            "InstanceConfiguration": {
-              "EnvironmentVariables": [
-                {
-                  "Name": "ENVIRONMENT",
-                  "Value": "${{ steps.set-vars.outputs.environment }}"
-                }
-              ]
-            }
-          }
-          EOF
+            echo "env_value=dev" >> $GITHUB_OUTPUT
           fi
 
-          echo "✅ update.json generated:"
-          cat update.json
-          echo "📤 Updating service with ENVIRONMENT=${{ steps.set-vars.outputs.environment }}..."
-          aws apprunner update-service --cli-input-json file://update.json
+      - name: Replace ENVIRONMENT in apprunner.yaml
+        run: |
+          echo "🔧 Setting ENVIRONMENT=${{ steps.set-env.outputs.env_value }}"
+          ENV_VALUE="${{ steps.set-env.outputs.env_value }}"
+          sed -i.bak -E "/- name: ENVIRONMENT/{n;s/  value: .*/  value: \"$ENV_VALUE\"/}" apprunner.yaml
+          echo "✅ Updated apprunner.yaml:"
+          cat apprunner.yaml
 
       - name: Trigger App Runner deployment
         run: |

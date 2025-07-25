@@ -21,3 +21,5 @@ run:
       value: 'cloudwatch'
     - name: CARBON_VOICE_BASE_URL
       value: 'https://api.carbonvoice.app'
+    - name: ENVIRONMENT
+      value: 'dev' #dev or prod (Will be replaced by github actions)
