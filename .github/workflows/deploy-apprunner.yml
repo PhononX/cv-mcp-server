@@ -41,13 +41,54 @@ jobs:
           echo "🌍 Environment: ${{ steps.set-vars.outputs.environment }}"
           echo "🔗 Service ARN: ${{ steps.set-vars.outputs.service_arn }}"
 
-      - name: Update App Runner environment variables
+      - name: Update App Runner ENVIRONMENT variable
         run: |
-          # Update App Runner service with environment variables
-          aws apprunner update-service \
+          echo "📥 Fetching current App Runner service config..."
+          aws apprunner describe-service \
             --service-arn ${{ steps.set-vars.outputs.service_arn }} \
-            --runtime-environment-variables \
-              BRANCH=${{ steps.set-vars.outputs.branch }},ENVIRONMENT=${{ steps.set-vars.outputs.environment }}
+            > service.json
+
+          echo "🔧 Building update payload..."
+
+          jq -n \
+            --arg arn "${{ steps.set-vars.outputs.service_arn }}" \
+            --arg repoUrl "$(jq -r '.Service.SourceConfiguration.CodeRepository.RepositoryUrl' service.json)" \
+            --arg branch "$(jq -r '.Service.SourceConfiguration.CodeRepository.SourceCodeVersion.Value' service.json)" \
+            --arg configName "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.ConfigurationSource' service.json)" \
+            --arg runtime "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.Runtime' service.json)" \
+            --arg startCommand "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.StartCommand // empty' service.json)" \
+            --arg buildCommand "$(jq -r '.Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.BuildCommand // empty' service.json)" \
+            --arg envName "ENVIRONMENT" \
+            --arg envValue "${{ steps.set-vars.outputs.environment }}" \
+            '{
+              ServiceArn: $arn,
+              SourceConfiguration: {
+                CodeRepository: {
+                  RepositoryUrl: $repoUrl,
+                  SourceCodeVersion: {
+                    Type: "BRANCH",
+                    Value: $branch
+                  },
+                  CodeConfiguration: {
+                    ConfigurationSource: $configName,
+                    CodeConfigurationValues: {
+                      Runtime: $runtime,
+                      StartCommand: ($startCommand | select(. != "")),
+                      BuildCommand: ($buildCommand | select(. != ""))
+                    }
+                  }
+                },
+                AutoDeploymentsEnabled: true
+              },
+              InstanceConfiguration: {
+                EnvironmentVariables: [
+                  { Name: $envName, Value: $envValue }
+                ]
+              }
+            }' > update.json
+
+          echo "📤 Updating service with ENVIRONMENT=${{ steps.set-vars.outputs.environment }}..."
+          aws apprunner update-service --cli-input-json file://update.json
 
       - name: Trigger App Runner deployment
         run: |
