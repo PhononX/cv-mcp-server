@@ -5,6 +5,9 @@ ENVIRONMENT=$1
 SERVICE_NAME=$2
 LOG_LEVEL="debug"
 BRANCH="unknown"
+GITHUB_CONNECTION_ARN="arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
+REPOSITORY_URL="https://github.com/phononx/cv-mcp-server"
+CARBON_VOICE_BASE_URL="https://api.carbonvoice.app"
 
 # Default service names if not provided
 if [ -z "$SERVICE_NAME" ]; then
@@ -135,6 +138,8 @@ CURRENT_ENV_VARS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" -
 # Extract current values
 CURRENT_ENVIRONMENT=$(echo "$CURRENT_ENV_VARS" | jq -r '.ENVIRONMENT // "unknown"')
 CURRENT_LOG_LEVEL=$(echo "$CURRENT_ENV_VARS" | jq -r '.LOG_LEVEL // "unknown"')
+CURRENT_CARBON_VOICE_BASE_URL=$(echo "$CURRENT_ENV_VARS" | jq -r '.CARBON_VOICE_BASE_URL // "unknown"')
+CURRENT_GITHUB_CONNECTION_ARN=$(echo "$CURRENT_ENV_VARS" | jq -r '.GITHUB_CONNECTION_ARN // "unknown"')
 
 echo "Current ENVIRONMENT: $CURRENT_ENVIRONMENT"
 echo "Current LOG_LEVEL: $CURRENT_LOG_LEVEL"
@@ -142,18 +147,18 @@ echo "Target ENVIRONMENT: $ENV_VALUE"
 echo "Target LOG_LEVEL: $LOG_LEVEL"
 
 # Only update if environment variables have changed
-if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ]; then
-    echo "🔄 Environment variables need updating. Updating service configuration..."
+if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ] || [ "$CURRENT_CARBON_VOICE_BASE_URL" != "$CARBON_VOICE_BASE_URL" || [ "$CURRENT_GITHUB_CONNECTION_ARN" != "$GITHUB_CONNECTION_ARN" ]]; then
+    echo "🔄 Environment variables need update. Updating service configuration..."
     
     aws apprunner update-service \
         --service-arn "$SERVICE_ARN" \
         --source-configuration '{
             "AuthenticationConfiguration": {
-                "ConnectionArn": "arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
+                "ConnectionArn": "'"$GITHUB_CONNECTION_ARN"'"
             },
             "AutoDeploymentsEnabled": false,
             "CodeRepository": {
-                "RepositoryUrl": "https://github.com/phononx/cv-mcp-server",
+                "RepositoryUrl": "'"$REPOSITORY_URL"'",
                 "SourceCodeVersion": {
                     "Type": "BRANCH",
                     "Value": "'"$BRANCH"'"
@@ -169,7 +174,7 @@ if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG
                             "ENVIRONMENT": "'"$ENV_VALUE"'",
                             "LOG_LEVEL": "'"$LOG_LEVEL"'",
                             "LOG_TRANSPORT": "cloudwatch",
-                            "CARBON_VOICE_BASE_URL": "https://api.carbonvoice.app"
+                            "CARBON_VOICE_BASE_URL": "'"$CARBON_VOICE_BASE_URL"'"
                         }
                     }
                 }
