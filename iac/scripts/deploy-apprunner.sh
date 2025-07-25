@@ -4,15 +4,18 @@ set -e
 ENVIRONMENT=$1
 SERVICE_NAME=$2
 LOG_LEVEL="info"
+BRANCH="unkown"
 
 # Default service names if not provided
 if [ -z "$SERVICE_NAME" ]; then
     case $ENVIRONMENT in
         "dev"|"develop")
             SERVICE_NAME="cv-mcp-server-dev"
+            BRANCH="develop"
             ;;
         "prod"|"production")
             SERVICE_NAME="cv-mcp-server-prod"
+            BRANCH="main"
             ;;
         *)
             echo "Error: Unknown environment '$ENVIRONMENT'"
@@ -121,7 +124,7 @@ aws apprunner update-service \
             "RepositoryUrl": "https://github.com/phononx/cv-mcp-server",
             "SourceCodeVersion": {
                 "Type": "BRANCH",
-                "Value": "develop"
+                "Value": "'"$BRANCH"'"
             },            
             "CodeConfiguration": {
                 "ConfigurationSource": "API",
