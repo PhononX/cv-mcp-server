@@ -21,7 +21,16 @@
     "start:http": "node dist/transports/http/streamable.js",
     "auto:build": "env-cmd nodemon --watch src --ext ts --exec npm run build",
     "generate:api": "env-cmd orval --config orval.config.ts",
-    "test:oauth": "node test-oauth.js"
+    "test:oauth": "node test-oauth.js",
+    "test": "echo \"Need to implement tests...\"",
+    "version:check": "echo \"Current version: $(jq -r .version package.json)\"",
+    "version:patch": "npm version patch && git push origin develop",
+    "version:minor": "npm version minor && git push origin develop",
+    "version:major": "npm version major && git push origin develop",
+    "release:patch": "git checkout develop && git pull origin develop && npm run test && npm run build && npm version patch && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "release:minor": "git checkout develop && git pull origin develop && npm run test && npm run build && npm version minor && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "release:major": "git checkout develop && git pull origin develop && npm run test && npm run build && npm version major && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "deploy:release": "git checkout develop && git pull origin develop && npm run test && npm run build && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop"
   },
   "files": [
     "dist"

@@ -25,9 +25,9 @@ aws apprunner list-connections
 ```
 
 ```bash
-export SERVICE_NAME="cv-mcp-server"
+export SERVICE_NAME="cv-mcp-server-dev"
 export GITHUB_REPO="https://github.com/phononx/cv-mcp-server"
-export GITHUB_BRANCH="feat/sse"
+export GITHUB_BRANCH="develop"
 export GITHUB_CONNECTION_ARN="arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
 export ROLE_ARN="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AppRunnerCloudWatchRole"
 ```
@@ -41,7 +41,7 @@ aws apprunner create-service \
     "AuthenticationConfiguration": {
       "ConnectionArn": "'"$GITHUB_CONNECTION_ARN"'"
     },
-    "AutoDeploymentsEnabled": true,
+    "AutoDeploymentsEnabled": false,
     "CodeRepository": {
       "RepositoryUrl": "'"$GITHUB_REPO"'",
       "SourceCodeVersion": {
