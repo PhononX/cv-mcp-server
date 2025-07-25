@@ -65,7 +65,36 @@ jobs:
           echo "🔧 BUILD_CMD=$BUILD_CMD"
 
           # Build JSON payload manually for better control
-          cat > update.json <<EOF
+          if [ "$CONFIG_SOURCE" = "REPOSITORY" ]; then
+            cat > update.json <<EOF
+          {
+            "ServiceArn": "${{ steps.set-vars.outputs.service_arn }}",
+            "SourceConfiguration": {
+              "CodeRepository": {
+                "RepositoryUrl": "$REPO_URL",
+                "SourceCodeVersion": {
+                  "Type": "BRANCH",
+                  "Value": "$BRANCH"
+                },
+                "CodeConfiguration": {
+                  "ConfigurationSource": "REPOSITORY"
+                }
+              },
+              "AutoDeploymentsEnabled": true
+            },
+            "InstanceConfiguration": {
+              "EnvironmentVariables": [
+                {
+                  "Name": "ENVIRONMENT",
+                  "Value": "${{ steps.set-vars.outputs.environment }}"
+                }
+              ]
+            }
+          }
+          EOF
+          else
+            # For MANAGED config, include values like Runtime, StartCommand, BuildCommand
+            cat > update.json <<EOF
           {
             "ServiceArn": "${{ steps.set-vars.outputs.service_arn }}",
             "SourceConfiguration": {
@@ -96,6 +125,7 @@ jobs:
             }
           }
           EOF
+          fi
 
           echo "✅ update.json generated:"
           cat update.json
