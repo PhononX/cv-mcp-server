@@ -25,9 +25,9 @@ aws apprunner list-connections
 ```
 
 ```bash
-export SERVICE_NAME="cv-mcp-server-dev"
+export SERVICE_NAME="cv-mcp-server-dev" # change to cv-mcp-server-prod when creating prod service
 export GITHUB_REPO="https://github.com/phononx/cv-mcp-server"
-export GITHUB_BRANCH="develop"
+export GITHUB_BRANCH="develop" # change to main when creating prod service
 export GITHUB_CONNECTION_ARN="arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
 export ROLE_ARN="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AppRunnerCloudWatchRole"
 ```
@@ -49,7 +49,19 @@ aws apprunner create-service \
         "Value": "'"$GITHUB_BRANCH"'"
       },
       "CodeConfiguration": {
-        "ConfigurationSource": "REPOSITORY"
+        "ConfigurationSource": "API",
+        "CodeConfigurationValues": {
+          "Runtime": "NODEJS_22",
+          "BuildCommand": "npm ci && npm run build",
+          "StartCommand": "npm run start:http",
+          "Port": "3000",
+          "RuntimeEnvironmentVariables": {
+            "ENVIRONMENT": "dev",
+            "LOG_LEVEL": "debug",
+            "LOG_TRANSPORT": "cloudwatch",
+            "CARBON_VOICE_BASE_URL": "https://api.carbonvoice.app"
+          }
+        }
       }
     }
   }' \

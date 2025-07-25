@@ -3,6 +3,7 @@ set -e
 
 ENVIRONMENT=$1
 SERVICE_NAME=$2
+LOG_LEVEL="info"
 
 # Default service names if not provided
 if [ -z "$SERVICE_NAME" ]; then
@@ -42,7 +43,7 @@ if [ "$ENVIRONMENT" != "prod" ] && [ "$ENVIRONMENT" != "dev" ] && [ "$ENVIRONMEN
     exit 1
 fi
 
-# Normalize environment for config files
+# Normalize environment
 if [ "$ENVIRONMENT" = "develop" ]; then
     ENV_CONFIG="dev"
 elif [ "$ENVIRONMENT" = "production" ]; then
@@ -51,16 +52,32 @@ else
     ENV_CONFIG="$ENVIRONMENT"
 fi
 
-# Copy environment-specific apprunner.yaml
-echo "Copying apprunner-${ENV_CONFIG}.yaml to apprunner.yaml..."
-if [ ! -f "apprunner-${ENV_CONFIG}.yaml" ]; then
-    echo "Error: apprunner-${ENV_CONFIG}.yaml not found"
-    echo "Looking for config files in current directory:"
-    ls -la apprunner*.yaml 2>/dev/null || echo "No apprunner config files found"
-    exit 1
+# Set environment-specific variables
+if [ "$ENV_CONFIG" = "prod" ]; then
+    ENV_VALUE="prod"
+    # Only set LOG_LEVEL if not already defined
+    if [ -z "$LOG_LEVEL" ]; then
+        LOG_LEVEL="info"
+    fi
+else
+    ENV_VALUE="dev"
+    # Only set LOG_LEVEL if not already defined
+    if [ -z "$LOG_LEVEL" ]; then
+        LOG_LEVEL="debug"
+    fi
 fi
 
-cp "apprunner-${ENV_CONFIG}.yaml" apprunner.yaml
+# Default service names if not provided
+if [ -z "$SERVICE_NAME" ]; then
+    case $ENV_CONFIG in
+        "dev")
+            SERVICE_NAME="cv-mcp-server-dev"
+            ;;
+        "prod")
+            SERVICE_NAME="cv-mcp-server-prod"
+            ;;
+    esac
+fi
 
 # Verify AWS CLI is available
 if ! command -v aws &> /dev/null; then
@@ -90,6 +107,37 @@ if [ "$SERVICE_STATUS" = "OPERATION_IN_PROGRESS" ]; then
     sleep 30
 fi
 
+# Optional: Update environment variables if they've changed
+# This is useful if you want to update env vars during deployment
+echo "Updating environment variables for $ENV_VALUE environment..."
+aws apprunner update-service \
+    --service-arn "$SERVICE_ARN" \
+    --source-configuration '{
+        "AuthenticationConfiguration": {
+            "ConnectionArn": "arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
+        },
+        "AutoDeploymentsEnabled": false,
+        "CodeRepository": {
+            "CodeConfiguration": {
+                "ConfigurationSource": "API",
+                "CodeConfigurationValues": {
+                    "Runtime": "NODEJS_22",
+                    "BuildCommand": "npm ci && npm run build",
+                    "StartCommand": "npm run start:http",
+                    "Port": "3000",
+                    "RuntimeEnvironmentVariables": {
+                        "ENVIRONMENT": "'"$ENV_VALUE"'",
+                        "LOG_LEVEL": "'"$LOG_LEVEL"'",
+                        "LOG_TRANSPORT": "cloudwatch",
+                        "CARBON_VOICE_BASE_URL": "https://api.carbonvoice.app"
+                    }
+                }
+            }
+        }
+    }' > /dev/null
+
+echo "Environment variables updated successfully."
+
 # Start deployment
 echo "Starting deployment..."
 OPERATION_ID=$(aws apprunner start-deployment --service-arn "$SERVICE_ARN" --query "OperationId" --output text)
@@ -107,29 +155,62 @@ MAX_WAIT_TIME=1800  # 30 minutes
 WAIT_TIME=0
 SLEEP_INTERVAL=30
 
-# Get the list of operations to find our deployment
-echo "Getting operations list to track deployment..."
-OPERATIONS=$(aws apprunner list-operations --service-arn "$SERVICE_ARN" --query "OperationSummaryList[?Id=='$OPERATION_ID']" --output json)
-
-if [ "$OPERATIONS" = "[]" ]; then
-    echo "⚠️  Operation not found in list, monitoring service status instead..."
-fi
-
 while [ $WAIT_TIME -lt $MAX_WAIT_TIME ]; do
-    # Check service status instead of operation status
+    # Check service status
     CURRENT_SERVICE_STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
     
     echo "Service status: $CURRENT_SERVICE_STATUS (waited ${WAIT_TIME}s)"
     
     case $CURRENT_SERVICE_STATUS in
         "RUNNING")
-            echo "✅ Service is running! Deployment likely completed."
+            echo "✅ Service is running! Checking if deployment succeeded or rolled back..."
             
-            # Double-check by getting recent operations
-            RECENT_OPS=$(aws apprunner list-operations --service-arn "$SERVICE_ARN" --max-results 5 --query "OperationSummaryList[0:2].{Id:Id,Type:Type,Status:Status,StartedAt:StartedAt}" --output table)
-            echo "Recent operations:"
-            echo "$RECENT_OPS"
-            break
+            # Check if our specific operation succeeded or failed
+            OPERATION_STATUS=$(aws apprunner list-operations --service-arn "$SERVICE_ARN" --max-results 10 --query "OperationSummaryList[?Id=='$OPERATION_ID'].Status" --output text)
+            
+            if [ -z "$OPERATION_STATUS" ]; then
+                echo "⚠️  Could not find operation status, checking recent operations..."
+                RECENT_OPS=$(aws apprunner list-operations --service-arn "$SERVICE_ARN" --max-results 3 --query "OperationSummaryList[0:3].{Id:Id,Type:Type,Status:Status,StartedAt:StartedAt}" --output table)
+                echo "Recent operations:"
+                echo "$RECENT_OPS"
+                
+                # Check if the most recent operation is our deployment and if it succeeded
+                MOST_RECENT_OP=$(aws apprunner list-operations --service-arn "$SERVICE_ARN" --max-results 1 --query "OperationSummaryList[0].{Id:Id,Status:Status}" --output json)
+                MOST_RECENT_ID=$(echo "$MOST_RECENT_OP" | jq -r '.Id')
+                MOST_RECENT_STATUS=$(echo "$MOST_RECENT_OP" | jq -r '.Status')
+                
+                if [ "$MOST_RECENT_ID" = "$OPERATION_ID" ]; then
+                    if [ "$MOST_RECENT_STATUS" = "SUCCEEDED" ]; then
+                        echo "✅ Deployment succeeded!"
+                        break
+                    elif [[ "$MOST_RECENT_STATUS" == *"ROLLBACK"* ]]; then
+                        echo "❌ Deployment failed and rolled back! Status: $MOST_RECENT_STATUS"
+                        echo "Getting recent operations for debugging:"
+                        aws apprunner list-operations --service-arn "$SERVICE_ARN" --max-results 5 --output table
+                        exit 1
+                    else
+                        echo "❌ Deployment failed with status: $MOST_RECENT_STATUS"
+                        exit 1
+                    fi
+                else
+                    echo "⚠️  Most recent operation ID doesn't match our deployment. Assuming success since service is running."
+                    break
+                fi
+            else
+                echo "Operation status: $OPERATION_STATUS"
+                if [ "$OPERATION_STATUS" = "SUCCEEDED" ]; then
+                    echo "✅ Deployment succeeded!"
+                    break
+                elif [[ "$OPERATION_STATUS" == *"ROLLBACK"* ]]; then
+                    echo "❌ Deployment failed and rolled back! Status: $OPERATION_STATUS"
+                    echo "Getting recent operations for debugging:"
+                    aws apprunner list-operations --service-arn "$SERVICE_ARN" --max-results 5 --output table
+                    exit 1
+                else
+                    echo "❌ Deployment failed with status: $OPERATION_STATUS"
+                    exit 1
+                fi
+            fi
             ;;
         "OPERATION_IN_PROGRESS")
             echo "⏳ Deployment still in progress..."
