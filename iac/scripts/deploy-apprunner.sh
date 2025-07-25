@@ -4,13 +4,37 @@ set -e
 ENVIRONMENT=$1
 SERVICE_NAME=$2
 
-if [ -z "$ENVIRONMENT" ] || [ -z "$SERVICE_NAME" ]; then
-    echo "Usage: $0 <environment> <service_name>"
+# Default service names if not provided
+if [ -z "$SERVICE_NAME" ]; then
+    case $ENVIRONMENT in
+        "dev"|"develop")
+            SERVICE_NAME="cv-mcp-server-dev"
+            ;;
+        "prod"|"production")
+            SERVICE_NAME="cv-mcp-server-prod"
+            ;;
+        *)
+            echo "Error: Unknown environment '$ENVIRONMENT'"
+            echo "Usage: $0 <environment> [service_name]"
+            echo "Supported environments: dev, prod"
+            echo "Example: $0 dev"
+            echo "Example: $0 prod cv-mcp-server-prod"
+            exit 1
+            ;;
+    esac
+fi
+
+if [ -z "$ENVIRONMENT" ]; then
+    echo "Usage: $0 <environment> [service_name]"
+    echo "Example: $0 dev"
     echo "Example: $0 prod cv-mcp-server-prod"
     exit 1
 fi
 
-echo "Deploying to App Runner service: $SERVICE_NAME (Environment: $ENVIRONMENT)"
+echo "=== 🚀 Deploying to App Runner 🚀 ==="
+echo "Environment: $ENVIRONMENT"
+echo "Service Name: $SERVICE_NAME"
+echo "===================================="
 
 # Copy environment-specific apprunner.yaml
 cp "apprunner-${ENVIRONMENT}.yaml" apprunner.yaml
