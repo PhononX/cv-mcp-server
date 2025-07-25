@@ -5,7 +5,7 @@ import winston from 'winston';
 import WinstonCloudwatch from 'winston-cloudwatch';
 
 import { env } from '../config';
-import { LOG_DIR } from '../constants';
+import { LOG_DIR, SERVICE_VERSION } from '../constants';
 
 // Custom log levels
 const levels = {
@@ -81,6 +81,7 @@ const transports: Record<
           let output = `${timestamp} [${env.ENVIRONMENT}] ${level}: ${message}`;
           if (Object.keys(metadata).length > 0) {
             metadata.environment = env.ENVIRONMENT; // Add environment to metadata
+            metadata.version = SERVICE_VERSION;
             output += '\n' + JSON.stringify(metadata, null, 2);
           }
           return output;
@@ -103,6 +104,7 @@ const transports: Record<
           level,
           message,
           environment: env.ENVIRONMENT,
+          version: SERVICE_VERSION,
           ...rest,
         });
       },
@@ -145,6 +147,7 @@ export const logger = winston.createLogger({
         level,
         message,
         environment: env.ENVIRONMENT,
+        version: SERVICE_VERSION,
         ...metadata,
       });
     }),
