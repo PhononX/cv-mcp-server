@@ -109,7 +109,7 @@ fi
 
 # Optional: Update environment variables if they've changed
 # This is useful if you want to update env vars during deployment
-echo "Updating environment variables for $ENV_VALUE environment..."
+echo "🔄 Updating environment variables for $ENV_VALUE environment..."
 aws apprunner update-service \
     --service-arn "$SERVICE_ARN" \
     --source-configuration '{
@@ -118,6 +118,11 @@ aws apprunner update-service \
         },
         "AutoDeploymentsEnabled": false,
         "CodeRepository": {
+            "RepositoryUrl": "https://github.com/phononx/cv-mcp-server",
+            "SourceCodeVersion": {
+                "Type": "BRANCH",
+                "Value": "develop"
+            },            
             "CodeConfiguration": {
                 "ConfigurationSource": "API",
                 "CodeConfigurationValues": {
