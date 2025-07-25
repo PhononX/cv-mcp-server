@@ -42,22 +42,24 @@ jobs:
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
           echo "service_arn=$SERVICE_ARN" >> $GITHUB_OUTPUT
 
-      - name: Set Environment variable based on branch
-        id: set-env
-        run: |
-          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "env_value=prod" >> $GITHUB_OUTPUT
-          else
-            echo "env_value=dev" >> $GITHUB_OUTPUT
-          fi
+          echo "🚀 Deploying branch: $BRANCH"
+          echo "🌍 Environment: $ENVIRONMENT"
+          echo "🔗 Service ARN: $SERVICE_ARN"
 
       - name: Replace ENVIRONMENT in apprunner.yaml
         run: |
-          echo "🔧 Setting ENVIRONMENT=${{ steps.set-env.outputs.env_value }}"
-          ENV_VALUE="${{ steps.set-env.outputs.env_value }}"
+          echo "🔧 Setting ENVIRONMENT=${{ steps.set-vars.outputs.environment }}"
+          ENV_VALUE="${{ steps.set-vars.outputs.environment }}"
+
+          # Replace the ENVIRONMENT value in apprunner.yaml
           sed -i.bak -E "/- name: ENVIRONMENT/{n;s/  value: .*/  value: \"$ENV_VALUE\"/}" apprunner.yaml
+
           echo "✅ Updated apprunner.yaml:"
           cat apprunner.yaml
+
+          # Verify the change
+          echo "🔍 Verifying ENVIRONMENT value:"
+          grep -A 1 "- name: ENVIRONMENT" apprunner.yaml
 
       - name: Trigger App Runner deployment
         run: |
