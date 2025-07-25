@@ -87,6 +87,8 @@ jobs:
               }
             }' > update.json
 
+          echo "Generated update.json:"
+          cat update.json
           echo "📤 Updating service with ENVIRONMENT=${{ steps.set-vars.outputs.environment }}..."
           aws apprunner update-service --cli-input-json file://update.json
 
