@@ -51,8 +51,8 @@ jobs:
           echo "🔧 Setting ENVIRONMENT=${{ steps.set-vars.outputs.environment }}"
           ENV_VALUE="${{ steps.set-vars.outputs.environment }}"
 
-          # Replace the ENVIRONMENT value in apprunner.yaml
-          sed -i.bak -E "/- name: ENVIRONMENT/{n;s/  value: .*/  value: \"$ENV_VALUE\"/}" apprunner.yaml
+          # Replace the ENVIRONMENT value in apprunner.yaml (handles both dev and prod)
+          sed -i.bak "s/value: '[^']*' #dev or prod/value: '$ENV_VALUE' #dev or prod/" apprunner.yaml
 
           echo "✅ Updated apprunner.yaml:"
           cat apprunner.yaml
