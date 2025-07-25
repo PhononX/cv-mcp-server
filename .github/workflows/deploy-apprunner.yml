@@ -59,7 +59,7 @@ jobs:
 
           # Verify the change
           echo "🔍 Verifying ENVIRONMENT value:"
-          grep -A 1 "- name: ENVIRONMENT" apprunner.yaml
+          grep -A1 "- name: ENVIRONMENT" apprunner.yaml
 
       - name: Trigger App Runner deployment
         run: |
