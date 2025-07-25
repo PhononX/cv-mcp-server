@@ -3,8 +3,8 @@ set -e
 
 ENVIRONMENT=$1
 SERVICE_NAME=$2
-LOG_LEVEL="info"
-BRANCH="unkown"
+LOG_LEVEL="debug"
+BRANCH="unknown"
 
 # Default service names if not provided
 if [ -z "$SERVICE_NAME" ]; then
@@ -70,18 +70,6 @@ else
     fi
 fi
 
-# Default service names if not provided
-if [ -z "$SERVICE_NAME" ]; then
-    case $ENV_CONFIG in
-        "dev")
-            SERVICE_NAME="cv-mcp-server-dev"
-            ;;
-        "prod")
-            SERVICE_NAME="cv-mcp-server-prod"
-            ;;
-    esac
-fi
-
 # Verify AWS CLI is available
 if ! command -v aws &> /dev/null; then
     echo "Error: AWS CLI not found"
@@ -101,53 +89,109 @@ fi
 
 echo "Service ARN: $SERVICE_ARN"
 
+# Function to wait for service to be in RUNNING state
+wait_for_running_state() {
+    echo "⏳ Waiting for service to be in RUNNING state..."
+    local max_wait=900  # 15 minutes
+    local wait_time=0
+    local sleep_interval=15
+    
+    while [ $wait_time -lt $max_wait ]; do
+        local current_status=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
+        echo "Current service status: $current_status (waited ${wait_time}s)"
+        
+        if [ "$current_status" = "RUNNING" ]; then
+            echo "✅ Service is now in RUNNING state"
+            return 0
+        elif [[ "$current_status" == *"FAILED"* ]]; then
+            echo "❌ Service is in failed state: $current_status"
+            return 1
+        fi
+        
+        sleep $sleep_interval
+        wait_time=$((wait_time + sleep_interval))
+    done
+    
+    echo "❌ Timeout waiting for service to reach RUNNING state"
+    return 1
+}
+
 # Check current service status
 SERVICE_STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
 echo "Current service status: $SERVICE_STATUS"
 
-if [ "$SERVICE_STATUS" = "OPERATION_IN_PROGRESS" ]; then
-    echo "Warning: Service has an operation in progress. Waiting..."
-    sleep 30
+# If service is not in RUNNING state, wait for it
+if [ "$SERVICE_STATUS" != "RUNNING" ]; then
+    echo "Service is not in RUNNING state. Waiting before proceeding..."
+    if ! wait_for_running_state; then
+        exit 1
+    fi
 fi
 
-# Optional: Update environment variables if they've changed
-# This is useful if you want to update env vars during deployment
-echo "🔄 Updating environment variables for $ENV_VALUE environment..."
-aws apprunner update-service \
-    --service-arn "$SERVICE_ARN" \
-    --source-configuration '{
-        "AuthenticationConfiguration": {
-            "ConnectionArn": "arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
-        },
-        "AutoDeploymentsEnabled": false,
-        "CodeRepository": {
-            "RepositoryUrl": "https://github.com/phononx/cv-mcp-server",
-            "SourceCodeVersion": {
-                "Type": "BRANCH",
-                "Value": "'"$BRANCH"'"
-            },            
-            "CodeConfiguration": {
-                "ConfigurationSource": "API",
-                "CodeConfigurationValues": {
-                    "Runtime": "NODEJS_22",
-                    "BuildCommand": "npm ci && npm run build",
-                    "StartCommand": "npm run start:http",
-                    "Port": "3000",
-                    "RuntimeEnvironmentVariables": {
-                        "ENVIRONMENT": "'"$ENV_VALUE"'",
-                        "LOG_LEVEL": "'"$LOG_LEVEL"'",
-                        "LOG_TRANSPORT": "cloudwatch",
-                        "CARBON_VOICE_BASE_URL": "https://api.carbonvoice.app"
+# Check if we need to update environment variables
+echo "🔍 Checking current environment variables..."
+CURRENT_ENV_VARS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.RuntimeEnvironmentVariables" --output json)
+
+# Extract current values
+CURRENT_ENVIRONMENT=$(echo "$CURRENT_ENV_VARS" | jq -r '.ENVIRONMENT // "unknown"')
+CURRENT_LOG_LEVEL=$(echo "$CURRENT_ENV_VARS" | jq -r '.LOG_LEVEL // "unknown"')
+
+echo "Current ENVIRONMENT: $CURRENT_ENVIRONMENT"
+echo "Current LOG_LEVEL: $CURRENT_LOG_LEVEL"
+echo "Target ENVIRONMENT: $ENV_VALUE"
+echo "Target LOG_LEVEL: $LOG_LEVEL"
+
+# Only update if environment variables have changed
+if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ]; then
+    echo "🔄 Environment variables need updating. Updating service configuration..."
+    
+    aws apprunner update-service \
+        --service-arn "$SERVICE_ARN" \
+        --source-configuration '{
+            "AuthenticationConfiguration": {
+                "ConnectionArn": "arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
+            },
+            "AutoDeploymentsEnabled": false,
+            "CodeRepository": {
+                "RepositoryUrl": "https://github.com/phononx/cv-mcp-server",
+                "SourceCodeVersion": {
+                    "Type": "BRANCH",
+                    "Value": "'"$BRANCH"'"
+                },            
+                "CodeConfiguration": {
+                    "ConfigurationSource": "API",
+                    "CodeConfigurationValues": {
+                        "Runtime": "NODEJS_22",
+                        "BuildCommand": "npm ci && npm run build",
+                        "StartCommand": "npm run start:http",
+                        "Port": "3000",
+                        "RuntimeEnvironmentVariables": {
+                            "ENVIRONMENT": "'"$ENV_VALUE"'",
+                            "LOG_LEVEL": "'"$LOG_LEVEL"'",
+                            "LOG_TRANSPORT": "cloudwatch",
+                            "CARBON_VOICE_BASE_URL": "https://api.carbonvoice.app"
+                        }
                     }
                 }
             }
-        }
-    }' > /dev/null
+        }' > /dev/null
 
-echo "Environment variables updated successfully."
+    echo "✅ Environment variables updated successfully."
+    
+    # Wait for the update operation to complete
+    echo "⏳ Waiting for update operation to complete..."
+    if ! wait_for_running_state; then
+        echo "❌ Update operation failed or timed out"
+        exit 1
+    fi
+    
+    echo "🎉 Environment variables updated and service is ready for deployment!"
+else
+    echo "✅ Environment variables are already up to date. No update needed."
+fi
 
-# Start deployment
-echo "Starting deployment..."
+# Now start a new deployment to refresh the code
+echo "🚀 Starting new deployment to refresh code..."
 OPERATION_ID=$(aws apprunner start-deployment --service-arn "$SERVICE_ARN" --query "OperationId" --output text)
 
 if [ -z "$OPERATION_ID" ] || [ "$OPERATION_ID" = "None" ]; then
