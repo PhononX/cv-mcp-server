@@ -42,7 +42,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: chmod +x scripts/deploy-apprunner.sh
-      - run: ./scripts/deploy-apprunner.sh dev ${{ vars.APPRUNNER_SERVICE_NAME_DEV }}
+      - run: ./iac/scripts/deploy-apprunner.sh dev ${{ vars.APPRUNNER_SERVICE_NAME_DEV }}
 
   check-version:
     name: Check Version Bump
@@ -97,7 +97,7 @@ jobs:
 
       # Deploy to production
       - run: chmod +x scripts/deploy-apprunner.sh
-      - run: ./scripts/deploy-apprunner.sh prod ${{ vars.APPRUNNER_SERVICE_NAME_PROD }}
+      - run: ./iac/scripts/deploy-apprunner.sh prod ${{ vars.APPRUNNER_SERVICE_NAME_PROD }}
 
       # Publish to NPM after successful deployment
       - run: npm publish
