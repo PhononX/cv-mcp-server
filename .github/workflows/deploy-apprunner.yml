@@ -51,15 +51,24 @@ jobs:
           echo "🔧 Setting ENVIRONMENT=${{ steps.set-vars.outputs.environment }}"
           ENV_VALUE="${{ steps.set-vars.outputs.environment }}"
 
-          # Replace the ENVIRONMENT value in apprunner.yaml (handles both dev and prod)
-          sed -i.bak "s/value: '[^']*' #dev or prod/value: '$ENV_VALUE' #dev or prod/" apprunner.yaml
+          # Replace the ENVIRONMENT value in apprunner.yaml using awk (more reliable)
+          awk -v env="$ENV_VALUE" '
+            /- name: ENVIRONMENT/ {
+              print $0
+              getline
+              sub(/value: '\''[^'\'']*'\''/, "value: '\''" env "'\''")
+              print $0
+              next
+            }
+            { print }
+          ' apprunner.yaml > apprunner.yaml.tmp && mv apprunner.yaml.tmp apprunner.yaml
 
           echo "✅ Updated apprunner.yaml:"
           cat apprunner.yaml
 
           # Verify the change
           echo "🔍 Verifying ENVIRONMENT value:"
-          grep -A1 "- name: ENVIRONMENT" apprunner.yaml
+          grep -A1 "- name: ENVIRONMENT" apprunner.yaml || echo "Could not find ENVIRONMENT line"
 
       - name: Trigger App Runner deployment
         run: |
