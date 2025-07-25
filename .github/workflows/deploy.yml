@@ -41,7 +41,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
       - run: npm ci
-      - run: chmod +x scripts/deploy-apprunner.sh
+      - run: chmod +x iac/scripts/deploy-apprunner.sh
       - run: ./iac/scripts/deploy-apprunner.sh dev ${{ vars.APPRUNNER_SERVICE_NAME_DEV }}
 
   check-version:
@@ -96,7 +96,7 @@ jobs:
       - run: npm run build
 
       # Deploy to production
-      - run: chmod +x scripts/deploy-apprunner.sh
+      - run: chmod +x iac/scripts/deploy-apprunner.sh
       - run: ./iac/scripts/deploy-apprunner.sh prod ${{ vars.APPRUNNER_SERVICE_NAME_PROD }}
 
       # Publish to NPM after successful deployment
