@@ -147,7 +147,7 @@ echo "Target ENVIRONMENT: $ENV_VALUE"
 echo "Target LOG_LEVEL: $LOG_LEVEL"
 
 # Only update if environment variables have changed
-if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ] || [ "$CURRENT_CARBON_VOICE_BASE_URL" != "$CARBON_VOICE_BASE_URL" || [ "$CURRENT_GITHUB_CONNECTION_ARN" != "$GITHUB_CONNECTION_ARN" ]]; then
+if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ] || [ "$CURRENT_CARBON_VOICE_BASE_URL" != "$CARBON_VOICE_BASE_URL"] || [ "$CURRENT_GITHUB_CONNECTION_ARN" != "$GITHUB_CONNECTION_ARN" ]; then
     echo "🔄 Environment variables need update. Updating service configuration..."
     
     aws apprunner update-service \
