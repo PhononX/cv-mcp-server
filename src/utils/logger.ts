@@ -117,6 +117,14 @@ const transports: Record<
 const getLogTransports = (): winston.transport[] => {
   const transport = env.LOG_TRANSPORT || 'file';
 
+  console.error(
+    'Executing: getLogTransports()',
+    'transport:',
+    transport,
+    'logDir:',
+    logDir,
+  );
+
   if (transport === 'file') {
     createLogDir(logDir);
 
