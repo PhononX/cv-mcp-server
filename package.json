@@ -15,7 +15,7 @@
     "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
     "lint:fix": "eslint src --fix",
-    "mcp:inspector": "env-cmd npx @modelcontextprotocol/inspector node /dist/transports/stdio/stdio.js",
+    "mcp:inspector:stdio": "env-cmd npx @modelcontextprotocol/inspector node ./dist/transports/stdio/stdio.js",
     "mcp:inspector:http": "env-cmd npx @modelcontextprotocol/inspector http://localhost:3005",
     "dev:http": "env-cmd nodemon --inspect dist/transports/http/streamable.js",
     "start:http": "node dist/transports/http/streamable.js",
