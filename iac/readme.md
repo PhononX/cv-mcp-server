@@ -30,6 +30,8 @@ export GITHUB_REPO="https://github.com/phononx/cv-mcp-server"
 export GITHUB_BRANCH="develop" # change to main when creating prod service
 export GITHUB_CONNECTION_ARN="arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
 export ROLE_ARN="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AppRunnerCloudWatchRole"
+# Will be autoset based on  GITHUB_BRANCH (dev|prod)
+export ENVIRONMENT=$(if [ "$GITHUB_BRANCH" = "develop" ]; then echo "dev"; else echo "prod"; fi)
 ```
 
 ## 2.2 Create App Runner Service
@@ -56,7 +58,7 @@ aws apprunner create-service \
           "StartCommand": "npm run start:http",
           "Port": "3000",
           "RuntimeEnvironmentVariables": {
-            "ENVIRONMENT": "dev",
+            "ENVIRONMENT": "'"$ENVIRONMENT"'",
             "LOG_LEVEL": "debug",
             "LOG_TRANSPORT": "cloudwatch",
             "CARBON_VOICE_BASE_URL": "https://api.carbonvoice.app"
