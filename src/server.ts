@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import { setCarbonVoiceAuthHeader } from './auth/auth-middleware';
+import { setCarbonVoiceAuthHeader } from './auth';
 import { SERVICE_NAME, SERVICE_VERSION } from './constants';
 import { getCarbonVoiceAPI } from './cv-api';
 import { getCarbonVoiceSimplifiedAPI } from './generated';

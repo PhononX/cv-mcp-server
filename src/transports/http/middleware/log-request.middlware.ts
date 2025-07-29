@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 
-import { AuthenticatedRequest } from '../../../auth';
+import { AuthenticatedRequest } from '../../../auth/interfaces';
 import { logger } from '../../../utils';
 import { getSessionId } from '../utils';
 

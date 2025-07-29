@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import { AuthenticatedRequest } from '../../../auth';
+import { AuthenticatedRequest } from '../../../auth/interfaces';
 
 const createSessionId = (): string => {
   return `mcp_${crypto.randomUUID()}`;

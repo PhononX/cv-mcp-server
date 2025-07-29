@@ -1,1 +1,1 @@
-export type { AuthenticatedRequest } from './auth-middleware';
+export * from './auth.service';

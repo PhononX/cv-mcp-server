@@ -1,8 +1,8 @@
 import { NextFunction, Response } from 'express';
 
-import { AuthenticatedRequest } from '../../../auth';
+import { AuthenticatedRequest } from '../../../auth/interfaces';
 import { logger } from '../../../utils';
-import { sessionManager } from '../session-manager';
+import { sessionService } from '../session.service';
 import { getOrCreateSessionId } from '../utils';
 
 export const addMcpSessionId = (
@@ -11,7 +11,7 @@ export const addMcpSessionId = (
   next: NextFunction,
 ) => {
   const sessionId = getOrCreateSessionId(req);
-  const session = sessionManager.getSession(sessionId);
+  const session = sessionService.getSession(sessionId);
   const requestHadSessionId = !!req.headers['mcp-session-id'];
   const logArgs = {
     action: 'addMcpSessionId',

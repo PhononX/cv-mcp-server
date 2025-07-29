@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-import { TokenIntrospectionResponse } from '../auth/auth-middleware';
+import { TokenIntrospectionResponse } from '../auth/interfaces/auth.types';
 
 /**
  * Try to get the user ID from the token (Only possible with bearer token)
