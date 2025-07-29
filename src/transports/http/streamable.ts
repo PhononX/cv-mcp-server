@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import cors from 'cors';
-import express, { NextFunction, Request, Response } from 'express';
+import express, { NextFunction, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
@@ -21,6 +21,8 @@ import {
   wellKnownCorsHeaders,
 } from '.';
 import { REQUIRED_SCOPES } from './constants';
+import { ApiHealthStatus, Session } from './interfaces';
+import { sessionManager } from './session-manager';
 import { getOrCreateSessionId } from './utils';
 
 import type { AuthenticatedRequest } from '../../auth';
@@ -119,37 +121,10 @@ app.use(logRequest);
 //   next();
 // });
 
-// Session management
-type SessionMetrics = {
-  sessionId: string;
-  userId: string;
-  createdAt: Date;
-  expiresAt: Date;
-  totalInteractions: number;
-  totalToolCalls: number;
-};
-
-type Session = {
-  transport: StreamableHTTPServerTransport;
-  timeout: NodeJS.Timeout;
-  userId: string;
-  destroying?: boolean; // Flag to prevent recursive destruction
-  metrics: SessionMetrics;
-};
-
-// Carbon Voice API health cache
-type ApiHealthStatus = {
-  isHealthy: boolean;
-  lastChecked: string;
-  error?: string;
-};
-
 let carbonVoiceApiHealth: ApiHealthStatus = {
   isHealthy: false,
   lastChecked: new Date().toISOString(),
 };
-
-const sessions = new Map<string, Session>();
 
 function createSession(
   transport: StreamableHTTPServerTransport,
@@ -165,10 +140,10 @@ function createSession(
   // Clean up after TTL
   const timeout = setTimeout(() => {
     logger.info('⏰ Session timeout triggered', { sessionId });
-    destroySession(sessionId);
+    sessionManager.destroySession(sessionId);
   }, SESSION_TTL_MS);
   const userId = req.auth?.extra?.user!.id;
-  sessions.set(sessionId, {
+  sessionManager.createSession(sessionId, {
     transport,
     timeout,
     userId,
@@ -192,7 +167,7 @@ function createSession(
 
 function destroySession(sessionId: string) {
   logger.info('🔚 Destroying session', { sessionId });
-  const session = sessions.get(sessionId);
+  const session = sessionManager.getSession(sessionId);
 
   if (session && !session.destroying) {
     // Mark session as being destroyed to prevent recursive calls
@@ -201,7 +176,7 @@ function destroySession(sessionId: string) {
     const {} = session.metrics;
     clearTimeout(session.timeout);
     session.transport.close();
-    sessions.delete(sessionId);
+    sessionManager.deleteSession(sessionId);
     const durationInSeconds =
       (new Date().getTime() - session.metrics.createdAt.getTime()) / 1000;
     logger.info('❌ Session destroyed', {
@@ -340,7 +315,7 @@ app.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const sessionId = getOrCreateSessionId(req);
-      const session = sessions.get(sessionId);
+      const session = sessionManager.getSession(sessionId);
       // Reuse existing session
       if (session) {
         // logger.info('🔁 Reusing session', { sessionId });
@@ -383,7 +358,8 @@ app.post(
         transport.onerror = (error) => {
           logger.error('🚨 Transport error occurred', {
             sessionId: transport!.sessionId,
-            sessionMetrics: sessions.get(transport!.sessionId!)?.metrics,
+            sessionMetrics: sessionManager.getSession(transport!.sessionId!)
+              ?.metrics,
             error: {
               message: error.message,
               name: error.name,
@@ -448,7 +424,7 @@ async function handleSessionRequestGetDelete(
 ) {
   try {
     const sessionId = getOrCreateSessionId(req);
-    const session = sessions.get(sessionId);
+    const session = sessionManager.getSession(sessionId);
     if (!session) {
       logger.warn('Invalid or missing session ID', { sessionId });
       res.status(404).json({
@@ -738,7 +714,7 @@ function shutdown() {
   clearInterval(heartbeatInterval);
 
   // Clean up all sessions
-  for (const sessionId of sessions.keys()) {
+  for (const sessionId of sessionManager.getAllSessionIds()) {
     destroySession(sessionId);
   }
 
@@ -775,7 +751,7 @@ const serverInstance = app.listen(PORT, async () => {
     version: SERVICE_VERSION,
     processId: process.pid,
     nodeVersion: process.version,
-    totalSessions: sessions.size,
+    totalSessions: sessionManager.getAllSessionIds().length,
     carbonVoiceApiHealth,
   });
 });
@@ -791,7 +767,7 @@ process.on('uncaughtException', (error) => {
     stack: error.stack,
     name: error.name,
     processId: process.pid,
-    totalSessions: sessions.size,
+    totalSessions: sessionManager.getAllSessionIds().length,
   });
 });
 
@@ -801,7 +777,7 @@ process.on('unhandledRejection', (reason, promise) => {
     stack: reason instanceof Error ? reason.stack : undefined,
     promise: promise.toString(),
     processId: process.pid,
-    totalSessions: sessions.size,
+    totalSessions: sessionManager.getAllSessionIds().length,
   });
 });
 
@@ -818,7 +794,7 @@ const heartbeatInterval = setInterval(async () => {
     };
 
     logger.info('💓 Server heartbeat', {
-      totalSessions: sessions.size,
+      totalSessions: sessionManager.getAllSessionIds().length,
       isCarbonVoiceApiWorking: isApiWorking,
       uptime: formatProcessUptime(),
       memoryUsage: process.memoryUsage(),
@@ -835,7 +811,7 @@ const heartbeatInterval = setInterval(async () => {
     };
 
     logger.warn('💓 Server heartbeat - Carbon Voice API check failed', {
-      totalSessions: sessions.size,
+      totalSessions: sessionManager.getAllSessionIds().length,
       isCarbonVoiceApiWorking: false,
       uptime: formatProcessUptime(),
       memoryUsage: process.memoryUsage(),

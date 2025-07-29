@@ -2,6 +2,7 @@ import { NextFunction, Response } from 'express';
 
 import { AuthenticatedRequest } from '../../../auth';
 import { logger } from '../../../utils';
+import { sessionManager } from '../session-manager';
 import { getOrCreateSessionId } from '../utils';
 
 export const addMcpSessionId = (
@@ -10,12 +11,17 @@ export const addMcpSessionId = (
   next: NextFunction,
 ) => {
   const sessionId = getOrCreateSessionId(req);
+  const session = sessionManager.getSession(sessionId);
   const requestHadSessionId = !!req.headers['mcp-session-id'];
   const logArgs = {
     action: 'addMcpSessionId',
     sessionId,
     userId: req.auth?.extra?.user?.id,
     requestHadSessionId,
+    createdAt: session?.metrics.createdAt.toISOString(),
+    expiresAt: session?.metrics.expiresAt.toISOString(),
+    totalInteractions: session?.metrics.totalInteractions,
+    totalToolCalls: session?.metrics.totalToolCalls,
   };
 
   logger.debug('Session ID Middleware', logArgs);
