@@ -1,6 +1,6 @@
-import { Session } from './interfaces';
+import { ISessionManager, Session } from './session.types';
 
-export class SessionManager {
+export class SessionManager implements ISessionManager {
   private sessions = new Map<string, Session>();
 
   getSession(sessionId: string): Session | undefined {
@@ -8,15 +8,24 @@ export class SessionManager {
   }
 
   setSession(sessionId: string, session: Session): void {
+    if (!sessionId) {
+      throw new Error('Session ID cannot be empty');
+    }
+    if (!session) {
+      throw new Error('Session cannot be null or undefined');
+    }
     this.sessions.set(sessionId, session);
   }
 
   deleteSession(sessionId: string): boolean {
+    if (!sessionId) {
+      return false;
+    }
     return this.sessions.delete(sessionId);
   }
 
   getAllSessions(): Map<string, Session> {
-    return this.sessions;
+    return new Map(this.sessions);
   }
 
   getAllSessionIds(): string[] {
@@ -33,6 +42,19 @@ export class SessionManager {
 
   getSessionCount(): number {
     return this.sessions.size;
+  }
+
+  // Additional utility methods
+  getSessionsByUserId(userId: string): Session[] {
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.userId === userId,
+    );
+  }
+
+  getExpiredSessions(now: Date = new Date()): Session[] {
+    return Array.from(this.sessions.values()).filter(
+      (session) => session.metrics.expiresAt < now,
+    );
   }
 }
 

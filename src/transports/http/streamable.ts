@@ -21,23 +21,24 @@ import {
   wellKnownCorsHeaders,
 } from '.';
 import { REQUIRED_SCOPES } from './constants';
-import { ApiHealthStatus, Session } from './interfaces';
-import { SessionService } from './session.service';
-import { sessionManager } from './session-manager';
+import { ApiHealthStatus } from './interfaces';
+import {
+  Session,
+  SessionCleanupService,
+  SessionLogger,
+  sessionService,
+} from './session';
+import { SessionConfig } from './session/session.config';
 import { getOrCreateSessionId } from './utils';
 
 import { createOAuthTokenVerifier } from '../../auth';
 import { AuthenticatedRequest } from '../../auth/interfaces';
 import { env } from '../../config';
-import { SERVICE_NAME, SERVICE_VERSION } from '../../constants';
-import { isCarbonVoiceApiWorking } from '../../cv-api';
+import { getCarbonVoiceApiStatus } from '../../cv-api';
 import server from '../../server';
-import { formatProcessUptime, logger, obfuscateAuthHeaders } from '../../utils';
+import { formatProcessUptime, logger } from '../../utils';
 
 const app = express();
-
-// Create session service instance
-const sessionService = new SessionService(sessionManager);
 
 app.set('x-powered-by', false);
 // Trust proxy for rate limiting - only trust localhost and private networks
@@ -64,6 +65,7 @@ app.use(logRequest);
 let carbonVoiceApiHealth: ApiHealthStatus = {
   isHealthy: false,
   lastChecked: new Date().toISOString(),
+  apiUrl: env.CARBON_VOICE_BASE_URL,
 };
 
 app.get('/health', (req, res: Response) => {
@@ -132,33 +134,61 @@ async function handleSessionRequest(
   res: Response,
   session?: Session,
 ) {
-  if (!session) {
-    logger.warn('❌ Session ID not found', {
-      sessionId: getOrCreateSessionId(req),
-      userId: req.auth?.extra?.user?.id,
-      headers: req.headers,
-    });
+  try {
+    const sessionId = getOrCreateSessionId(req);
 
-    res.status(404).json({
-      jsonrpc: '2.0',
+    if (!session) {
+      logger.warn('Session not found for request', { sessionId });
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: 404,
+          message: 'Session not found. Please reinitialize.',
+        },
+        id: null,
+      });
+      return;
+    }
+
+    // Record tool call for metrics only when actually executing tools
+    if (req.body?.method === 'tools/call') {
+      sessionService.recordToolCall(sessionId);
+    }
+
+    await session.transport.handleRequest(req, res, req.body);
+
+    if (req.method === 'DELETE') {
+      sessionService.destroySession(sessionId);
+    }
+  } catch (err) {
+    const sessionId = getOrCreateSessionId(req);
+
+    // Record error in session metrics
+    if (sessionId) {
+      sessionService.recordError(sessionId);
+    }
+
+    logger.error('❌ Error in handleSessionRequest', {
       error: {
-        code: 404,
-        message: 'Session ID not found. Please reinitialize.',
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
       },
-      id: null,
+      method: req.method,
+      url: req.url,
+      sessionId,
     });
 
-    return;
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error',
+        },
+        id: null,
+      });
+    }
   }
-
-  session.metrics.totalInteractions++;
-  if (req.body?.method === 'tools/call') {
-    session.metrics.totalToolCalls++;
-  }
-
-  logger.info('🔁 Reusing session', session.metrics);
-
-  return session.transport.handleRequest(req, res, req.body);
 }
 
 app.post(
@@ -174,10 +204,21 @@ app.post(
     try {
       const sessionId = getOrCreateSessionId(req);
       const session = sessionService.getSession(sessionId);
+
       // Reuse existing session
       if (session) {
-        await handleSessionRequest(req, res, session);
-        return;
+        // Check if session is expired
+        if (sessionService.isSessionExpired(sessionId)) {
+          logger.warn('Session expired, destroying and creating new one', {
+            sessionId,
+          });
+          sessionService.destroySession(sessionId);
+        } else {
+          // Record interaction and reuse session
+          sessionService.recordInteraction(sessionId);
+          await handleSessionRequest(req, res, session);
+          return;
+        }
       }
 
       // Create New Session
@@ -185,42 +226,52 @@ app.post(
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => getOrCreateSessionId(req),
           onsessioninitialized: (sessionId: string) => {
-            logger.info('🆕 New session initialized', {
+            logger.info('New session initialized', {
               sessionId,
-              requestorHeaders: obfuscateAuthHeaders(req.headers),
               userId: req.auth?.extra?.user?.id,
             });
-            sessionService.createSession(transport!, req, sessionId);
+
+            try {
+              sessionService.createSession(transport!, req, sessionId);
+            } catch (error) {
+              logger.error('Failed to create session', {
+                sessionId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              // Close transport if session creation fails
+              transport.close();
+            }
           },
           enableJsonResponse: true,
         });
+
         transport.onclose = () => {
-          logger.info('🔴 Transport onclose triggered', {
+          logger.debug('Transport closed', {
             sessionId: transport!.sessionId,
-            hasSessionId: !!transport!.sessionId,
           });
-          if (transport.sessionId)
+          if (transport.sessionId) {
             sessionService.destroySession(transport.sessionId);
+          }
         };
 
         // Add error handling for the transport
         transport.onerror = (error) => {
-          logger.error('🚨 Transport error occurred', {
+          logger.error('Transport error', {
             sessionId: transport!.sessionId,
-            sessionMetrics: sessionService.getSession(transport!.sessionId!)
-              ?.metrics,
             error: {
               message: error.message,
               name: error.name,
-              stack: error.stack,
             },
           });
+
+          // Record error in session metrics
+          if (transport.sessionId) {
+            sessionService.recordError(transport.sessionId);
+          }
         };
 
         await server.connect(transport);
-
         await transport.handleRequest(req, res, req.body);
-
         return;
       }
 
@@ -288,6 +339,7 @@ async function handleSessionRequestGetDelete(
   try {
     const sessionId = getOrCreateSessionId(req);
     const session = sessionService.getSession(sessionId);
+
     if (!session) {
       logger.warn('Invalid or missing session ID', { sessionId });
       res.status(404).json({
@@ -301,17 +353,57 @@ async function handleSessionRequestGetDelete(
       return;
     }
 
+    // Check if session is expired
+    if (sessionService.isSessionExpired(sessionId)) {
+      logger.warn('Session expired, destroying', { sessionId });
+      sessionService.destroySession(sessionId);
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: 404,
+          message: 'Session expired. Please reinitialize.',
+        },
+        id: null,
+      });
+      return;
+    }
+
+    // Record interaction for metrics
+    sessionService.recordInteraction(sessionId);
+
     await session.transport.handleRequest(req, res, req.body);
+
     if (req.method === 'DELETE') {
       sessionService.destroySession(sessionId);
     }
   } catch (err) {
+    const sessionId = getOrCreateSessionId(req);
+
+    // Record error in session metrics
+    if (sessionId) {
+      sessionService.recordError(sessionId);
+    }
+
     logger.error('❌ Error in handleSessionRequestGetDelete', {
       error: {
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
       },
+      method: req.method,
+      url: req.url,
+      sessionId,
     });
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error',
+        },
+        id: null,
+      });
+    }
   }
 }
 
@@ -322,10 +414,11 @@ function shutdown() {
   // Clear the heartbeat interval
   clearInterval(heartbeatInterval);
 
-  // Clean up all sessions
-  for (const sessionId of sessionService.getAllSessionIds()) {
-    sessionService.destroySession(sessionId);
-  }
+  // Clean up all sessions using the enhanced service
+  const totalSessions = sessionService.getSessionCount();
+  logger.info('Cleaning up sessions before shutdown', { totalSessions });
+
+  sessionService.clearAllSessions();
 
   process.exit(0);
 }
@@ -342,22 +435,30 @@ process.once('SIGUSR2', () => {
 const PORT = env.PORT || 3005;
 const serverInstance = app.listen(PORT, async () => {
   // Initialize Carbon Voice API health status
-  const isApiWorking = await isCarbonVoiceApiWorking();
+  const status = await getCarbonVoiceApiStatus();
   carbonVoiceApiHealth = {
-    isHealthy: isApiWorking,
+    ...status,
     lastChecked: new Date().toISOString(),
   };
 
-  const logLevel = isApiWorking ? 'info' : 'warn';
-  const icon = isApiWorking ? '✅ ' : '⚠️ ';
+  // Initialize and start session cleanup service
+  const sessionConfig = SessionConfig.fromEnv();
+  const sessionLogger = new SessionLogger();
+  const sessionCleanupService = new SessionCleanupService(
+    sessionService,
+    sessionConfig,
+    sessionLogger,
+  );
+  sessionCleanupService.start();
 
-  logger[logLevel](`${icon} MCP HTTP Server started on port ${PORT}`, {
-    name: SERVICE_NAME,
-    version: SERVICE_VERSION,
-    processId: process.pid,
-    nodeVersion: process.version,
-    totalSessions: sessionService.getAllSessionIds().length,
+  logger.info('🚀 HTTP MCP Server started', {
+    port: PORT,
     carbonVoiceApiHealth,
+    sessionConfig: {
+      ttlMs: sessionConfig.ttlMs,
+      maxSessions: sessionConfig.maxSessions,
+      cleanupIntervalMs: sessionConfig.cleanupIntervalMs,
+    },
   });
 });
 
@@ -388,35 +489,23 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Log every 30 seconds to show the server is alive
 const heartbeatInterval = setInterval(async () => {
-  try {
-    const isApiWorking = await isCarbonVoiceApiWorking();
+  const status = await getCarbonVoiceApiStatus();
+  // Update Carbon Voice API health cache
+  carbonVoiceApiHealth = {
+    isHealthy: status.isHealthy,
+    apiUrl: status.apiUrl,
+    lastChecked: new Date().toISOString(),
+    ...(status.error && { error: status.error }),
+  };
+  const icon = carbonVoiceApiHealth.isHealthy ? '🟢' : '🔴';
 
-    // Update Carbon Voice API health cache
-    carbonVoiceApiHealth = {
-      isHealthy: isApiWorking,
-      lastChecked: new Date().toISOString(),
-      ...(carbonVoiceApiHealth.error && isApiWorking && { error: undefined }), // Clear error if now healthy
-    };
+  const logArgs = {
+    totalSessions: sessionService.getAllSessionIds().length,
+    isCarbonVoiceApiWorking: carbonVoiceApiHealth.isHealthy,
+    uptime: formatProcessUptime(),
+    memoryUsage: process.memoryUsage(),
+    carbonVoiceApiHealth,
+  };
 
-    logger.info('💓 Server heartbeat', {
-      totalSessions: sessionService.getAllSessionIds().length,
-      isCarbonVoiceApiWorking: isApiWorking,
-      uptime: formatProcessUptime(),
-      memoryUsage: process.memoryUsage(),
-    });
-  } catch (error) {
-    // Update cache with error information
-    carbonVoiceApiHealth = {
-      isHealthy: false,
-      lastChecked: new Date().toISOString(),
-      error: error instanceof Error ? error.message : String(error),
-    };
-
-    logger.warn('💓 Server heartbeat - Carbon Voice API check failed', {
-      totalSessions: sessionService.getAllSessionIds().length,
-      isCarbonVoiceApiWorking: false,
-      uptime: formatProcessUptime(),
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  logger.info(`💓 Server heartbeat ${icon}`, logArgs);
 }, 30000);
