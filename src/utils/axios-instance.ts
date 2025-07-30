@@ -96,7 +96,7 @@ const getAxiosInstance = (): AxiosInstance => {
         return config;
       }
 
-      logger.debug('Making API request', {
+      logger.debug('➡️ Making API request', {
         url: config.url,
         method: config.method,
         params: config.params,
@@ -107,7 +107,7 @@ const getAxiosInstance = (): AxiosInstance => {
       return config;
     },
     (error) => {
-      logger.error('Request setup error', {
+      logger.error('❌ Request setup error', {
         url: error.config?.url,
         method: error.config?.method,
         message: error.message,
@@ -128,7 +128,7 @@ const getAxiosInstance = (): AxiosInstance => {
         ?.startTime;
       const duration = startTime ? Date.now() - startTime : undefined;
 
-      logger.debug('API response received', {
+      logger.debug('⬅️ API response received', {
         url: response.config.url,
         method: response.config.method,
         status: response.status,
@@ -152,7 +152,7 @@ const getAxiosInstance = (): AxiosInstance => {
         }
 
         // Log the error with all relevant details
-        logger.error('API request failed', {
+        logger.error('❌ API request failed', {
           error: {
             statusCode: axiosError?.statusCode,
             body: {
@@ -173,7 +173,7 @@ const getAxiosInstance = (): AxiosInstance => {
           return Promise.reject(error);
         }
 
-        logger.error('Unexpected error in API request', {
+        logger.error('❌ Unexpected error in API request', {
           message: error.message,
           stack: error.stack,
           name: error.name,
