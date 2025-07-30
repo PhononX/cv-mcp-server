@@ -135,11 +135,13 @@ fi
 echo "🔍 Checking current environment variables..."
 CURRENT_ENV_VARS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.RuntimeEnvironmentVariables" --output json)
 
+# Get current GitHub connection ARN from authentication configuration
+CURRENT_GITHUB_CONNECTION_ARN=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.SourceConfiguration.AuthenticationConfiguration.ConnectionArn" --output text)
+
 # Extract current values
 CURRENT_ENVIRONMENT=$(echo "$CURRENT_ENV_VARS" | jq -r '.ENVIRONMENT // "unknown"')
 CURRENT_LOG_LEVEL=$(echo "$CURRENT_ENV_VARS" | jq -r '.LOG_LEVEL // "unknown"')
 CURRENT_CARBON_VOICE_BASE_URL=$(echo "$CURRENT_ENV_VARS" | jq -r '.CARBON_VOICE_BASE_URL // "unknown"')
-CURRENT_GITHUB_CONNECTION_ARN=$(echo "$CURRENT_ENV_VARS" | jq -r '.GITHUB_CONNECTION_ARN // "unknown"')
 
 echo "Current ENVIRONMENT: $CURRENT_ENVIRONMENT"
 echo "Current LOG_LEVEL: $CURRENT_LOG_LEVEL"
@@ -151,7 +153,7 @@ echo "Current GITHUB_CONNECTION_ARN: $CURRENT_GITHUB_CONNECTION_ARN"
 echo "Target GITHUB_CONNECTION_ARN: $GITHUB_CONNECTION_ARN"
 
 # Only update if environment variables have changed
-if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ] || [ "$CURRENT_CARBON_VOICE_BASE_URL" != "$CARBON_VOICE_BASE_URL"] || [ "$CURRENT_GITHUB_CONNECTION_ARN" != "$GITHUB_CONNECTION_ARN" ]; then
+if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ] || [ "$CURRENT_CARBON_VOICE_BASE_URL" != "$CARBON_VOICE_BASE_URL" ] || [ "$CURRENT_GITHUB_CONNECTION_ARN" != "$GITHUB_CONNECTION_ARN" ]; then
     echo "🔄 Environment variables need update. Updating service configuration..."
     
     aws apprunner update-service \
