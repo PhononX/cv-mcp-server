@@ -96,14 +96,17 @@ const getAxiosInstance = (): AxiosInstance => {
         return config;
       }
 
-      logger.debug('➡️ Making API request', {
-        url: config.url,
-        method: config.method,
-        params: config.params,
-        data: config.data,
-        headers: obfuscateAuthHeaders(config.headers),
-        userId: getUserIdFromHeaders(config.headers),
-      });
+      logger.debug(
+        `➡️ Making API request to: ${config.method?.toUpperCase()} ${config.url}`,
+        {
+          url: config.url,
+          method: config.method,
+          params: config.params,
+          data: config.data,
+          headers: obfuscateAuthHeaders(config.headers),
+          userId: getUserIdFromHeaders(config.headers),
+        },
+      );
       return config;
     },
     (error) => {
@@ -128,14 +131,17 @@ const getAxiosInstance = (): AxiosInstance => {
         ?.startTime;
       const duration = startTime ? Date.now() - startTime : undefined;
 
-      logger.debug('⬅️ API response received', {
-        url: response.config.url,
-        method: response.config.method,
-        status: response.status,
-        statusText: response.statusText,
-        userId: getUserIdFromHeaders(response.config.headers),
-        duration: duration ? `${duration}ms` : undefined,
-      });
+      logger.debug(
+        `⬅️ API response received from: ${response.config.method?.toUpperCase()} ${response.config.url}`,
+        {
+          url: response.config.url,
+          method: response.config.method,
+          status: response.status,
+          statusText: response.statusText,
+          userId: getUserIdFromHeaders(response.config.headers),
+          duration: duration ? `${duration}ms` : undefined,
+        },
+      );
       return response;
     },
     (error) => {
