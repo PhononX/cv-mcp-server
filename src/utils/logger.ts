@@ -104,13 +104,15 @@ const transports: Record<
       level: getLogLevel(),
       jsonMessage: false, // Set to false to use messageFormatter
       messageFormatter: ({ level, message, ...rest }) => {
+        const allMeta = addTraceContext(rest);
+
         return JSON.stringify({
           timestamp: new Date().toISOString(),
           level,
           message,
           environment: env.ENVIRONMENT,
           version: SERVICE_VERSION,
-          ...rest,
+          ...allMeta,
         });
       },
     }),
@@ -146,22 +148,31 @@ const getLogTransports = (): winston.transport[] => {
 // Add colors to winston
 winston.addColors(colors);
 
+/**
+ * Add trace context to log metadata
+ */
+const addTraceContext = (
+  metadata: Record<string, unknown>,
+): Record<string, unknown> => {
+  const traceContext: Record<string, unknown> = {};
+
+  // Add trace context if available
+  const traceId = getTraceId();
+  const sessionId = getSessionId();
+  const userId = getUserId();
+
+  if (traceId) traceContext.traceId = traceId;
+  if (sessionId) traceContext.sessionId = sessionId;
+  if (userId) traceContext.userId = userId;
+
+  // Combine all metadata
+  return { ...traceContext, ...metadata };
+};
+
 // Create custom format that includes trace context
 const traceContextFormat = winston.format.printf(
   ({ level, message, timestamp, ...meta }) => {
-    const traceContext: Record<string, unknown> = {};
-
-    // Add trace context if available
-    const traceId = getTraceId();
-    const sessionId = getSessionId();
-    const userId = getUserId();
-
-    if (traceId) traceContext.traceId = traceId;
-    if (sessionId) traceContext.sessionId = sessionId;
-    if (userId) traceContext.userId = userId;
-
-    // Combine all metadata
-    const allMeta = { ...traceContext, ...meta };
+    const allMeta = addTraceContext(meta);
 
     return JSON.stringify({
       timestamp,
