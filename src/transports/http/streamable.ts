@@ -217,7 +217,10 @@ app.post(
           sessionService.destroySession(sessionId);
         } else {
           // Record interaction and reuse session
-          sessionService.recordInteraction(sessionId);
+          // Don't record interaction for tool calls as they'll be recorded separately
+          if (req.body?.method !== 'tools/call') {
+            sessionService.recordInteraction(sessionId);
+          }
           await handleSessionRequest(req, res, session);
           return;
         }
@@ -371,7 +374,10 @@ async function handleSessionRequestGetDelete(
     }
 
     // Record interaction for metrics
-    sessionService.recordInteraction(sessionId);
+    // Don't record interaction for tool calls as they'll be recorded separately
+    if (req.body?.method !== 'tools/call') {
+      sessionService.recordInteraction(sessionId);
+    }
 
     await session.transport.handleRequest(req, res, req.body);
 

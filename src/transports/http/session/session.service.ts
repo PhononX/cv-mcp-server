@@ -189,6 +189,7 @@ export class SessionService implements ISessionService {
     const session = this.getSession(sessionId);
     if (session) {
       session.metrics.totalToolCalls++;
+      session.metrics.totalInteractions++; // Tool calls are also interactions
       session.metrics.lastActivityAt = new Date();
       // Log metrics on every tool call since these are significant events
       this.logger.logSessionMetrics(session.metrics);
@@ -233,6 +234,7 @@ export class SessionService implements ISessionService {
     // Extend expiration
     const newExpiresAt = new Date(Date.now() + additionalTtlMs);
     session.metrics.expiresAt = newExpiresAt;
+    session.metrics.lastActivityAt = new Date();
 
     // Set new timeout
     session.timeout = setTimeout(() => {

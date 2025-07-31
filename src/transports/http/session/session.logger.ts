@@ -6,7 +6,6 @@ export class SessionLogger {
   logSessionCreated(): void {
     logger.info('🆕 Session created', {
       event: 'SESSION_CREATED',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -15,14 +14,12 @@ export class SessionLogger {
       duration,
       metrics,
       event: 'SESSION_DESTROYED',
-      timestamp: new Date().toISOString(),
     });
   }
 
   logSessionTimeout(): void {
     logger.info('⏰ Session timeout triggered', {
       event: 'SESSION_TIMEOUT',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -30,7 +27,6 @@ export class SessionLogger {
     logger.debug('🔄 Session reused', {
       totalInteractions,
       event: 'SESSION_REUSED',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -43,7 +39,6 @@ export class SessionLogger {
       },
       context,
       event: 'SESSION_ERROR',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -52,7 +47,6 @@ export class SessionLogger {
       message,
       context,
       event: 'SESSION_DEBUG',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -60,7 +54,6 @@ export class SessionLogger {
     logger.debug('📊 Session metrics', {
       metrics,
       event: 'SESSION_METRICS',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -68,7 +61,6 @@ export class SessionLogger {
     logger.info('🧹 Session cleanup started', {
       totalSessions,
       event: 'SESSION_CLEANUP_STARTED',
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -80,7 +72,6 @@ export class SessionLogger {
       cleanedSessions,
       remainingSessions,
       event: 'SESSION_CLEANUP_COMPLETED',
-      timestamp: new Date().toISOString(),
     });
   }
 }
