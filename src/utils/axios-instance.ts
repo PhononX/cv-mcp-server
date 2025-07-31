@@ -5,18 +5,17 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 
+import { logger } from './logger';
+import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
+
+import { env } from '../config';
+
 // Extend the config type to include metadata
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
   metadata?: {
     startTime: number;
   };
 }
-
-import { getUserIdFromHeaders } from './get-user-id-from-headers';
-import { logger } from './logger';
-import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
-
-import { env } from '../config';
 
 // Define common error types
 interface ApiError {
@@ -104,7 +103,6 @@ const getAxiosInstance = (): AxiosInstance => {
           params: config.params,
           data: config.data,
           headers: obfuscateAuthHeaders(config.headers),
-          userId: getUserIdFromHeaders(config.headers),
         },
       );
       return config;
@@ -138,7 +136,6 @@ const getAxiosInstance = (): AxiosInstance => {
           method: response.config.method,
           status: response.status,
           statusText: response.statusText,
-          userId: getUserIdFromHeaders(response.config.headers),
           duration: duration ? `${duration}ms` : undefined,
         },
       );

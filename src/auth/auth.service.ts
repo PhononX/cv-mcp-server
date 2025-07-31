@@ -33,14 +33,6 @@ export const createOAuthTokenVerifier = (): OAuthTokenVerifier => ({
       //   throw new InvalidTokenError('Token expired');
       // }
 
-      // Validate issuer if configured
-      if (
-        env.CARBON_VOICE_BASE_URL &&
-        decoded.iss !== env.CARBON_VOICE_BASE_URL
-      ) {
-        throw new InvalidTokenError('Invalid token issuer');
-      }
-
       return {
         token,
         clientId: decoded.client_id,

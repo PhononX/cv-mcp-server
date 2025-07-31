@@ -73,7 +73,7 @@ export class SessionService implements ISessionService {
 
     // Create session with timeout
     const timeout = setTimeout(() => {
-      this.logger.logSessionTimeout(sessionId);
+      this.logger.logSessionTimeout();
       this.destroySession(sessionId);
     }, this.config.ttlMs);
 
@@ -88,7 +88,7 @@ export class SessionService implements ISessionService {
     this.sessionManager.setSession(sessionId, session);
 
     // Log session creation
-    this.logger.logSessionCreated(sessionId, userId);
+    this.logger.logSessionCreated();
 
     return sessionId;
   }
@@ -105,7 +105,6 @@ export class SessionService implements ISessionService {
 
     if (session.destroying) {
       this.logger.logSessionDebug(
-        sessionId,
         `Session already being destroyed: ${sessionId}`,
       );
       return;
@@ -126,17 +125,14 @@ export class SessionService implements ISessionService {
         (new Date().getTime() - session.metrics.createdAt.getTime()) / 1000;
 
       // Log session destruction
-      this.logger.logSessionDestroyed(
-        sessionId,
-        durationInSeconds,
-        session.metrics,
-      );
+      this.logger.logSessionDestroyed(durationInSeconds, session.metrics);
 
       // Remove from manager
       this.sessionManager.deleteSession(sessionId);
     } catch (error) {
-      this.logger.logSessionError(sessionId, error as Error, {
-        operation: 'destroySession',
+      this.logger.logSessionError(error as Error, {
+        action: 'destroySession',
+        sessionId,
       });
       // Still try to remove from manager even if cleanup fails
       this.sessionManager.deleteSession(sessionId);
@@ -182,9 +178,9 @@ export class SessionService implements ISessionService {
     if (session) {
       session.metrics.totalInteractions++;
       session.metrics.lastActivityAt = new Date();
-      // Only log metrics every 10 interactions to reduce noise
+      // Log metrics every 10 interactions to reduce noise
       if (session.metrics.totalInteractions % 10 === 0) {
-        this.logger.logSessionMetrics(sessionId, session.metrics);
+        this.logger.logSessionMetrics(session.metrics);
       }
     }
   }
@@ -195,7 +191,7 @@ export class SessionService implements ISessionService {
       session.metrics.totalToolCalls++;
       session.metrics.lastActivityAt = new Date();
       // Log metrics on every tool call since these are significant events
-      this.logger.logSessionMetrics(sessionId, session.metrics);
+      this.logger.logSessionMetrics(session.metrics);
     }
   }
 
@@ -204,7 +200,7 @@ export class SessionService implements ISessionService {
     if (session) {
       session.metrics.errorCount++;
       // Log metrics on every error since these are important for debugging
-      this.logger.logSessionMetrics(sessionId, session.metrics);
+      this.logger.logSessionMetrics(session.metrics);
     }
   }
 
@@ -240,11 +236,11 @@ export class SessionService implements ISessionService {
 
     // Set new timeout
     session.timeout = setTimeout(() => {
-      this.logger.logSessionTimeout(sessionId);
+      this.logger.logSessionTimeout();
       this.destroySession(sessionId);
     }, additionalTtlMs);
 
-    this.logger.logSessionMetrics(sessionId, session.metrics);
+    this.logger.logSessionMetrics(session.metrics);
     return true;
   }
 }

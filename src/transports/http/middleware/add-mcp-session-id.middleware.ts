@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../../../auth/interfaces';
 import { logger } from '../../../utils';
 import { sessionService } from '../session';
 import { getOrCreateSessionId } from '../utils';
+import { updateRequestContext } from '../utils/request-context';
 
 export const addMcpSessionId = (
   req: AuthenticatedRequest,
@@ -11,36 +12,32 @@ export const addMcpSessionId = (
   next: NextFunction,
 ) => {
   const sessionId = getOrCreateSessionId(req);
-  const session = sessionService.getSession(sessionId);
+  const userId = req.auth?.extra?.user?.id;
+
+  // Update request context with session and user info
+  updateRequestContext({
+    sessionId,
+    userId,
+  });
+
+  // Check if session ID was missing from request
   const requestHadSessionId = !!req.headers['mcp-session-id'];
 
-  const logArgs = {
-    action: 'addMcpSessionId',
-    sessionId,
-    userId: req.auth?.extra?.user?.id,
-    requestHadSessionId,
-    createdAt: session?.metrics.createdAt.toISOString(),
-    expiresAt: session?.metrics.expiresAt.toISOString(),
-    totalInteractions: session?.metrics.totalInteractions,
-    totalToolCalls: session?.metrics.totalToolCalls,
-    lastActivityAt: session?.metrics.lastActivityAt.toISOString(),
-    errorCount: session?.metrics.errorCount,
-  };
+  // Add session ID to request headers
+  req.headers['mcp-session-id'] = sessionId;
 
-  // Only log when there are issues or when session ID is missing
+  // Add session ID to response headers for client tracking
+  res.setHeader('mcp-session-id', sessionId);
+
+  // Record interaction for metrics
+  sessionService.recordInteraction(sessionId);
+
+  // Only log when session ID was missing from request
   if (!requestHadSessionId) {
-    logger.debug('Request missing session ID, adding one', logArgs);
-    req.headers['mcp-session-id'] = sessionId;
-  }
-
-  if (!res.getHeader('mcp-session-id')) {
-    logger.debug('Response missing session ID, adding one', logArgs);
-    res.setHeader('mcp-session-id', sessionId!);
-  }
-
-  // Record interaction for metrics (but don't log every time)
-  if (session) {
-    sessionService.recordInteraction(sessionId);
+    logger.debug('🔗 Session ID added to request', {
+      event: 'SESSION_ID_ADDED',
+      requestHadSessionId,
+    });
   }
 
   next();

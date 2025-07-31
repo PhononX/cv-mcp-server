@@ -22,6 +22,7 @@ export class SessionCleanupService {
       this.cleanupExpiredSessions();
     }, this.config.cleanupIntervalMs);
 
+    // Log cleanup start
     this.logger.logCleanupStarted(this.sessionService.getSessionCount());
   }
 
@@ -41,17 +42,21 @@ export class SessionCleanupService {
 
       for (const [sessionId, session] of sessions) {
         if (session.metrics.expiresAt < now) {
-          this.logger.logSessionTimeout(sessionId);
+          // Log session timeout
+          this.logger.logSessionTimeout();
           this.sessionService.destroySession(sessionId);
           cleanedCount++;
         }
       }
 
       const remainingCount = this.sessionService.getSessionCount();
+      // Log cleanup completion
       this.logger.logCleanupCompleted(cleanedCount, remainingCount);
     } catch (error) {
-      this.logger.logSessionError('cleanup-service', error as Error, {
-        operation: 'cleanupExpiredSessions',
+      // Log cleanup error
+      this.logger.logSessionError(error as Error, {
+        context: 'cleanup-service',
+        sessionId: 'N/A', // No sessionId available here
       });
     }
   }

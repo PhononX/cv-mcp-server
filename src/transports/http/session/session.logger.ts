@@ -3,22 +3,15 @@ import { SessionMetrics } from './session.types';
 import { logger } from '../../../utils';
 
 export class SessionLogger {
-  logSessionCreated(sessionId: string, userId: string): void {
+  logSessionCreated(): void {
     logger.info('🆕 Session created', {
-      sessionId,
-      userId,
       event: 'SESSION_CREATED',
       timestamp: new Date().toISOString(),
     });
   }
 
-  logSessionDestroyed(
-    sessionId: string,
-    duration: number,
-    metrics: SessionMetrics,
-  ): void {
+  logSessionDestroyed(duration: number, metrics: SessionMetrics): void {
     logger.info('🗑️ Session destroyed', {
-      sessionId,
       duration,
       metrics,
       event: 'SESSION_DESTROYED',
@@ -26,35 +19,23 @@ export class SessionLogger {
     });
   }
 
-  logSessionTimeout(sessionId: string): void {
+  logSessionTimeout(): void {
     logger.info('⏰ Session timeout triggered', {
-      sessionId,
       event: 'SESSION_TIMEOUT',
       timestamp: new Date().toISOString(),
     });
   }
 
-  logSessionReused(
-    sessionId: string,
-    userId: string,
-    totalInteractions: number,
-  ): void {
+  logSessionReused(totalInteractions: number): void {
     logger.debug('🔄 Session reused', {
-      sessionId,
-      userId,
       totalInteractions,
       event: 'SESSION_REUSED',
       timestamp: new Date().toISOString(),
     });
   }
 
-  logSessionError(
-    sessionId: string,
-    error: Error,
-    context?: Record<string, unknown>,
-  ): void {
+  logSessionError(error: Error, context?: Record<string, unknown>): void {
     logger.error('❌ Session error', {
-      sessionId,
       error: {
         message: error.message,
         name: error.name,
@@ -66,13 +47,8 @@ export class SessionLogger {
     });
   }
 
-  logSessionDebug(
-    sessionId: string,
-    message: string,
-    context?: Record<string, unknown>,
-  ): void {
+  logSessionDebug(message: string, context?: Record<string, unknown>): void {
     logger.debug('🔍 Session debug', {
-      sessionId,
       message,
       context,
       event: 'SESSION_DEBUG',
@@ -80,9 +56,8 @@ export class SessionLogger {
     });
   }
 
-  logSessionMetrics(sessionId: string, metrics: SessionMetrics): void {
+  logSessionMetrics(metrics: SessionMetrics): void {
     logger.debug('📊 Session metrics', {
-      sessionId,
       metrics,
       event: 'SESSION_METRICS',
       timestamp: new Date().toISOString(),

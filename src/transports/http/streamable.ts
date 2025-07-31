@@ -138,7 +138,9 @@ async function handleSessionRequest(
     const sessionId = getOrCreateSessionId(req);
 
     if (!session) {
-      logger.warn('Session not found for request', { sessionId });
+      logger.warn('Session not found for request', {
+        sessionId,
+      });
       res.status(404).json({
         jsonrpc: '2.0',
         error: {

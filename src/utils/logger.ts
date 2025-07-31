@@ -6,6 +6,11 @@ import WinstonCloudwatch from 'winston-cloudwatch';
 
 import { env } from '../config';
 import { LOG_DIR, SERVICE_VERSION } from '../constants';
+import {
+  getSessionId,
+  getTraceId,
+  getUserId,
+} from '../transports/http/utils/request-context';
 
 // Custom log levels
 const levels = {
@@ -141,6 +146,34 @@ const getLogTransports = (): winston.transport[] => {
 // Add colors to winston
 winston.addColors(colors);
 
+// Create custom format that includes trace context
+const traceContextFormat = winston.format.printf(
+  ({ level, message, timestamp, ...meta }) => {
+    const traceContext: Record<string, unknown> = {};
+
+    // Add trace context if available
+    const traceId = getTraceId();
+    const sessionId = getSessionId();
+    const userId = getUserId();
+
+    if (traceId) traceContext.traceId = traceId;
+    if (sessionId) traceContext.sessionId = sessionId;
+    if (userId) traceContext.userId = userId;
+
+    // Combine all metadata
+    const allMeta = { ...traceContext, ...meta };
+
+    return JSON.stringify({
+      timestamp,
+      level,
+      message,
+      environment: env.ENVIRONMENT,
+      version: SERVICE_VERSION,
+      ...allMeta,
+    });
+  },
+);
+
 // Create the logger
 export const logger = winston.createLogger({
   level: getLogLevel(),
@@ -148,17 +181,7 @@ export const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
     winston.format.errors({ stack: true }),
-    winston.format.json(),
-    winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-      return JSON.stringify({
-        timestamp,
-        level,
-        message,
-        environment: env.ENVIRONMENT,
-        version: SERVICE_VERSION,
-        ...metadata,
-      });
-    }),
+    traceContextFormat,
   ),
   transports: getLogTransports(),
 });
