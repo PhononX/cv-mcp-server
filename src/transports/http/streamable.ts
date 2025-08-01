@@ -36,7 +36,7 @@ import { AuthenticatedRequest } from '../../auth/interfaces';
 import { env } from '../../config';
 import { getCarbonVoiceApiStatus } from '../../cv-api';
 import server from '../../server';
-import { formatProcessUptime, logger } from '../../utils';
+import { getProcessUptime, logger } from '../../utils';
 
 const app = express();
 
@@ -59,7 +59,7 @@ app.use(express.json({ limit: '1mb' }));
 
 // Add request ID middleware
 app.use(addRequestIdMiddleware);
-// Request logging middleware
+// Request logging middleware (includes session metrics)
 app.use(logRequest);
 
 let carbonVoiceApiHealth: ApiHealthStatus = {
@@ -72,7 +72,7 @@ app.get('/health', (req, res: Response) => {
   const response = {
     status: carbonVoiceApiHealth.isHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
-    uptime: formatProcessUptime(),
+    uptime: getProcessUptime(),
     dependencies: {
       carbonVoiceApi: {
         status: carbonVoiceApiHealth.isHealthy ? 'healthy' : 'unhealthy',
@@ -510,7 +510,7 @@ const heartbeatInterval = setInterval(async () => {
   const logArgs = {
     totalSessions: sessionService.getAllSessionIds().length,
     isCarbonVoiceApiWorking: carbonVoiceApiHealth.isHealthy,
-    uptime: formatProcessUptime(),
+    uptime: getProcessUptime(),
     memoryUsage: process.memoryUsage(),
     carbonVoiceApiHealth,
   };

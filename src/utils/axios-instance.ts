@@ -7,6 +7,7 @@ import axios, {
 
 import { logger } from './logger';
 import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
+import { timeToHuman } from './time-to-human';
 
 import { env } from '../config';
 
@@ -95,16 +96,21 @@ const getAxiosInstance = (): AxiosInstance => {
         return config;
       }
 
-      logger.debug(
-        `➡️ Making API request to: ${config.method?.toUpperCase()} ${config.url}`,
-        {
-          url: config.url,
-          method: config.method,
-          params: config.params,
-          data: config.data,
-          headers: obfuscateAuthHeaders(config.headers),
-        },
-      );
+      // Add start time to config metadata for duration calculation
+      (config as ExtendedAxiosRequestConfig).metadata = {
+        startTime: Date.now(),
+      };
+
+      const method = config.method?.toUpperCase();
+      const url = config.url;
+
+      logger.debug(`➡️ Making API request to: ${method} ${url}`, {
+        url: config.url,
+        method: config.method,
+        params: config.params,
+        data: config.data,
+        headers: obfuscateAuthHeaders(config.headers),
+      });
       return config;
     },
     (error) => {
@@ -129,14 +135,19 @@ const getAxiosInstance = (): AxiosInstance => {
         ?.startTime;
       const duration = startTime ? Date.now() - startTime : undefined;
 
+      const method = response.config.method?.toUpperCase();
+      const status = response.status;
+      const url = response.config.url;
+      const durationText = duration ? timeToHuman(duration, 'ms') : '';
+
       logger.debug(
-        `⬅️ API response received from: ${response.config.method?.toUpperCase()} ${response.config.url}`,
+        `⬅️ API response received from: ${method} ${url} ${status} ${durationText}`,
         {
           url: response.config.url,
           method: response.config.method,
           status: response.status,
           statusText: response.statusText,
-          duration: duration ? `${duration}ms` : undefined,
+          duration: duration || undefined,
         },
       );
       return response;
@@ -153,24 +164,30 @@ const getAxiosInstance = (): AxiosInstance => {
         if (NOT_LOG_ROUTES.includes(error.config?.url ?? '')) {
           return Promise.reject(error);
         }
-
+        const durationText = duration ? timeToHuman(duration, 'ms') : '';
+        const method = error.config?.method?.toUpperCase();
+        const url = error.config?.url;
+        const status = error.response?.status;
         // Log the error with all relevant details
-        logger.error('❌ API request failed', {
-          error: {
-            statusCode: axiosError?.statusCode,
-            body: {
-              message: axiosError?.body?.error?.message,
-              code: axiosError?.body?.error?.code,
+        logger.error(
+          `❌ API request failed: ${method} ${url} ${status} ${durationText}`,
+          {
+            error: {
+              statusCode: axiosError?.statusCode,
+              body: {
+                message: axiosError?.body?.error?.message,
+                code: axiosError?.body?.error?.code,
+              },
             },
+            url: error.config?.url,
+            method: error.config?.method,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            requestData: error.config?.data,
+            responseData: error.response?.data,
+            duration: duration,
           },
-          url: error.config?.url,
-          method: error.config?.method,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          requestData: error.config?.data,
-          responseData: error.response?.data,
-          duration: duration ? `${duration}ms` : undefined,
-        });
+        );
       } else {
         if (NOT_LOG_ROUTES.includes(error.config?.url ?? '')) {
           return Promise.reject(error);

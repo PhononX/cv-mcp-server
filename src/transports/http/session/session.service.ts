@@ -178,10 +178,7 @@ export class SessionService implements ISessionService {
     if (session) {
       session.metrics.totalInteractions++;
       session.metrics.lastActivityAt = new Date();
-      // Log metrics every 10 interactions to reduce noise
-      if (session.metrics.totalInteractions % 10 === 0) {
-        this.logger.logSessionMetrics(session.metrics);
-      }
+      // Don't log automatically - let the request handler decide when to log
     }
   }
 
@@ -191,8 +188,6 @@ export class SessionService implements ISessionService {
       session.metrics.totalToolCalls++;
       session.metrics.totalInteractions++; // Tool calls are also interactions
       session.metrics.lastActivityAt = new Date();
-      // Log metrics on every tool call since these are significant events
-      this.logger.logSessionMetrics(session.metrics);
     }
   }
 
@@ -244,6 +239,14 @@ export class SessionService implements ISessionService {
 
     this.logger.logSessionMetrics(session.metrics);
     return true;
+  }
+
+  // Public method to log session metrics
+  logSessionMetrics(sessionId: string): void {
+    const session = this.getSession(sessionId);
+    if (session) {
+      this.logger.logSessionMetrics(session.metrics);
+    }
   }
 }
 
