@@ -36,7 +36,7 @@ export const addMcpSessionId = (
   if (!requestHadSessionId) {
     logger.debug('🔗 Session ID added to request', {
       event: 'SESSION_ID_ADDED',
-      requestHadSessionId,
+      requestHadSessionId: Boolean(requestHadSessionId),
     });
   }
 
