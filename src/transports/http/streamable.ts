@@ -50,7 +50,7 @@ app.use(helmet());
 app.use(
   rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: 100, // limit each IP to 100 requests per windowMs (100 requests per minute)
+    max: 60, // limit each IP to 60 requests per windowMs (1 request per second)
     standardHeaders: true,
     // legacyHeaders: false, why??
   }),
@@ -231,16 +231,12 @@ app.post(
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => getOrCreateSessionId(req),
           onsessioninitialized: (sessionId: string) => {
-            logger.info('New session initialized', {
-              sessionId,
-              userId: req.auth?.extra?.user?.id,
-            });
+            logger.info('✅ New session initialized');
 
             try {
               sessionService.createSession(transport!, req, sessionId);
             } catch (error) {
-              logger.error('Failed to create session', {
-                sessionId,
+              logger.error('❌ Failed to create session', {
                 error: error instanceof Error ? error.message : String(error),
               });
               // Close transport if session creation fails
@@ -251,9 +247,7 @@ app.post(
         });
 
         transport.onclose = () => {
-          logger.debug('Transport closed', {
-            sessionId: transport!.sessionId,
-          });
+          logger.debug('🔌 Transport closed');
           if (transport.sessionId) {
             sessionService.destroySession(transport.sessionId);
           }
@@ -261,8 +255,7 @@ app.post(
 
         // Add error handling for the transport
         transport.onerror = (error) => {
-          logger.error('Transport error', {
-            sessionId: transport!.sessionId,
+          logger.error('🔴 Transport error', {
             error: {
               message: error.message,
               name: error.name,

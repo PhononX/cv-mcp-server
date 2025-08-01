@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../../../auth/interfaces';
 import { logger, timeToHuman } from '../../../utils';
 import { sessionService } from '../session';
 import { getSessionId } from '../utils';
+import { extractClientInfo } from '../utils/extract-client-info';
 
 const ignorePaths = ['/health', '/favicon.ico'];
 
@@ -22,12 +23,14 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
     const url = req.url;
     const statusCode = res.statusCode;
     const durationText = timeToHuman(duration, 'ms');
+    const clientInfo = extractClientInfo(req as AuthenticatedRequest);
 
     logger.info(`HTTP ${method} ${url} ${statusCode} ${durationText}`, {
       method,
       url,
       statusCode,
       duration,
+      clientInfo,
       body: req.body,
     });
 
