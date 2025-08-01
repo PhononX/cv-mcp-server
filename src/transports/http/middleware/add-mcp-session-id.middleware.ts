@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from '../../../auth/interfaces';
 import { logger } from '../../../utils';
 import { sessionService } from '../session';
 import { getOrCreateSessionId } from '../utils';
-import { updateRequestContext } from '../utils/request-context';
+import { getTraceId, updateRequestContext } from '../utils/request-context';
 
 export const addMcpSessionId = (
   req: AuthenticatedRequest,
@@ -28,6 +28,9 @@ export const addMcpSessionId = (
 
   // Add session ID to response headers for client tracking
   res.setHeader('mcp-session-id', sessionId);
+
+  // Add trace ID to response headers for client tracking
+  res.setHeader('X-Trace-ID', getTraceId() || 'N/A');
 
   // Record interaction for metrics
   sessionService.recordInteraction(sessionId);

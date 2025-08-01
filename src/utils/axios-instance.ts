@@ -10,6 +10,7 @@ import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
 import { timeToHuman } from './time-to-human';
 
 import { env } from '../config';
+import { getTraceId } from '../transports/http/utils/request-context';
 
 // Extend the config type to include metadata
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -27,6 +28,7 @@ interface ApiError {
       message: string;
       details?: Record<string, unknown>;
     };
+    traceId?: string;
   };
 }
 
@@ -38,6 +40,7 @@ interface NetworkError {
       message: string;
       details?: Record<string, unknown>;
     };
+    traceId?: string;
   };
 }
 
@@ -209,6 +212,7 @@ const getAxiosInstance = (): AxiosInstance => {
 // Error handling function
 function handleAxiosError(error: AxiosError): ApiError | NetworkError {
   const serializedError = serializeAxiosError(error);
+  const traceId = getTraceId();
   if (error.response) {
     const statusCode = error.response.status;
     const errorData = error.response.data as ErrorResponseData;
@@ -223,6 +227,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: errorData?.message || 'Invalid request parameters',
               details: serializedError,
             },
+            traceId,
           },
         };
       case 401:
@@ -234,6 +239,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: 'Authentication required',
               details: { reason: 'Invalid or missing API key' },
             },
+            traceId,
           },
         };
       case 403:
@@ -245,6 +251,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: 'Access denied',
               details: { reason: 'Insufficient permissions' },
             },
+            traceId,
           },
         };
       case 404:
@@ -256,6 +263,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: errorData?.message || 'Resource not found',
               details: serializedError,
             },
+            traceId,
           },
         };
       case 429:
@@ -267,6 +275,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: 'Too many requests',
               details: { retryAfter: error.response.headers['retry-after'] },
             },
+            traceId,
           },
         };
       case 500:
@@ -281,6 +290,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: 'Internal server error',
               details: serializedError,
             },
+            traceId,
           },
         };
       default:
@@ -292,6 +302,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
               message: errorData?.message || 'An unexpected error occurred',
               details: serializedError,
             },
+            traceId: getTraceId(),
           },
         };
     }
@@ -304,6 +315,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
           message: 'No response received from server',
           details: serializedError,
         },
+        traceId: getTraceId(),
       },
     };
   } else {
@@ -315,6 +327,7 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
           message: error.message || 'Error setting up the request',
           details: serializedError,
         },
+        traceId,
       },
     };
   }
@@ -354,6 +367,7 @@ export async function mutator<T>(
           code: 'UNKNOWN_ERROR',
           message: errorMessage,
           details: { originalError: error },
+          traceId: getTraceId(),
         },
       },
     } as ApiError;

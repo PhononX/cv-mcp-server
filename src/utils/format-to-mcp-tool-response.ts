@@ -1,6 +1,7 @@
 import { logger } from './logger';
 
 import { McpToolResponse } from '../interfaces';
+import { getTraceId } from '../transports/http/utils/request-context';
 
 const isErrorWithDetails = (
   error: unknown,
@@ -25,6 +26,7 @@ export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
       message = error?.message || message;
       details = error?.details;
     }
+    const traceId = getTraceId();
     return {
       content: [
         {
@@ -34,8 +36,13 @@ export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
               code,
               message,
               details,
+              traceId,
             },
           }),
+        },
+        {
+          type: 'text',
+          text: `--- Debug Info ---\nTrace ID: ${traceId || 'N/A'}\nFor support, include this Trace ID in your report.`,
         },
       ],
     };
