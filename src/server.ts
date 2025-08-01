@@ -99,6 +99,10 @@ server.registerTool(
       'If you want to get messages from a specific workspace, you can use the "workspace_id" parameter. ' +
       'If you want to get messages for a particular language, you can use the "language" parameter. ',
     inputSchema: listMessagesQueryParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (
     params: ListMessagesParams,
@@ -124,6 +128,10 @@ server.registerTool(
   {
     description: 'Get a message by its ID.',
     inputSchema: getMessageByIdParams.merge(getMessageByIdQueryParams).shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: GetMessageInput, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -149,6 +157,10 @@ server.registerTool(
       'Get most recent messages, including their associated Conversation, Creator, and Labels information. ' +
       'Returns a maximum of 10 messages.',
     inputSchema: getTenRecentMessagesResponseQueryParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (
     args: GetTenRecentMessagesResponseParams,
@@ -177,6 +189,10 @@ server.registerTool(
     inputSchema: createConversationMessageParams.merge(
       createConversationMessageBody,
     ).shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: CreateConversationMessageInput,
@@ -204,6 +220,10 @@ server.registerTool(
       'Send a Direct Message (DM) to a User or a Group of Users. ' +
       'In order to create a Direct Message, you must provide transcript or link attachments.',
     inputSchema: sendDirectMessageBody.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (args: SendDirectMessage, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -226,6 +246,10 @@ server.registerTool(
     description:
       'Create a VoiceMemo Message. In order to create a VoiceMemo Message, you must provide a transcript or link attachments.',
     inputSchema: createVoiceMemoMessageBody.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: CreateVoicememoMessage,
@@ -253,6 +277,10 @@ server.registerTool(
     inputSchema: addLinkAttachmentsToMessageParams.merge(
       addLinkAttachmentsToMessageBody,
     ).shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: AddLinkAttachmentsToMessageInput,
@@ -281,6 +309,10 @@ server.registerTool(
   {
     description: 'Get a User by their ID.',
     inputSchema: getUserByIdParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -304,6 +336,10 @@ server.registerTool(
       'Search for a User by their phone number or email address. ' +
       '(In order to search for a User, you must provide a phone number or email address.)',
     inputSchema: searchUserQueryParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: SearchUserParams, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -327,6 +363,10 @@ server.registerTool(
       'Search multiple Users by their phone numbers, email addresses or ids. ' +
       '(In order to search Users, you must provide phone numbers, email addresses or ids.)',
     inputSchema: searchUsersBody.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: SearchUsersBody, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -344,10 +384,14 @@ server.registerTool(
 );
 
 server.registerTool(
-  'me',
+  'get_current_user',
   {
     description: 'Get the current user information. ',
     inputSchema: z.object({}).shape, // Needed in order to have access to authInfo
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (params: unknown, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -369,6 +413,10 @@ server.registerTool(
       'List all conversations. ' +
       'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
     inputSchema: z.object({}).shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: unknown, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -389,6 +437,10 @@ server.registerTool(
   {
     description: 'Get a conversation by its ID.',
     inputSchema: getConversationByIdParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -410,6 +462,10 @@ server.registerTool(
   {
     description: 'Get users in a conversation.',
     inputSchema: getConversationByIdParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -431,6 +487,10 @@ server.registerTool(
   {
     description: 'Summarize a conversation.',
     inputSchema: summarizeConversationParams.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: SummarizeConversationParams,
@@ -526,6 +586,10 @@ server.registerTool(
       'Lists all root folders for a given workspace, including their names, IDs, and basic structure, ' +
       'but does not provide aggregate counts.(Required to inform message type:voicememo,prerecorded)',
     inputSchema: getAllRootFoldersQueryParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (
     args: GetAllRootFoldersParams,
@@ -550,6 +614,10 @@ server.registerTool(
   {
     description: 'Create a new folder.',
     inputSchema: createFolderBody.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (args: CreateFolderPayload, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -571,6 +639,10 @@ server.registerTool(
   {
     description: 'Get a folder by its ID.',
     inputSchema: getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: GetFolderInput, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -594,6 +666,10 @@ server.registerTool(
     description:
       'Get a folder including its messages by its ID. (Only messages at folder level are returned.)',
     inputSchema: getFolderMessagesParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -615,6 +691,10 @@ server.registerTool(
   {
     description: 'Update a folder name by its ID.',
     inputSchema: updateFolderNameParams.merge(updateFolderNameBody).shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: UpdateFolderNameInput,
@@ -642,6 +722,10 @@ server.registerTool(
       'Delete a folder by its ID. Deleting a folder will also delete nested folders and all the messages in referenced folders. ' +
       '(This is a destructive action and cannot be undone, so please be careful.)',
     inputSchema: deleteFolderParams.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+    },
   },
   async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -664,6 +748,10 @@ server.registerTool(
     description:
       'Move a folder by its ID. Move a Folder into another Folder or into a Workspace.',
     inputSchema: moveFolderParams.merge(moveFolderBody).shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (args: MoveFolderInput, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -688,6 +776,10 @@ server.registerTool(
       'Move a message to a folder by its ID. Move a Message into another Folder or into a Workspace. ' +
       'Only allowed to move messages of type: voicememo,prerecorded.',
     inputSchema: addMessageToFolderOrWorkspaceBody.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: AddMessageToFolderPayload,
@@ -713,6 +805,10 @@ server.registerTool(
   {
     description: 'Get basic information about a workspace.',
     inputSchema: z.object({}).shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (params: unknown, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -737,6 +833,10 @@ server.registerTool(
       'Filtering by owner type, Possible values: "user", "workspace", "system". ' +
       'Do not use unless the user explicitly requests it.',
     inputSchema: aIPromptControllerGetPromptsQueryParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (
     args: AIPromptControllerGetPromptsParams,
@@ -762,6 +862,10 @@ server.registerTool(
     description:
       'Run an AI Action (Prompt) for a message. You can run an AI Action for a message by its ID or a list of message IDs.',
     inputSchema: aIResponseControllerCreateResponseBody.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (args: CreateAIResponse, { authInfo }): Promise<McpToolResponse> => {
     try {
@@ -785,6 +889,10 @@ server.registerTool(
       'Run an AI Action (Prompt) for a shared link. You can run an AI Action for a shared link by its ID or a list of shared link IDs. ' +
       'You can also provide the language of the response.',
     inputSchema: createShareLinkAIResponseBody.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+    },
   },
   async (
     args: CreateShareLinkAIResponse,
@@ -811,6 +919,10 @@ server.registerTool(
       'Retrieve previously generated AI Action (Prompt) responses by filtering for a specific prompt, message, or conversation ID. ' +
       'Combine filters to narrow results and view all AI-generated responses related to a particular prompt, message, or conversation.',
     inputSchema: aIResponseControllerGetAllResponsesQueryParams.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
   },
   async (
     args: AIResponseControllerGetAllResponsesParams,
