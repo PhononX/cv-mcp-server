@@ -1,6 +1,12 @@
 # Carbon Voice MCP Server
 
-A Model Context Protocol (MCP) server implementation for integrating with Carbon Voice's API, providing AI assistants with comprehensive tools for voice messaging, conversations, and workspace management.
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io) [![npm version](https://badge.fury.io/js/%40carbonvoice%2Fcv-mcp-server.svg)](https://www.npmjs.com/package/@carbonvoice/cv-mcp-server)
+
+A Model Context Protocol (MCP) server implementation for integrating with [Carbon Voice's API](https://api.carbonvoice.app/docs), providing AI assistants with comprehensive tools for voice messaging, conversations, and workspace management.
+
+**<img src="https://carbonvoice.app/favicon.ico" alt="Carbon Voice Logo" width="32" height="32" align="center" style="margin-right: 10px;">Carbon Voice**: [https://getcarbon.app](https://getcarbon.app)
+
+**<img src="https://pxassets.s3.us-east-2.amazonaws.com/images/swagger-logo.png" alt="Carbon Voice API Logo" width="32" height="32" align="center" style="margin-right: 10px;">API**: [https://api.carbonvoice.app/docs](https://api.carbonvoice.app/docs)
 
 ## Features
 
@@ -11,6 +17,18 @@ A Model Context Protocol (MCP) server implementation for integrating with Carbon
 - **Workspace Administration**: Get workspace information
 - **AI Actions**: Run AI prompts and retrieve AI-generated responses
 - **Attachment Support**: Add link attachments to messages
+
+## Security & Compliance
+
+This server fully complies with [MCP Security Best Practices](https://modelcontextprotocol.io/specification/draft/basic/security_best_practices):
+
+- **OAuth 2.1 Authentication**: Secure authorization flow with proper token handling
+- **HTTPS Enforcement**: All remote endpoints served over HTTPS
+- **Session Security**: Cryptographically secure session management
+- **Input Validation**: Comprehensive validation of all user inputs
+- **Rate Limiting**: Built-in protection against abuse
+
+For security concerns, please contact: devsupport@phononx.com
 
 ## Prerequisites
 
@@ -425,16 +443,21 @@ npm run release:minor
 - **Use semantic versioning**: patch for fixes, minor for features, major for breaking changes
 - **Always test** with both stdio and HTTP transports before releasing
 
+## MCP Compliance
+
+This server is fully compliant with the [Model Context Protocol specification](https://modelcontextprotocol.io) and follows all security best practices outlined in the official documentation. The implementation supports both stdio and HTTP transports as defined in the MCP specification.
+
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/PhononX/cv-mcp-server/issues)
 - **API Key Requests**: devsupport@phononx.com
-- **Website**: [https://getcarbon.app](https://getcarbon.app)
+- **Carbon Voice Platform**: [https://getcarbon.app](https://getcarbon.app)
+- **API Documentation**: [https://api.carbonvoice.app/docs](https://api.carbonvoice.app/docs)
 
 ## License
 
-ISC License - See LICENSE file for details.
+ISC License - See [LICENSE](LICENSE) file for details.
 
 ---
 
-**Note**: This MCP server requires a valid Carbon Voice API key to function. Please ensure you have obtained your API key from the Carbon Voice team before attempting to use the server.
+**Note**: This MCP server requires a valid Carbon Voice API key to function with stdio transport. For HTTP transport, OAuth2 authentication is handled automatically through the web interface. Please ensure you have the appropriate credentials before attempting to use the server.
