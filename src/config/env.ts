@@ -48,4 +48,10 @@ const getEnvironment = (): z.infer<typeof Environment> => {
   }
 };
 
+export const isTestEnvironment = () => {
+  const nodeEnv = process.env.NODE_ENV?.toLowerCase();
+
+  return nodeEnv === 'test';
+};
+
 export const env = getEnvironment();

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import cors from 'cors';
 import express, { NextFunction, Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
@@ -18,6 +17,7 @@ import {
   logRequest,
   oauthAuthorizationServer,
   oauthProtectedResource,
+  rateLimitMiddleware,
   wellKnownCorsHeaders,
 } from '.';
 import { REQUIRED_SCOPES } from './constants';
@@ -33,7 +33,7 @@ import { getOrCreateSessionId } from './utils';
 
 import { createOAuthTokenVerifier } from '../../auth';
 import { AuthenticatedRequest } from '../../auth/interfaces';
-import { env } from '../../config';
+import { env, isTestEnvironment } from '../../config';
 import { getCarbonVoiceApiStatus } from '../../cv-api';
 import server from '../../server';
 import { getProcessUptime, logger } from '../../utils';
@@ -47,14 +47,7 @@ app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 app.use(cors());
 // Security middlewares
 app.use(helmet());
-app.use(
-  rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 60, // limit each IP to 60 requests per windowMs (1 request per second)
-    standardHeaders: true,
-    // legacyHeaders: false, why??
-  }),
-);
+app.use(rateLimitMiddleware);
 app.use(express.json({ limit: '1mb' }));
 
 // Add request ID middleware
@@ -63,7 +56,7 @@ app.use(addRequestIdMiddleware);
 app.use(logRequest);
 
 let carbonVoiceApiHealth: ApiHealthStatus = {
-  isHealthy: process.env.NODE_ENV === 'test' ? true : false, // Assume healthy in test mode
+  isHealthy: isTestEnvironment() ? true : false, // Assume healthy in test mode
   lastChecked: new Date().toISOString(),
   apiUrl: env.CARBON_VOICE_BASE_URL,
 };
@@ -118,7 +111,7 @@ app.get(
 );
 
 // Handle HEAD requests without auth
-app.head('/', logRequest, (req, res) => {
+app.head('/', (req, res) => {
   const mcpProtocolVersion =
     req.headers['mcp-protocol-version'] || LATEST_PROTOCOL_VERSION;
 
@@ -436,7 +429,7 @@ process.once('SIGUSR2', () => {
 });
 
 // Only start the server and heartbeat when not in test environment
-if (process.env.NODE_ENV !== 'test') {
+if (!isTestEnvironment()) {
   // Start server
   const PORT = env.PORT || 3005;
   const serverInstance = app.listen(PORT, async () => {

@@ -120,4 +120,28 @@ describe('Environment Configuration', () => {
 
     expect(freshEnv.CARBON_VOICE_BASE_URL).toBe(CV_API_BASE_URL);
   });
+
+  describe('isTestEnvironment', () => {
+    it('should return true when NODE_ENV is test', () => {
+      process.env.NODE_ENV = 'test';
+      const {
+        isTestEnvironment: isTestLowercase,
+      } = require('../../../src/config/env');
+
+      expect(isTestLowercase()).toBe(true);
+
+      process.env.NODE_ENV = 'TEST';
+      const {
+        isTestEnvironment: isTestUppercase,
+      } = require('../../../src/config/env');
+
+      expect(isTestUppercase()).toBe(true);
+    });
+
+    it('should return false when NODE_ENV is not test', () => {
+      process.env.NODE_ENV = 'dev';
+      const { isTestEnvironment } = require('../../../src/config/env');
+      expect(isTestEnvironment()).toBe(false);
+    });
+  });
 });
