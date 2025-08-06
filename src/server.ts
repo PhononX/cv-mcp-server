@@ -88,7 +88,7 @@ server.registerTool(
   'list_messages',
   {
     description:
-      'List Messages. By default returns latest 20 messages. The maximum allowed range between dates is 31 days. ' +
+      'List Messages. By default returns latest 20 messages. The maximum allowed range between dates is 183 days (6 months). ' +
       'All presigned URLs returned by this tool are ready to use. ' +
       'Do not parse, modify, or re-encode them—always present or use the URLs exactly as received.' +
       'If you want to get messages from a specific date range, you can use the "start_date" and "end_date" parameters. ' +
