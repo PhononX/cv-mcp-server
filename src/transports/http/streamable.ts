@@ -63,7 +63,7 @@ app.use(addRequestIdMiddleware);
 app.use(logRequest);
 
 let carbonVoiceApiHealth: ApiHealthStatus = {
-  isHealthy: false,
+  isHealthy: process.env.NODE_ENV === 'test' ? true : false, // Assume healthy in test mode
   lastChecked: new Date().toISOString(),
   apiUrl: env.CARBON_VOICE_BASE_URL,
 };
@@ -408,12 +408,15 @@ async function handleSessionRequestGetDelete(
   }
 }
 
-// Graceful shutdown
-function shutdown() {
-  logger.info('Shutting down server...');
+let heartbeatInterval: NodeJS.Timeout | undefined;
 
-  // Clear the heartbeat interval
-  clearInterval(heartbeatInterval);
+function shutdown() {
+  logger.info('🛑 Shutting down HTTP MCP Server...');
+
+  // Clear the heartbeat interval if it exists
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+  }
 
   // Clean up all sessions using the enhanced service
   const totalSessions = sessionService.getSessionCount();
@@ -432,81 +435,86 @@ process.once('SIGUSR2', () => {
   process.kill(process.pid, 'SIGUSR2');
 });
 
-// Start server
-const PORT = env.PORT || 3005;
-const serverInstance = app.listen(PORT, async () => {
-  // Initialize Carbon Voice API health status
-  const status = await getCarbonVoiceApiStatus();
-  carbonVoiceApiHealth = {
-    ...status,
-    lastChecked: new Date().toISOString(),
-  };
+// Only start the server and heartbeat when not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  // Start server
+  const PORT = env.PORT || 3005;
+  const serverInstance = app.listen(PORT, async () => {
+    // Initialize Carbon Voice API health status
+    const status = await getCarbonVoiceApiStatus();
+    carbonVoiceApiHealth = {
+      ...status,
+      lastChecked: new Date().toISOString(),
+    };
 
-  // Initialize and start session cleanup service
-  const sessionConfig = SessionConfig.fromEnv();
-  const sessionLogger = new SessionLogger();
-  const sessionCleanupService = new SessionCleanupService(
-    sessionService,
-    sessionConfig,
-    sessionLogger,
-  );
-  sessionCleanupService.start();
+    // Initialize and start session cleanup service
+    const sessionConfig = SessionConfig.fromEnv();
+    const sessionLogger = new SessionLogger();
+    const sessionCleanupService = new SessionCleanupService(
+      sessionService,
+      sessionConfig,
+      sessionLogger,
+    );
+    sessionCleanupService.start();
 
-  logger.info('🚀 HTTP MCP Server started', {
-    port: PORT,
-    carbonVoiceApiHealth,
-    sessionConfig: {
-      ttlMs: sessionConfig.ttlMs,
-      maxSessions: sessionConfig.maxSessions,
-      cleanupIntervalMs: sessionConfig.cleanupIntervalMs,
-    },
+    logger.info('🚀 HTTP MCP Server started', {
+      port: PORT,
+      carbonVoiceApiHealth,
+      sessionConfig: {
+        ttlMs: sessionConfig.ttlMs,
+        maxSessions: sessionConfig.maxSessions,
+        cleanupIntervalMs: sessionConfig.cleanupIntervalMs,
+      },
+    });
   });
-});
 
-serverInstance.on('error', (error) => {
-  logger.error('❌ Error on MCP HTTP Server', { error });
-});
-
-// Add additional process-level monitoring
-process.on('uncaughtException', (error) => {
-  logger.error('🚨 Uncaught Exception detected', {
-    error: error.message,
-    stack: error.stack,
-    name: error.name,
-    processId: process.pid,
-    totalSessions: sessionService.getAllSessionIds().length,
+  serverInstance.on('error', (error) => {
+    logger.error('❌ Error on MCP HTTP Server', { error });
   });
-});
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('🚨 Unhandled Promise Rejection detected', {
-    reason: reason instanceof Error ? reason.message : String(reason),
-    stack: reason instanceof Error ? reason.stack : undefined,
-    promise: promise.toString(),
-    processId: process.pid,
-    totalSessions: sessionService.getAllSessionIds().length,
+  // Add additional process-level monitoring
+  process.on('uncaughtException', (error) => {
+    logger.error('🚨 Uncaught Exception detected', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      processId: process.pid,
+      totalSessions: sessionService.getAllSessionIds().length,
+    });
   });
-});
 
-// Log every 30 seconds to show the server is alive
-const heartbeatInterval = setInterval(async () => {
-  const status = await getCarbonVoiceApiStatus();
-  // Update Carbon Voice API health cache
-  carbonVoiceApiHealth = {
-    isHealthy: status.isHealthy,
-    apiUrl: status.apiUrl,
-    lastChecked: new Date().toISOString(),
-    ...(status.error && { error: status.error }),
-  };
-  const icon = carbonVoiceApiHealth.isHealthy ? '🟢' : '🔴';
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('🚨 Unhandled Promise Rejection detected', {
+      reason: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+      promise: promise.toString(),
+      processId: process.pid,
+      totalSessions: sessionService.getAllSessionIds().length,
+    });
+  });
 
-  const logArgs = {
-    totalSessions: sessionService.getAllSessionIds().length,
-    isCarbonVoiceApiWorking: carbonVoiceApiHealth.isHealthy,
-    uptime: getProcessUptime(),
-    memoryUsage: process.memoryUsage(),
-    carbonVoiceApiHealth,
-  };
+  // Log every 30 seconds to show the server is alive
+  heartbeatInterval = setInterval(async () => {
+    const status = await getCarbonVoiceApiStatus();
+    // Update Carbon Voice API health cache
+    carbonVoiceApiHealth = {
+      isHealthy: status.isHealthy,
+      apiUrl: status.apiUrl,
+      lastChecked: new Date().toISOString(),
+      ...(status.error && { error: status.error }),
+    };
+    const icon = carbonVoiceApiHealth.isHealthy ? '🟢' : '🔴';
 
-  logger.info(`💓 Server heartbeat ${icon}`, logArgs);
-}, 30000);
+    const logArgs = {
+      totalSessions: sessionService.getAllSessionIds().length,
+      isCarbonVoiceApiWorking: carbonVoiceApiHealth.isHealthy,
+      uptime: getProcessUptime(),
+      memoryUsage: process.memoryUsage(),
+      carbonVoiceApiHealth,
+    };
+
+    logger.info(`💓 Server heartbeat ${icon}`, logArgs);
+  }, 30000);
+}
+
+export default app;
