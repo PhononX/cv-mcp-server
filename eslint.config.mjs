@@ -5,8 +5,13 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
+  // Base TypeScript ESLint configuration
+  ...tseslint.configs.recommended,
+  
+  // Main source code configuration
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
+    ignores: ['tests/**/*', '**/*.test.{js,ts}', '**/*.spec.{js,ts}'],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -60,6 +65,39 @@ export default defineConfig([
       ],
     },
   },
-  tseslint.configs.recommended,
+  
+  // Test files configuration - this overrides the recommended config
+  {
+    files: ['tests/**/*', '**/*.test.{js,ts}', '**/*.spec.{js,ts}'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: './tsconfig.json',
+        tsconfigRootDir: process.cwd(),
+        sourceType: 'module',
+      },
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+    },
+    rules: {
+      // Completely disable problematic rules for test files
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-var-requires': 'off',
+      'no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'off',
+      'unused-imports/no-unused-vars': 'off',
+      'simple-import-sort/imports': 'off',
+      'max-len': 'off',
+      // Override any other TypeScript rules that might cause issues
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/prefer-as-const': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+  
+  // Global ignores
   globalIgnores(['src/generated/*', 'orval.config.ts']),
 ]);

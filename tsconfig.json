@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "lib": ["esnext"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,7 +13,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["jest", "node"]
   },
-  "exclude": ["node_modules", "orval.config.ts"]
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "orval.config.ts", "dist"]
 }
