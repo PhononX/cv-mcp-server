@@ -20,7 +20,7 @@ global.console = {
 
 // Mock fs to avoid file system operations during tests
 jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
+  ...(jest.requireActual('fs') as any),
   existsSync: jest.fn(() => true),
   mkdirSync: jest.fn(),
   writeFileSync: jest.fn(),

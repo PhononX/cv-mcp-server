@@ -9,10 +9,11 @@
   "bugs": "https://github.com/PhononX/cv-mcp-server/issues",
   "main": "./dist/transports/stdio/stdio.js",
   "bin": {
-    "cv-mcp-server": "/dist/transports/stdio/stdio.js"
+    "cv-mcp-server": "./dist/transports/stdio/stdio.js"
   },
   "scripts": {
-    "build": "shx rm -rf dist && tsc && shx chmod +x dist/*.js",
+    "build": "shx rm -rf dist && tsc -p tsconfig.build.json && shx chmod +x dist/transports/stdio/stdio.js",
+    "build:check": "tsc --noEmit",
     "prepare": "npm run build",
     "lint:fix": "eslint src --fix",
     "mcp:inspector:stdio": "env-cmd npx @modelcontextprotocol/inspector node ./dist/transports/stdio/stdio.js",

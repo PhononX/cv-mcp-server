@@ -105,7 +105,7 @@ export const createMockError = (message: string, status: number = 500) => {
 };
 
 export const mockZodSchema = <T>(data: T) => {
-  return z.object({}).passthrough() as z.ZodType<T>;
+  return z.object({}).passthrough() as unknown as z.ZodType<T>;
 };
 
 export const waitForAsync = (ms: number = 100) => {
