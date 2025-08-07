@@ -1,6 +1,6 @@
 {
   "name": "@carbonvoice/cv-mcp-server",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "Server implementation for integrating with Carbon Voice's API, providing tools and endpoints for voice messaging, conversations, and workspace management through MCP (Model Context Protocol)",
   "author": "Carbon Voice",
   "license": "ISC",
