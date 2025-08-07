@@ -8,7 +8,7 @@ describe('Rate Limit Middleware', () => {
   describe('DEFAULT_RATE_LIMIT_CONFIG', () => {
     it('should have correct default configuration', () => {
       expect(DEFAULT_RATE_LIMIT_CONFIG).toEqual({
-        windowMs: 61 * 1000, // 1 minute
+        windowMs: 60 * 1000, // 1 minute
         max: 60, // 60 requests per minute
         standardHeaders: true,
       });
