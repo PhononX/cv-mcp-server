@@ -86,4 +86,8 @@ export type SearchUserParams = {
    * Phone Number
    */
   phone?: string;
+  /**
+   * The name of the user to search for (Only users that are part of your contacts will be returned)
+   */
+  name?: string;
 };

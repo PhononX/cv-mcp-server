@@ -81,8 +81,6 @@ import type { SubscriptionFilter } from './SubscriptionFilter';
 import type { SubscriptionAction } from './SubscriptionAction';
 
 export interface SubscribedUser {
-  /** The primary key of the resource. */
-  _id: string;
   /** The date and time at which the resource was created. */
   created_at: string;
   /** The date and time at which the resource was last updated. */

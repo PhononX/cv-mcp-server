@@ -333,8 +333,9 @@ server.registerTool(
   'search_user',
   {
     description:
-      'Search for a User by their phone number or email address. ' +
-      '(In order to search for a User, you must provide a phone number or email address.)',
+      'Search for a User by their phone number, email address, id or name. ' +
+      '(In order to search for a User, you must provide a phone number, email address, id or name.)' +
+      'When searching by name, only users that are part of your contacts will be returned',
     inputSchema: searchUserQueryParams.shape,
     annotations: {
       readOnlyHint: true,
@@ -360,8 +361,9 @@ server.registerTool(
   'search_users',
   {
     description:
-      'Search multiple Users by their phone numbers, email addresses or ids. ' +
-      '(In order to search Users, you must provide phone numbers, email addresses or ids.)',
+      'Search multiple Users by their phone numbers, email addresses, ids or names. ' +
+      '(In order to search Users, you must provide phone numbers, email addresses, ids or names.)' +
+      'When searching by name, only users that are part of your contacts will be returned',
     inputSchema: searchUsersBody.shape,
     annotations: {
       readOnlyHint: true,

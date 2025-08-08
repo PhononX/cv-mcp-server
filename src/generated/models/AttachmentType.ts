@@ -85,4 +85,6 @@ export const AttachmentType = {
   link: 'link',
   file: 'file',
   location: 'location',
+  'ai-response-id': 'ai-response-id',
+  'ai-prompt-id': 'ai-prompt-id',
 } as const;

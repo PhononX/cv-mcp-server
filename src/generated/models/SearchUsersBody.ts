@@ -84,4 +84,6 @@ export interface SearchUsersBody {
   phones?: string[];
   /** User IDs */
   ids?: string[];
+  /** The names of the users to search for (Only users that are part of your contacts will be returned) */
+  names?: string[];
 }

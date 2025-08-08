@@ -220,7 +220,7 @@ export const aIResponseControllerGetLatestTenAIResponseByPromptResponse = zod.ob
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -371,7 +371,6 @@ export const subscribeUserIntoAppBody = zod.object({
 export const subscribeUserIntoAppResponseSubscriptionFiltersItemOperatorDefault = "eq";
 
 export const subscribeUserIntoAppResponse = zod.object({
-  "_id": zod.string().describe('The primary key of the resource.'),
   "created_at": zod.string().datetime({}).describe('The date and time at which the resource was created.'),
   "updated_at": zod.string().datetime({}).describe('The date and time at which the resource was last updated.'),
   "id": zod.string().describe('The primary key of the resource.'),
@@ -404,6 +403,7 @@ export const languageControllerGetAllResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "code": zod.string(),
+  "isoCode6393": zod.string(),
   "supported": zod.boolean(),
   "voices": zod.array(zod.object({
   "id": zod.string(),
@@ -454,7 +454,7 @@ export const getTenRecentMessagesResponseResponse = zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -573,7 +573,7 @@ export const getMessageByIdResponse = zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -652,7 +652,7 @@ export const getMessageByIdResponse = zod.object({
 
 
 /**
- * By default return most recent messages. The **maximum** allowed range between dates is **31 days**.
+ * By default return most recent messages. The **maximum** allowed range between dates is  **183 days (6 months)**.
  * @summary List Messages
  */
 export const listMessagesQueryPageDefault = 1;export const listMessagesQuerySizeDefault = 20;
@@ -719,7 +719,7 @@ export const listMessagesResponse = zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -799,12 +799,13 @@ export const createVoiceMemoMessageBody = zod.object({
 
 
 /**
- * It's required to inform one of (**email**, **phone**)
- * @summary Search user by email or phone
+ * It's required to inform one of (**email**, **phone**, **name**). When the search is by name, only user that are part of your contacts will be returned
+ * @summary Search user by email, phone or name
  */
 export const searchUserQueryParams = zod.object({
   "email": zod.string().optional().describe('Email Address'),
-  "phone": zod.string().optional().describe('Phone Number')
+  "phone": zod.string().optional().describe('Phone Number'),
+  "name": zod.string().optional().describe('The name of the user to search for (Only users that are part of your contacts will be returned)')
 })
 
 export const searchUserResponse = zod.object({
@@ -827,7 +828,8 @@ export const searchUserResponse = zod.object({
 export const searchUsersBody = zod.object({
   "emails": zod.array(zod.string()).optional().describe('Email Addresses'),
   "phones": zod.array(zod.string()).optional().describe('Phone Numbers'),
-  "ids": zod.array(zod.string()).optional().describe('User IDs')
+  "ids": zod.array(zod.string()).optional().describe('User IDs'),
+  "names": zod.array(zod.string()).optional().describe('The names of the users to search for (Only users that are part of your contacts will be returned)')
 })
 
 export const searchUsersResponseItem = zod.object({
@@ -1184,7 +1186,7 @@ export const getFolderMessagesResponse = zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -1397,7 +1399,7 @@ export const addMessageToFolderOrWorkspaceResponse = zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),

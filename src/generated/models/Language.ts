@@ -82,6 +82,7 @@ export interface Language {
   id: string;
   name: string;
   code: string;
+  isoCode6393: string;
   supported: boolean;
   voices: Voice[];
 }

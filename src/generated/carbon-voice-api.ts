@@ -303,7 +303,7 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   };
 
   /**
-   * By default return most recent messages. The **maximum** allowed range between dates is **31 days**.
+   * By default return most recent messages. The **maximum** allowed range between dates is  **183 days (6 months)**.
    * @summary List Messages
    */
   const listMessages = (
@@ -395,8 +395,8 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   };
 
   /**
-   * It's required to inform one of (**email**, **phone**)
-   * @summary Search user by email or phone
+   * It's required to inform one of (**email**, **phone**, **name**). When the search is by name, only user that are part of your contacts will be returned
+   * @summary Search user by email, phone or name
    */
   const searchUser = (
     params?: SearchUserParams,
