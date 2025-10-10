@@ -1,7 +1,11 @@
 #!/usr/bin/env node
+import fs from 'fs';
+import path from 'path';
+
 import cors from 'cors';
 import express, { NextFunction, Response } from 'express';
 import helmet from 'helmet';
+import serveFavicon from 'serve-favicon';
 
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -43,6 +47,13 @@ const app = express();
 app.set('x-powered-by', false);
 // Trust proxy for rate limiting - only trust localhost and private networks
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
+// Serve favicon
+const faviconPath = path.join(process.cwd(), 'public', 'favicon.ico');
+if (fs.existsSync(faviconPath)) {
+  app.use(serveFavicon(faviconPath));
+}
+
 // app.use(standardHeaders);
 app.use(cors());
 // Security middlewares
