@@ -78,21 +78,8 @@ const transports: Record<
     }),
   ],
   console: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:SSS' }),
-        winston.format.colorize({ all: true }),
-        winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-          let output = `${timestamp} [${env.ENVIRONMENT}] ${level}: ${message}`;
-          if (Object.keys(metadata).length > 0) {
-            metadata.environment = env.ENVIRONMENT; // Add environment to metadata
-            metadata.version = SERVICE_VERSION;
-            output += '\n' + JSON.stringify(metadata, null, 2);
-          }
-          return output;
-        }),
-      ),
-    }),
+    // Use the shared logger format so console and file payloads match.
+    new winston.transports.Console(),
   ],
   cloudwatch: [
     new WinstonCloudwatch({
@@ -122,27 +109,23 @@ const transports: Record<
 // Note: Format is now defined inline in the logger creation
 
 const getLogTransports = (): winston.transport[] => {
-  const transport = env.LOG_TRANSPORT || 'file';
+  const configuredTransports = env.LOG_TRANSPORT;
 
   console.error(
     'Executing: getLogTransports()',
     'transport:',
-    transport,
+    configuredTransports,
     'logDir:',
     logDir,
   );
 
-  if (transport === 'file') {
+  if (configuredTransports.includes('file')) {
     createLogDir(logDir);
-
-    return transports.file;
   }
 
-  if (transport === 'cloudwatch') {
-    return transports.cloudwatch;
-  }
-
-  return transports.console;
+  return configuredTransports.flatMap(
+    (transport) => transports[transport],
+  );
 };
 
 // Add colors to winston

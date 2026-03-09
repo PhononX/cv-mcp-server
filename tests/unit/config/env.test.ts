@@ -23,7 +23,7 @@ describe('Environment Configuration', () => {
 
     expect(freshEnv.LOG_LEVEL).toBe('info');
     expect(freshEnv.PORT).toBe('3005');
-    expect(freshEnv.LOG_TRANSPORT).toBe('file');
+    expect(freshEnv.LOG_TRANSPORT).toEqual(['file']);
     expect(freshEnv.ENVIRONMENT).toBe('dev');
   });
 
@@ -39,7 +39,7 @@ describe('Environment Configuration', () => {
 
     expect(freshEnv.LOG_LEVEL).toBe('debug');
     expect(freshEnv.PORT).toBe('8080');
-    expect(freshEnv.LOG_TRANSPORT).toBe('console');
+    expect(freshEnv.LOG_TRANSPORT).toEqual(['console']);
     expect(freshEnv.CARBON_VOICE_API_KEY).toBe('test-key');
   });
 
@@ -87,7 +87,7 @@ describe('Environment Configuration', () => {
     });
   });
 
-  it('should validate LOG_TRANSPORT enum values', () => {
+  it('should validate LOG_TRANSPORT values', () => {
     const validTransports = ['console', 'file', 'cloudwatch'];
 
     validTransports.forEach((transport) => {
@@ -97,8 +97,36 @@ describe('Environment Configuration', () => {
       jest.resetModules();
       const { env: freshEnv } = require('../../../src/config/env');
 
-      expect(freshEnv.LOG_TRANSPORT).toBe(transport);
+      expect(freshEnv.LOG_TRANSPORT).toEqual([transport]);
     });
+  });
+
+  it('should parse multiple LOG_TRANSPORT values', () => {
+    process.env.LOG_TRANSPORT = 'console,file';
+
+    jest.resetModules();
+    const { env: freshEnv } = require('../../../src/config/env');
+
+    expect(freshEnv.LOG_TRANSPORT).toEqual(['console', 'file']);
+  });
+
+  it('should reject invalid LOG_TRANSPORT values', () => {
+    process.env.LOG_TRANSPORT = 'console,invalid';
+
+    jest.resetModules();
+    const processExitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => undefined) as never);
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    require('../../../src/config/env');
+
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+
+    processExitSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   });
 
   it('should handle CARBON_VOICE_BASE_URL with valid URL', () => {

@@ -2,6 +2,36 @@ import { z } from 'zod';
 
 import { CV_API_BASE_URL, LOG_DIR } from '../constants';
 
+const validLogTransports = ['console', 'file', 'cloudwatch'] as const;
+type LogTransport = (typeof validLogTransports)[number];
+
+const parseLogTransports = (value: string): LogTransport[] => {
+  const parsedTransports = value
+    .split(',')
+    .map((transport) => transport.trim())
+    .filter(Boolean);
+
+  if (parsedTransports.length === 0) {
+    throw new Error(
+      `LOG_TRANSPORT must include at least one value: ${validLogTransports.join(', ')}`,
+    );
+  }
+
+  const invalidTransports = parsedTransports.filter(
+    (transport) =>
+      !validLogTransports.includes(transport as LogTransport),
+  );
+
+  if (invalidTransports.length > 0) {
+    throw new Error(
+      `Invalid LOG_TRANSPORT value(s): ${invalidTransports.join(', ')}. ` +
+        `Allowed values: ${validLogTransports.join(', ')}`,
+    );
+  }
+
+  return [...new Set(parsedTransports as LogTransport[])];
+};
+
 const getRunningEnvironment = (): 'prod' | 'dev' => {
   // App Runner provides service name in environment
   const serviceName = process.env.AWS_APPRUNNER_SERVICE_NAME || '';
@@ -30,9 +60,24 @@ const Environment = z.object({
     .transform((val) => val || LOG_DIR),
   PORT: z.string().optional().default('3005'),
   LOG_TRANSPORT: z
-    .enum(['console', 'file', 'cloudwatch'])
+    .string()
     .optional()
-    .default('file'),
+    .default('file')
+    .transform((val, ctx) => {
+      try {
+        return parseLogTransports(val);
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Invalid LOG_TRANSPORT value',
+        });
+
+        return z.NEVER;
+      }
+    }),
   ENVIRONMENT: z
     .enum(['dev', 'prod'])
     .optional()
