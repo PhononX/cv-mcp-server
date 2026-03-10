@@ -84,8 +84,13 @@ const getAxiosInstance = (): AxiosInstance => {
   //   };
   // }
 
+  // Keep under Cursor's ~30s tool timeout and App Runner's 120s limit.
+  // Fail fast so we return a clear error instead of triggering upstream timeouts.
+  const REQUEST_TIMEOUT_MS = 25_000;
+
   const instance = axios.create({
     baseURL: baseUrl,
+    timeout: REQUEST_TIMEOUT_MS,
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': env.CARBON_VOICE_API_KEY,
