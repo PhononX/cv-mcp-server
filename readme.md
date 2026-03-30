@@ -8,6 +8,10 @@ A Model Context Protocol (MCP) server implementation for integrating with [Carbo
 
 **<img src="https://pxassets.s3.us-east-2.amazonaws.com/images/swagger-logo.png" alt="Carbon Voice API Logo" width="32" height="32" align="center" style="margin-right: 10px;">API**: [https://api.carbonvoice.app/docs](https://api.carbonvoice.app/docs)
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/phononx-cv-mcp-server).
+
 ## Features
 
 - **Message Management**: Create, list, and retrieve voice messages, conversation messages, and direct messages
