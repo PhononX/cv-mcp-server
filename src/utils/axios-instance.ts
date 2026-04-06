@@ -10,7 +10,10 @@ import { obfuscateAuthHeaders } from './obfuscate-auth-headers';
 import { timeToHuman } from './time-to-human';
 
 import { env } from '../config';
-import { getTraceId } from '../transports/http/utils/request-context';
+import {
+  getRequestContext,
+  getTraceId,
+} from '../transports/http/utils/request-context';
 
 // Extend the config type to include metadata
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -112,12 +115,16 @@ const getAxiosInstance = (): AxiosInstance => {
       const method = config.method?.toUpperCase();
       const url = config.url;
 
+      const als = getRequestContext();
       logger.debug(`➡️ Making API request to: ${method} ${url}`, {
         url: config.url,
         method: config.method,
         params: config.params,
         data: config.data,
         headers: obfuscateAuthHeaders(config.headers),
+        traceId: als?.traceId,
+        sessionId: als?.sessionId,
+        userId: als?.userId,
       });
       return config;
     },
@@ -148,6 +155,7 @@ const getAxiosInstance = (): AxiosInstance => {
       const url = response.config.url;
       const durationText = duration ? timeToHuman(duration, 'ms') : '';
 
+      const als = getRequestContext();
       logger.debug(
         `⬅️ API response received from: ${method} ${url} ${status} ${durationText}`,
         {
@@ -156,6 +164,9 @@ const getAxiosInstance = (): AxiosInstance => {
           status: response.status,
           statusText: response.statusText,
           duration: duration || undefined,
+          traceId: als?.traceId,
+          sessionId: als?.sessionId,
+          userId: als?.userId,
         },
       );
       return response;

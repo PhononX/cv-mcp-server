@@ -24,6 +24,7 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
     const statusCode = res.statusCode;
     const durationText = timeToHuman(duration, 'ms');
     const clientInfo = extractClientInfo(req as AuthenticatedRequest);
+    const reqWithId = req as Request & { id?: string };
 
     logger.info(`HTTP ${method} ${url} ${statusCode} ${durationText}`, {
       method,
@@ -33,6 +34,21 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
       clientInfo,
       body: req.body,
     });
+
+    if (method === 'POST' && req.body?.method === 'tools/call') {
+      const sessionId = getSessionId(req as AuthenticatedRequest);
+      logger.info('TOOL_CALL_HTTP_COMPLETE', {
+        event: 'TOOL_CALL_HTTP_COMPLETE',
+        toolName: req.body?.params?.name,
+        jsonRpcId: req.body?.id,
+        durationMs: duration,
+        statusCode,
+        sessionId,
+        userId: (req as AuthenticatedRequest).auth?.extra?.user?.id,
+        traceId: reqWithId.id,
+        clientInfo,
+      });
+    }
 
     // Then log session metrics
     const sessionId = getSessionId(req as AuthenticatedRequest);

@@ -19,8 +19,8 @@ export const addRequestIdMiddleware = (
   res.set('X-Request-ID', traceId);
   res.set('X-Trace-ID', traceId);
 
-  // Create request context with trace ID
-  const context = createRequestContext();
+  // Same id as headers / req.id so logs and AsyncLocalStorage stay aligned
+  const context = createRequestContext(undefined, undefined, traceId);
 
   // Run the rest of the middleware chain with context
   runWithContext(context, () => {

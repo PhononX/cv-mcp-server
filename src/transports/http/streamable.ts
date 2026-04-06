@@ -34,6 +34,10 @@ import {
 } from './session';
 import { SessionConfig } from './session/session.config';
 import { getOrCreateSessionId } from './utils';
+import {
+  getTraceId,
+  updateRequestContext,
+} from './utils/request-context';
 
 import { createOAuthTokenVerifier } from '../../auth';
 import { AuthenticatedRequest } from '../../auth/interfaces';
@@ -148,6 +152,10 @@ async function handleSessionRequest(
 ) {
   try {
     const sessionId = getOrCreateSessionId(req);
+    updateRequestContext({
+      sessionId: sessionId || undefined,
+      userId: req.auth?.extra?.user?.id,
+    });
 
     if (!session) {
       logger.warn('Session not found for request', {
@@ -169,7 +177,32 @@ async function handleSessionRequest(
       sessionService.recordToolCall(sessionId);
     }
 
+    const isToolCall = req.body?.method === 'tools/call';
+    const toolCallStart = isToolCall ? Date.now() : undefined;
+    if (isToolCall) {
+      logger.info('TOOL_CALL_TRANSPORT_START', {
+        event: 'TOOL_CALL_TRANSPORT_START',
+        toolName: req.body?.params?.name,
+        jsonRpcId: req.body?.id,
+        sessionId,
+        userId: req.auth?.extra?.user?.id,
+        traceId: getTraceId(),
+      });
+    }
+
     await session.transport.handleRequest(req, res, req.body);
+
+    if (isToolCall && toolCallStart !== undefined) {
+      logger.info('TOOL_CALL_TRANSPORT_AWAIT_RESOLVED', {
+        event: 'TOOL_CALL_TRANSPORT_AWAIT_RESOLVED',
+        toolName: req.body?.params?.name,
+        jsonRpcId: req.body?.id,
+        awaitDurationMs: Date.now() - toolCallStart,
+        sessionId,
+        userId: req.auth?.extra?.user?.id,
+        traceId: getTraceId(),
+      });
+    }
 
     if (req.method === 'DELETE') {
       sessionService.destroySession(sessionId);
@@ -255,7 +288,10 @@ app.post(
         });
 
         transport.onclose = () => {
-          logger.debug('🔌 Transport closed');
+          logger.debug('🔌 Transport closed', {
+            event: 'MCP_TRANSPORT_CLOSED',
+            sessionId: transport.sessionId,
+          });
           if (transport.sessionId) {
             sessionService.destroySession(transport.sessionId);
           }
@@ -264,6 +300,8 @@ app.post(
         // Add error handling for the transport
         transport.onerror = (error) => {
           logger.error('🔴 Transport error', {
+            event: 'MCP_TRANSPORT_ERROR',
+            sessionId: transport.sessionId,
             error: {
               message: error.message,
               name: error.name,
@@ -366,6 +404,11 @@ async function handleSessionRequestGetDelete(
       return;
     }
 
+    updateRequestContext({
+      sessionId: sessionId || undefined,
+      userId: req.auth?.extra?.user?.id,
+    });
+
     // Record interaction for metrics
     // Don't record interaction for tool calls as they'll be recorded separately
     if (req.body?.method !== 'tools/call') {
@@ -378,11 +421,11 @@ async function handleSessionRequestGetDelete(
       sessionService.destroySession(sessionId);
     }
   } catch (err) {
-    const sessionId = getOrCreateSessionId(req);
+    const sessionIdForErr = getOrCreateSessionId(req);
 
     // Record error in session metrics
-    if (sessionId) {
-      sessionService.recordError(sessionId);
+    if (sessionIdForErr) {
+      sessionService.recordError(sessionIdForErr);
     }
 
     logger.error('❌ Error in handleSessionRequestGetDelete', {
@@ -392,7 +435,7 @@ async function handleSessionRequestGetDelete(
       },
       method: req.method,
       url: req.url,
-      sessionId,
+      sessionId: sessionIdForErr,
     });
 
     if (!res.headersSent) {

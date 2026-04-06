@@ -70,13 +70,15 @@ export const updateRequestContext = (
 
 /**
  * Create a new request context
+ * @param traceId Optional — must match `X-Request-ID` / `req.id` when provided (middleware passes the per-request id).
  */
 export const createRequestContext = (
   sessionId?: string,
   userId?: string,
+  traceId?: string,
 ): RequestContext => {
   return {
-    traceId: generateTraceId(),
+    traceId: traceId ?? generateTraceId(),
     sessionId,
     userId,
     startTime: Date.now(),
