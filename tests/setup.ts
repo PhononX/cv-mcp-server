@@ -5,8 +5,10 @@ process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'error'; // Reduce log noise during tests
 process.env.LOG_TRANSPORT = 'console';
 process.env.PORT = '3006'; // Use different port for tests
-process.env.CARBON_VOICE_BASE_URL = 'https://api.test.carbonvoice.app';
-process.env.CARBON_VOICE_API_KEY = 'test-api-key';
+process.env.CARBON_VOICE_BASE_URL =
+  process.env.CARBON_VOICE_BASE_URL || 'https://api.test.carbonvoice.app';
+process.env.CARBON_VOICE_API_KEY =
+  process.env.CARBON_VOICE_API_KEY || 'test-api-key';
 
 // Mock console methods to reduce noise in tests
 global.console = {

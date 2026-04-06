@@ -2,11 +2,14 @@ import request from 'supertest';
 
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 
+const testCarbonVoiceBaseUrl =
+  process.env.CARBON_VOICE_BASE_URL || 'https://api.test.carbonvoice.app';
+
 // Mock external dependencies to isolate the HTTP transport
 const mockGetCarbonVoiceApiStatus = jest.fn(() =>
   Promise.resolve({
     isHealthy: true,
-    apiUrl: 'https://api.test.carbonvoice.app',
+    apiUrl: testCarbonVoiceBaseUrl,
   }),
 );
 
@@ -19,6 +22,8 @@ const mockVerifyAccessToken = jest.fn(() => ({
     user: { id: 'test-user-id' },
   },
   clientId: 'test-client-id',
+  scopes: REQUIRED_SCOPES,
+  expiresAt: Math.floor(Date.now() / 1000) + 3600,
 }));
 
 const mockCreateOAuthTokenVerifier = jest.fn(() => ({
@@ -162,7 +167,13 @@ describe('HTTP Transport E2E - Real Implementation', () => {
     mockVerifyAccessToken.mockReturnValue({
       extra: { user: { id: 'test-user-id' } },
       clientId: 'test-client-id',
+      scopes: REQUIRED_SCOPES,
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
     });
+    // Keep default initialize-path behavior deterministic: transport failure -> 500.
+    mockTransport.handleRequest.mockRejectedValue(
+      new Error('Mock transport failure'),
+    );
   });
 
   describe('Health Endpoint', () => {
@@ -413,7 +424,7 @@ describe('HTTP Transport E2E - Real Implementation', () => {
         .post('/')
         .set('Authorization', VALID_BEARER_TOKEN)
         .send(VALID_INITIALIZE_REQUEST)
-        .expect(500); // Getting 500 instead of 401, but middleware should still log
+        .expect(500);
 
       // Verify the request was logged
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -760,6 +771,20 @@ describe('HTTP Transport E2E - Real Implementation', () => {
         await request(app).post('/').send(VALID_INITIALIZE_REQUEST).expect(401);
       });
 
+      it('should return absolute resource_metadata in auth challenge', async () => {
+        const response = await request(app)
+          .post('/')
+          .send(VALID_INITIALIZE_REQUEST)
+          .expect(401);
+
+        expect(response.headers['www-authenticate']).toMatch(
+          /resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource"/,
+        );
+        expect(response.headers['www-authenticate']).toContain(
+          '/.well-known/oauth-protected-resource"',
+        );
+      });
+
       it('should return 401 for GET / without bearer token', async () => {
         await request(app).get('/').expect(401);
       });
@@ -771,7 +796,17 @@ describe('HTTP Transport E2E - Real Implementation', () => {
 
     describe('Valid Authentication', () => {
       it('should accept valid bearer token for initialize request', async () => {
-        mockTransport.handleRequest.mockResolvedValueOnce(undefined);
+        mockTransport.handleRequest.mockImplementationOnce(
+          async (_req: unknown, res: any) => {
+            if (!res.headersSent) {
+              res.status(200).json({
+                jsonrpc: '2.0',
+                id: 1,
+                result: {},
+              });
+            }
+          },
+        );
 
         const response = await request(app)
           .post('/')

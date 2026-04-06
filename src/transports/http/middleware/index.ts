@@ -5,5 +5,6 @@ export * from './log-request.middlware';
 export * from './oauth-authorization-server.middleware';
 export * from './oauth-protected-resource.middleware';
 export * from './rate-limit.middleware';
+export * from './require-bearer-auth-with-absolute-metadata.middleware';
 export * from './well-known-cors-headers.middleware';
 export * from './rate-limit.middleware';

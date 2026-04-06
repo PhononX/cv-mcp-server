@@ -7,7 +7,6 @@ import express, { NextFunction, Response } from 'express';
 import helmet from 'helmet';
 import serveFavicon from 'serve-favicon';
 
-import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   isInitializeRequest,
@@ -22,6 +21,7 @@ import {
   oauthAuthorizationServer,
   oauthProtectedResource,
   rateLimitMiddleware,
+  requireBearerAuthWithAbsoluteMetadata,
   wellKnownCorsHeaders,
 } from '.';
 import { REQUIRED_SCOPES } from './constants';
@@ -71,6 +71,14 @@ let carbonVoiceApiHealth: ApiHealthStatus = {
   lastChecked: new Date().toISOString(),
   apiUrl: env.CARBON_VOICE_BASE_URL,
 };
+
+const resourceMetadataUrl = env.MCP_RESOURCE_METADATA_URL;
+const oauthTokenVerifier = createOAuthTokenVerifier();
+const authWithAbsoluteMetadata = requireBearerAuthWithAbsoluteMetadata({
+  verifier: oauthTokenVerifier,
+  requiredScopes: REQUIRED_SCOPES,
+  resourceMetadataUrl,
+});
 
 app.get('/health', (req, res: Response) => {
   const response = {
@@ -200,11 +208,7 @@ async function handleSessionRequest(
 app.post(
   '/',
   authErrorLogger,
-  requireBearerAuth({
-    verifier: createOAuthTokenVerifier(),
-    requiredScopes: REQUIRED_SCOPES,
-    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
-  }),
+  authWithAbsoluteMetadata,
   addMcpSessionId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -313,22 +317,14 @@ app.post(
 app.get(
   '/',
   authErrorLogger,
-  requireBearerAuth({
-    verifier: createOAuthTokenVerifier(),
-    requiredScopes: REQUIRED_SCOPES,
-    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
-  }),
+  authWithAbsoluteMetadata,
   addMcpSessionId,
   handleSessionRequestGetDelete,
 );
 app.delete(
   '/',
   authErrorLogger,
-  requireBearerAuth({
-    verifier: createOAuthTokenVerifier(),
-    requiredScopes: REQUIRED_SCOPES,
-    resourceMetadataUrl: 'mcp', // FIXME: Add dynamic resource!
-  }),
+  authWithAbsoluteMetadata,
   addMcpSessionId,
   handleSessionRequestGetDelete,
 );

@@ -59,6 +59,14 @@ const Environment = z.object({
     .optional()
     .transform((val) => val || LOG_DIR),
   PORT: z.string().optional().default('3005'),
+  MCP_RESOURCE_METADATA_URL: z
+    .string()
+    .url()
+    .or(z.string().regex(/^\/.*/, 'Must be an absolute path or URL'))
+    .optional()
+    .transform(
+      (val) => val || '/.well-known/oauth-protected-resource',
+    ),
   LOG_TRANSPORT: z
     .string()
     .optional()
