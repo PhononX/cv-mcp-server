@@ -84,9 +84,9 @@ const getAxiosInstance = (): AxiosInstance => {
   //   };
   // }
 
-  // Keep under Cursor's ~30s tool timeout and App Runner's 120s limit.
+  // Keep well below App Runner's 120s request limit.
   // Fail fast so we return a clear error instead of triggering upstream timeouts.
-  const REQUEST_TIMEOUT_MS = 25_000;
+  const REQUEST_TIMEOUT_MS = 40_000;
 
   const instance = axios.create({
     baseURL: baseUrl,
