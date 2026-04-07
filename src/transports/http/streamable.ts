@@ -25,6 +25,7 @@ import {
   wellKnownCorsHeaders,
 } from '.';
 import { REQUIRED_SCOPES } from './constants';
+import { createTransportSendDiagnostics } from './diagnostics/transport-send-diagnostics';
 import { ApiHealthStatus } from './interfaces';
 import {
   Session,
@@ -47,6 +48,10 @@ import server from '../../server';
 import { getProcessUptime, logger } from '../../utils';
 
 const app = express();
+// TODO: REMOVE THIS AFTER DEBUGGING
+const transportDiagnostics = createTransportSendDiagnostics({
+  enabled: env.MCP_TRANSPORT_DIAGNOSTICS_ENABLED,
+});
 
 app.set('x-powered-by', false);
 // Trust proxy for rate limiting - only trust localhost and private networks
@@ -180,6 +185,12 @@ async function handleSessionRequest(
     const isToolCall = req.body?.method === 'tools/call';
     const toolCallStart = isToolCall ? Date.now() : undefined;
     if (isToolCall) {
+      transportDiagnostics.trackToolCall(sessionId, req.body?.id, {
+        toolName: req.body?.params?.name,
+        traceId: getTraceId(),
+        userId: req.auth?.extra?.user?.id,
+      });
+
       logger.info('TOOL_CALL_TRANSPORT_START', {
         event: 'TOOL_CALL_TRANSPORT_START',
         toolName: req.body?.params?.name,
@@ -262,6 +273,7 @@ app.post(
           if (req.body?.method !== 'tools/call') {
             sessionService.recordInteraction(sessionId);
           }
+          transportDiagnostics.attach(session.transport);
           await handleSessionRequest(req, res, session);
           return;
         }
@@ -293,6 +305,7 @@ app.post(
             sessionId: transport.sessionId,
           });
           if (transport.sessionId) {
+            transportDiagnostics.clearSession(transport.sessionId);
             sessionService.destroySession(transport.sessionId);
           }
         };
@@ -314,6 +327,7 @@ app.post(
           }
         };
 
+        transportDiagnostics.attach(transport);
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
         return;

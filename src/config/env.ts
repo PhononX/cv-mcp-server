@@ -145,6 +145,15 @@ const Environment = z.object({
       }
       return n;
     }),
+  /**
+   * TEMPORARY incident diagnostics toggle for MCP transport send path.
+   * Keep disabled by default and enable only during active production investigation.
+   */
+  MCP_TRANSPORT_DIAGNOSTICS_ENABLED: z
+    .string()
+    .optional()
+    .default('true')
+    .transform((value) => value.toLowerCase() === 'true'),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {
