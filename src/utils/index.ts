@@ -7,3 +7,4 @@ export * from './obfuscate-auth-headers';
 export * from './get-user-id-from-token';
 export * from './get-user-id-from-headers';
 export * from './time-to-human';
+export * from './format-bytes-human';

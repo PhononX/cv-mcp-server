@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import { AuthenticatedRequest } from '../../../auth/interfaces';
-import { logger, timeToHuman } from '../../../utils';
+import { formatBytesHuman, logger, timeToHuman } from '../../../utils';
 import { sessionService } from '../session';
 import { getSessionId } from '../utils';
 import { extractClientInfo } from '../utils/extract-client-info';
@@ -15,6 +15,41 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
   }
 
   const start = Date.now();
+  const reqWithId = req as Request & { id?: string };
+  const isToolCallRequest = req.method === 'POST' && req.body?.method === 'tools/call';
+
+  if (isToolCallRequest) {
+    const originalEnd = res.end.bind(res);
+    res.end = ((...args: unknown[]) => {
+      const chunk = args[0];
+      const responseBytes =
+        typeof chunk === 'string'
+          ? Buffer.byteLength(chunk, 'utf8')
+          : Buffer.isBuffer(chunk)
+            ? chunk.length
+            : chunk instanceof Uint8Array
+              ? chunk.byteLength
+              : undefined;
+
+      logger.info('MCP_RESPONSE_WRITE_START', {
+        event: 'MCP_RESPONSE_WRITE_START',
+        toolName: req.body?.params?.name,
+        jsonRpcId: req.body?.id,
+        sessionId: getSessionId(req as AuthenticatedRequest),
+        userId: (req as AuthenticatedRequest).auth?.extra?.user?.id,
+        traceId: reqWithId.id,
+        statusCode: res.statusCode,
+        headersSent: res.headersSent,
+        writableEnded: res.writableEnded,
+        ...(responseBytes !== undefined && {
+          responseBytes,
+          responseSizeHuman: formatBytesHuman(responseBytes),
+        }),
+      });
+
+      return originalEnd(...(args as Parameters<Response['end']>));
+    }) as Response['end'];
+  }
 
   // Log when response finishes
   res.on('finish', () => {
@@ -24,8 +59,6 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
     const statusCode = res.statusCode;
     const durationText = timeToHuman(duration, 'ms');
     const clientInfo = extractClientInfo(req as AuthenticatedRequest);
-    const reqWithId = req as Request & { id?: string };
-
     logger.info(`HTTP ${method} ${url} ${statusCode} ${durationText}`, {
       method,
       url,
