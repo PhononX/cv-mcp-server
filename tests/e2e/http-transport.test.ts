@@ -87,6 +87,7 @@ jest.mock('../../src/transports/http/session', () => ({
       ttlMs: 3600000,
       maxSessions: 100,
       cleanupIntervalMs: 300000,
+      maxWallClockAgeMs: 0,
     })),
   },
   SessionLogger: jest.fn().mockImplementation(() => ({
@@ -940,6 +941,69 @@ describe('HTTP Transport E2E - Real Implementation', () => {
       // GET requests should be processed (auth should pass)
       expect(response.status).not.toBe(401);
       expect(response.headers).toHaveProperty('x-request-id');
+    });
+
+    it('should log structured warning when SSE session is missing (GET /)', async () => {
+      mockSessionService.getSession.mockReturnValue(null);
+
+      const response = await request(app)
+        .get('/')
+        .set('Authorization', VALID_BEARER_TOKEN)
+        .set('mcp-session-id', TEST_SESSION_ID)
+        .set('X-Forwarded-For', '203.0.113.101')
+        .expect(404);
+
+      expect(response.body.error).toBeDefined();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('MCP SSE GET: session not in store'),
+        expect.objectContaining({
+          event: 'MCP_SSE_SESSION_GONE',
+          reason: 'not_in_store',
+          httpMethod: 'GET',
+          sessionId: TEST_SESSION_ID,
+        }),
+      );
+    });
+
+    it('should log structured warning when session is expired (GET /)', async () => {
+      mockSessionService.getSession.mockReturnValue({
+        transport: mockTransport,
+        timeout: {} as any,
+        userId: 'test-user-id',
+        metrics: {
+          sessionId: TEST_SESSION_ID,
+          userId: 'test-user-id',
+          createdAt: new Date(Date.now() - 60000),
+          expiresAt: new Date(Date.now() - 1000),
+          totalInteractions: 1,
+          totalToolCalls: 0,
+          lastActivityAt: new Date(Date.now() - 1000),
+          errorCount: 0,
+          averageResponseTime: 0,
+        },
+      });
+      mockSessionService.isSessionExpired.mockReturnValue(true);
+
+      const response = await request(app)
+        .get('/')
+        .set('Authorization', VALID_BEARER_TOKEN)
+        .set('mcp-session-id', TEST_SESSION_ID)
+        .set('X-Forwarded-For', '203.0.113.102')
+        .expect(404);
+
+      expect(response.body.error).toBeDefined();
+      expect(mockSessionService.destroySession).toHaveBeenCalledWith(
+        TEST_SESSION_ID,
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'MCP session expired (metrics); destroying',
+        expect.objectContaining({
+          event: 'MCP_SSE_SESSION_GONE',
+          reason: 'expired',
+          httpMethod: 'GET',
+          sessionId: TEST_SESSION_ID,
+        }),
+      );
     });
 
     it('should handle different HTTP methods consistently', async () => {

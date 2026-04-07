@@ -28,6 +28,8 @@ export interface SessionConfig {
   readonly ttlMs: number;
   readonly maxSessions: number;
   readonly cleanupIntervalMs: number;
+  /** 0 = no cap; otherwise sessions cannot outlive createdAt + this (ms). */
+  readonly maxWallClockAgeMs: number;
 }
 
 // Service interfaces

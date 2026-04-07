@@ -18,10 +18,65 @@ export class SessionService implements ISessionService {
 
   constructor(
     private sessionManager: ISessionManager,
-    private config: SessionConfig = new SessionConfig(),
+    private config: SessionConfig = SessionConfig.fromEnv(),
   ) {
     this.logger = new SessionLogger();
     this.config.validate();
+  }
+
+  /**
+   * Next idle window (ms) capped by optional max wall-clock lifetime from {@link SessionMetrics.createdAt}.
+   */
+  private computeEffectiveIdleTtlMs(
+    createdAt: Date,
+    requestedTtlMs: number,
+  ): number {
+    if (this.config.maxWallClockAgeMs <= 0) {
+      return requestedTtlMs;
+    }
+    const deadline = createdAt.getTime() + this.config.maxWallClockAgeMs;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      return 0;
+    }
+    return Math.min(requestedTtlMs, remaining);
+  }
+
+  /**
+   * Resets the destroy timer (sliding idle TTL). Destroys the session if max wall-clock age is exceeded.
+   */
+  private refreshIdleTimer(
+    sessionId: string,
+    requestedTtlMs: number = this.config.ttlMs,
+  ): boolean {
+    const session = this.getSession(sessionId);
+    if (!session) {
+      return false;
+    }
+
+    const effectiveMs = this.computeEffectiveIdleTtlMs(
+      session.metrics.createdAt,
+      requestedTtlMs,
+    );
+
+    if (effectiveMs <= 0) {
+      this.logger.logSessionTimeout();
+      this.destroySession(sessionId);
+      return false;
+    }
+
+    clearTimeout(session.timeout);
+
+    const now = new Date();
+    session.metrics.expiresAt = new Date(now.getTime() + effectiveMs);
+    session.metrics.lastActivityAt = now;
+
+    session.timeout = setTimeout(() => {
+      this.logger.logSessionTimeout();
+      this.destroySession(sessionId);
+    }, effectiveMs);
+
+    return true;
   }
 
   createSession(
@@ -56,7 +111,13 @@ export class SessionService implements ISessionService {
 
     const userId = req.auth.extra.user.id;
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + this.config.ttlMs);
+    const initialIdleMs = this.computeEffectiveIdleTtlMs(now, this.config.ttlMs);
+    if (initialIdleMs <= 0) {
+      throw new Error(
+        'Cannot create session: MCP_SESSION_MAX_AGE_MS does not allow any remaining lifetime',
+      );
+    }
+    const expiresAt = new Date(now.getTime() + initialIdleMs);
 
     // Create enhanced metrics
     const metrics: SessionMetrics = {
@@ -71,11 +132,11 @@ export class SessionService implements ISessionService {
       averageResponseTime: 0,
     };
 
-    // Create session with timeout
+    // Create session with idle timeout (sliding; extended on activity)
     const timeout = setTimeout(() => {
       this.logger.logSessionTimeout();
       this.destroySession(sessionId);
-    }, this.config.ttlMs);
+    }, initialIdleMs);
 
     const session: Session = {
       transport,
@@ -177,8 +238,7 @@ export class SessionService implements ISessionService {
     const session = this.getSession(sessionId);
     if (session) {
       session.metrics.totalInteractions++;
-      session.metrics.lastActivityAt = new Date();
-      // Don't log automatically - let the request handler decide when to log
+      this.refreshIdleTimer(sessionId);
     }
   }
 
@@ -187,7 +247,7 @@ export class SessionService implements ISessionService {
     if (session) {
       session.metrics.totalToolCalls++;
       session.metrics.totalInteractions++; // Tool calls are also interactions
-      session.metrics.lastActivityAt = new Date();
+      this.refreshIdleTimer(sessionId);
     }
   }
 
@@ -218,26 +278,14 @@ export class SessionService implements ISessionService {
     sessionId: string,
     additionalTtlMs: number = this.config.ttlMs,
   ): boolean {
-    const session = this.getSession(sessionId);
-    if (!session) {
+    const ok = this.refreshIdleTimer(sessionId, additionalTtlMs);
+    if (!ok) {
       return false;
     }
-
-    // Clear existing timeout
-    clearTimeout(session.timeout);
-
-    // Extend expiration
-    const newExpiresAt = new Date(Date.now() + additionalTtlMs);
-    session.metrics.expiresAt = newExpiresAt;
-    session.metrics.lastActivityAt = new Date();
-
-    // Set new timeout
-    session.timeout = setTimeout(() => {
-      this.logger.logSessionTimeout();
-      this.destroySession(sessionId);
-    }, additionalTtlMs);
-
-    this.logger.logSessionMetrics(session.metrics);
+    const session = this.getSession(sessionId);
+    if (session) {
+      this.logger.logSessionMetrics(session.metrics);
+    }
     return true;
   }
 
@@ -250,5 +298,5 @@ export class SessionService implements ISessionService {
   }
 }
 
-// Singleton instance
+// Singleton instance (idle TTL and caps from env)
 export const sessionService = new SessionService(sessionManager);

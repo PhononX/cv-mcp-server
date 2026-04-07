@@ -629,6 +629,83 @@ describe('Session Service', () => {
 
       expect(result).toBe(false);
     });
+
+    it('should cap idle extension by MCP_SESSION_MAX_AGE_MS (wall-clock)', () => {
+      const sessionId = 'wall-clock-session';
+      const oneHour = 60 * 60 * 1000;
+      const createdAt = new Date(Date.now() - 50 * 60 * 1000); // 50m ago
+      const mockSession = {
+        transport: mockTransport,
+        timeout: {} as any,
+        userId: 'test-user-id',
+        metrics: {
+          sessionId,
+          userId: 'test-user-id',
+          createdAt,
+          expiresAt: new Date(Date.now() + 60000),
+          totalInteractions: 1,
+          totalToolCalls: 0,
+          lastActivityAt: new Date(),
+          errorCount: 0,
+          averageResponseTime: 0,
+        },
+      };
+
+      const config = new SessionConfig(oneHour, 2000, 5 * 60 * 1000, oneHour);
+      sessionService = new SessionService(sessionManager as any, config);
+
+      (sessionManager.getSession as jest.Mock).mockReturnValue(mockSession);
+
+      const before = Date.now();
+      sessionService.recordInteraction(sessionId);
+      const after = Date.now();
+
+      const maxExpires = createdAt.getTime() + oneHour;
+      expect(mockSession.metrics.expiresAt.getTime()).toBeLessThanOrEqual(
+        maxExpires,
+      );
+      // Use a broad deterministic window to avoid CI timing flakes.
+      expect(mockSession.metrics.expiresAt.getTime()).toBeGreaterThanOrEqual(
+        before,
+      );
+      expect(mockSession.metrics.expiresAt.getTime()).toBeLessThanOrEqual(
+        maxExpires + (after - before),
+      );
+    });
+
+    it('should return false and destroy session when max wall-clock age is exceeded', () => {
+      const sessionId = 'expired-by-max-age-session';
+      const oneHour = 60 * 60 * 1000;
+      const createdAt = new Date(Date.now() - oneHour - 1000); // already over max age
+      const mockSession = {
+        transport: mockTransport,
+        timeout: {} as any,
+        userId: 'test-user-id',
+        metrics: {
+          sessionId,
+          userId: 'test-user-id',
+          createdAt,
+          expiresAt: new Date(Date.now() + 60000),
+          totalInteractions: 1,
+          totalToolCalls: 0,
+          lastActivityAt: new Date(),
+          errorCount: 0,
+          averageResponseTime: 0,
+        },
+      };
+
+      const config = new SessionConfig(oneHour, 2000, 5 * 60 * 1000, oneHour);
+      sessionService = new SessionService(sessionManager as any, config);
+
+      (sessionManager.getSession as jest.Mock).mockReturnValue(mockSession);
+      (sessionManager.hasSession as jest.Mock).mockReturnValue(true);
+
+      const result = sessionService.extendSession(sessionId, 60000);
+
+      expect(result).toBe(false);
+      expect(mockTransport.close).toHaveBeenCalled();
+      expect(sessionManager.deleteSession).toHaveBeenCalledWith(sessionId);
+    });
   });
 
   describe('Session Metrics Logging', () => {

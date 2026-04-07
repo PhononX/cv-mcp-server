@@ -377,7 +377,23 @@ async function handleSessionRequestGetDelete(
     const session = sessionService.getSession(sessionId);
 
     if (!session) {
-      logger.warn('Invalid or missing session ID', { sessionId });
+      const isSseGet = req.method === 'GET';
+      logger.warn(
+        isSseGet
+          ? 'MCP SSE GET: session not in store (404 — client should reinitialize)'
+          : 'Session not in store (404)',
+        {
+          event: 'MCP_SSE_SESSION_GONE',
+          reason: 'not_in_store',
+          httpMethod: req.method,
+          sessionId,
+          userId: req.auth?.extra?.user?.id,
+          traceId: getTraceId(),
+          hint: isSseGet
+            ? 'Idle TTL elapsed, max wall-clock age reached, cleanup, or never initialized.'
+            : undefined,
+        },
+      );
       res.status(404).json({
         jsonrpc: '2.0',
         error: {
@@ -391,7 +407,14 @@ async function handleSessionRequestGetDelete(
 
     // Check if session is expired
     if (sessionService.isSessionExpired(sessionId)) {
-      logger.warn('Session expired, destroying', { sessionId });
+      logger.warn('MCP session expired (metrics); destroying', {
+        event: 'MCP_SSE_SESSION_GONE',
+        reason: 'expired',
+        httpMethod: req.method,
+        sessionId,
+        userId: req.auth?.extra?.user?.id,
+        traceId: getTraceId(),
+      });
       sessionService.destroySession(sessionId);
       res.status(404).json({
         jsonrpc: '2.0',
@@ -507,6 +530,7 @@ if (!isTestEnvironment()) {
         ttlMs: sessionConfig.ttlMs,
         maxSessions: sessionConfig.maxSessions,
         cleanupIntervalMs: sessionConfig.cleanupIntervalMs,
+        maxWallClockAgeMs: sessionConfig.maxWallClockAgeMs,
       },
     });
   });

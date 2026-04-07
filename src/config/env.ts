@@ -90,6 +90,61 @@ const Environment = z.object({
     .enum(['dev', 'prod'])
     .optional()
     .default(getRunningEnvironment()),
+  /** Idle TTL (ms): session is destroyed after this long without activity; refreshed on each interaction. */
+  MCP_SESSION_TTL_MS: z
+    .string()
+    .optional()
+    .default(String(1000 * 60 * 60))
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error('MCP_SESSION_TTL_MS must be a positive number');
+      }
+      return n;
+    }),
+  MCP_SESSION_MAX_SESSIONS: z
+    .string()
+    .optional()
+    .default('2000')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'MCP_SESSION_MAX_SESSIONS must be a positive integer',
+        );
+      }
+      return n;
+    }),
+  MCP_SESSION_CLEANUP_INTERVAL_MS: z
+    .string()
+    .optional()
+    .default(String(1000 * 60 * 5))
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error(
+          'MCP_SESSION_CLEANUP_INTERVAL_MS must be a positive number',
+        );
+      }
+      return n;
+    }),
+  /**
+   * Optional absolute max session lifetime (ms) from createdAt.
+   * 0 = disabled (sliding idle only). When set, idle extension cannot push expiresAt past createdAt + max age.
+   */
+  MCP_SESSION_MAX_AGE_MS: z
+    .string()
+    .optional()
+    .default('0')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'MCP_SESSION_MAX_AGE_MS must be a non-negative integer (0 disables)',
+        );
+      }
+      return n;
+    }),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {
