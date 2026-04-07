@@ -11,7 +11,9 @@ export * from './session.service';
 // Utilities
 export * from './session.logger';
 export * from './session-cleanup';
+export * from './tool-call-queue.service';
 
 // Singleton instances
 export { sessionManager } from './session-manager';
 export { sessionService } from './session.service';
+export { toolCallQueueService } from './tool-call-queue.service';

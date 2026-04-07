@@ -154,6 +154,23 @@ const Environment = z.object({
     .optional()
     .default('true')
     .transform((value) => value.toLowerCase() === 'true'),
+  /**
+   * Phase 1 mitigation: max time (ms) a tools/call request can wait in the per-session queue.
+   * Requests exceeding this wait fail fast with a deterministic JSON-RPC timeout error.
+   */
+  MCP_TOOL_CALL_QUEUE_TIMEOUT_MS: z
+    .string()
+    .optional()
+    .default('15000')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'MCP_TOOL_CALL_QUEUE_TIMEOUT_MS must be a positive integer',
+        );
+      }
+      return n;
+    }),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {

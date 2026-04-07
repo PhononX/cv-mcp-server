@@ -32,6 +32,8 @@ import {
   SessionCleanupService,
   SessionLogger,
   sessionService,
+  toolCallQueueService,
+  ToolCallQueueTimeoutError,
 } from './session';
 import { SessionConfig } from './session/session.config';
 import { getOrCreateSessionId } from './utils';
@@ -216,6 +218,7 @@ async function handleSessionRequest(
     }
 
     if (req.method === 'DELETE') {
+      toolCallQueueService.clearSession(sessionId);
       sessionService.destroySession(sessionId);
     }
   } catch (err) {
@@ -274,7 +277,58 @@ app.post(
             sessionService.recordInteraction(sessionId);
           }
           transportDiagnostics.attach(session.transport);
-          await handleSessionRequest(req, res, session);
+          if (req.body?.method === 'tools/call') {
+            const queueTimeoutMs = env.MCP_TOOL_CALL_QUEUE_TIMEOUT_MS;
+            let releaseToolCallSlot: (() => void) | undefined;
+            try {
+              const { release, waitDurationMs } =
+                await toolCallQueueService.acquire(sessionId, queueTimeoutMs);
+              releaseToolCallSlot = release;
+
+              logger.info('TOOL_CALL_QUEUE_ACQUIRED', {
+                event: 'TOOL_CALL_QUEUE_ACQUIRED',
+                sessionId,
+                jsonRpcId: req.body?.id,
+                toolName: req.body?.params?.name,
+                waitDurationMs,
+                queueTimeoutMs,
+                traceId: getTraceId(),
+                userId: req.auth?.extra?.user?.id,
+              });
+
+              await handleSessionRequest(req, res, session);
+            } catch (error) {
+              if (error instanceof ToolCallQueueTimeoutError) {
+                logger.warn('TOOL_CALL_QUEUE_TIMEOUT', {
+                  event: 'TOOL_CALL_QUEUE_TIMEOUT',
+                  sessionId,
+                  jsonRpcId: req.body?.id,
+                  toolName: req.body?.params?.name,
+                  queueTimeoutMs,
+                  traceId: getTraceId(),
+                  userId: req.auth?.extra?.user?.id,
+                });
+
+                if (!res.headersSent) {
+                  res.status(200).json({
+                    jsonrpc: '2.0',
+                    error: {
+                      code: -32001,
+                      message:
+                        'Request timed out while waiting for previous tool call in this session.',
+                    },
+                    id: req.body?.id ?? null,
+                  });
+                }
+              } else {
+                throw error;
+              }
+            } finally {
+              releaseToolCallSlot?.();
+            }
+          } else {
+            await handleSessionRequest(req, res, session);
+          }
           return;
         }
       }
@@ -306,6 +360,7 @@ app.post(
           });
           if (transport.sessionId) {
             transportDiagnostics.clearSession(transport.sessionId);
+            toolCallQueueService.clearSession(transport.sessionId);
             sessionService.destroySession(transport.sessionId);
           }
         };
@@ -455,6 +510,7 @@ async function handleSessionRequestGetDelete(
     await session.transport.handleRequest(req, res, req.body);
 
     if (req.method === 'DELETE') {
+      toolCallQueueService.clearSession(sessionId);
       sessionService.destroySession(sessionId);
     }
   } catch (err) {
