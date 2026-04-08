@@ -80,8 +80,18 @@ const mockSessionService = {
   logSessionMetrics: jest.fn(),
 };
 
+const mockToolCallQueueService = {
+  acquire: jest.fn(async () => ({
+    waitDurationMs: 0,
+    release: jest.fn(),
+  })),
+  clearSession: jest.fn(),
+};
+
 jest.mock('../../src/transports/http/session', () => ({
   sessionService: mockSessionService,
+  toolCallQueueService: mockToolCallQueueService,
+  ToolCallQueueTimeoutError: class ToolCallQueueTimeoutError extends Error {},
   SessionConfig: {
     fromEnv: jest.fn(() => ({
       ttlMs: 3600000,
@@ -110,6 +120,7 @@ jest.mock('../../src/transports/http/session', () => ({
 // Mock StreamableHTTPServerTransport
 const mockTransport = {
   handleRequest: jest.fn(),
+  send: jest.fn(async () => undefined),
   close: jest.fn(),
   sessionId: 'test-session-id',
   onclose: jest.fn(),
@@ -824,6 +835,56 @@ describe('HTTP Transport E2E - Real Implementation', () => {
   });
 
   describe('Session Management', () => {
+    it('should serialize session-bound tools/list requests via queue', async () => {
+      const existingSession = {
+        transport: mockTransport,
+        timeout: {} as NodeJS.Timeout,
+        userId: 'test-user-id',
+        metrics: {
+          sessionId: TEST_SESSION_ID,
+          userId: 'test-user-id',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 3600000),
+          totalInteractions: 1,
+          totalToolCalls: 0,
+          lastActivityAt: new Date(),
+          errorCount: 0,
+          averageResponseTime: 0,
+        },
+      };
+      mockSessionService.getSession.mockReturnValue(existingSession);
+      mockTransport.handleRequest.mockImplementationOnce(
+        async (_req: unknown, res: any) => {
+          if (!res.headersSent) {
+            res.status(200).json({
+              jsonrpc: '2.0',
+              id: 3,
+              result: { tools: [] },
+            });
+          }
+        },
+      );
+
+      const response = await request(app)
+        .post('/')
+        .set('Authorization', VALID_BEARER_TOKEN)
+        .set('mcp-session-id', TEST_SESSION_ID)
+        .send(VALID_LIST_TOOLS_REQUEST)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        jsonrpc: '2.0',
+        id: 3,
+      });
+      expect(mockToolCallQueueService.acquire).toHaveBeenCalledWith(
+        TEST_SESSION_ID,
+        env.MCP_SESSION_REQUEST_QUEUE_TIMEOUT_MS,
+      );
+      expect(mockSessionService.recordInteraction).toHaveBeenCalledWith(
+        TEST_SESSION_ID,
+      );
+    });
+
     it('should handle POST requests with session headers', async () => {
       // Test that requests with session headers are processed
       const response = await request(app)

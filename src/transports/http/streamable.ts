@@ -252,6 +252,128 @@ async function handleSessionRequest(
   }
 }
 
+/**
+ * TEMPORARY INCIDENT MITIGATION (Phase 3 guardrail)
+ *
+ * Why this is in streamable.ts for now:
+ * - This logic depends on request/response objects plus session/transport cleanup
+ *   that currently live in this file.
+ * - We are keeping the hotfix close to the route boundary while validating in prod.
+ *
+ * Planned follow-up:
+ * - Extract this block into a dedicated transport orchestration module once production
+ *   evidence confirms the incident is resolved.
+ * - Keep behavior identical during extraction (no functional changes).
+ */
+const hasJsonRpcRequestId = (body: unknown): boolean => {
+  if (!body || typeof body !== 'object') {
+    return false;
+  }
+  const candidate = body as { id?: unknown };
+  return candidate.id !== undefined && candidate.id !== null;
+};
+
+const getJsonRpcMethod = (body: unknown): string | undefined => {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+  const candidate = body as { method?: unknown };
+  return typeof candidate.method === 'string' ? candidate.method : undefined;
+};
+
+const destroySessionTransportState = (sessionId: string): void => {
+  transportDiagnostics.clearSession(sessionId);
+  toolCallQueueService.clearSession(sessionId);
+  sessionService.destroySession(sessionId);
+};
+
+/**
+ * TEMPORARY SAFETY TIMEOUT FOR REUSED SESSION TRANSPORT CALLS.
+ *
+ * Removes indefinite hangs when transport.handleRequest() never resolves under
+ * high concurrency/race conditions. On timeout we fail deterministically and
+ * clear session-bound transport state so the client can reinitialize.
+ *
+ * Remove after:
+ * - Root cause is permanently fixed in transport/session lifecycle; and
+ * - production can run without timeout-driven cleanup for a sustained window.
+ */
+const executeSessionRequestWithTimeout = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  session: Session,
+  sessionId: string,
+): Promise<void> => {
+  const executionTimeoutMs = env.MCP_TRANSPORT_EXECUTION_TIMEOUT_MS;
+  const jsonRpcMethod = getJsonRpcMethod(req.body);
+  const jsonRpcId = hasJsonRpcRequestId(req.body)
+    ? (req.body as { id?: number | string }).id
+    : undefined;
+  const executionStartedAt = Date.now();
+
+  const handleRequestPromise = handleSessionRequest(req, res, session);
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<'timeout'>((resolve) => {
+    timeoutHandle = setTimeout(() => resolve('timeout'), executionTimeoutMs);
+  });
+
+  const outcome = await Promise.race([
+    handleRequestPromise.then(() => 'completed' as const),
+    timeoutPromise,
+  ]);
+
+  if (timeoutHandle) {
+    clearTimeout(timeoutHandle);
+  }
+
+  if (outcome === 'completed') {
+    return;
+  }
+
+  logger.warn('MCP_TRANSPORT_EXECUTION_TIMEOUT', {
+    event: 'MCP_TRANSPORT_EXECUTION_TIMEOUT',
+    sessionId,
+    jsonRpcId,
+    jsonRpcMethod,
+    executionTimeoutMs,
+    elapsedMs: Date.now() - executionStartedAt,
+    traceId: getTraceId(),
+    userId: req.auth?.extra?.user?.id,
+  });
+
+  sessionService.recordError(sessionId);
+  destroySessionTransportState(sessionId);
+
+  if (!res.headersSent) {
+    if (jsonRpcId !== undefined) {
+      res.status(200).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message:
+            'Request timed out while processing previous session transport work. Please retry.',
+        },
+        id: jsonRpcId,
+      });
+    } else {
+      // Notifications are best-effort and do not require a JSON-RPC response.
+      res.status(202).end();
+    }
+  }
+
+  void handleRequestPromise.catch((error) => {
+    logger.warn('MCP_TRANSPORT_EXECUTION_LATE_REJECTION', {
+      event: 'MCP_TRANSPORT_EXECUTION_LATE_REJECTION',
+      sessionId,
+      jsonRpcId,
+      jsonRpcMethod,
+      traceId: getTraceId(),
+      userId: req.auth?.extra?.user?.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+};
+
 app.post(
   '/',
   authErrorLogger,
@@ -277,18 +399,26 @@ app.post(
             sessionService.recordInteraction(sessionId);
           }
           transportDiagnostics.attach(session.transport);
-          if (req.body?.method === 'tools/call') {
-            const queueTimeoutMs = env.MCP_TOOL_CALL_QUEUE_TIMEOUT_MS;
+          const shouldSerializeSessionRequest =
+            req.method === 'POST' &&
+            !isInitializeRequest(req.body);
+          if (shouldSerializeSessionRequest) {
+            const queueTimeoutMs = env.MCP_SESSION_REQUEST_QUEUE_TIMEOUT_MS;
+            const jsonRpcMethod = getJsonRpcMethod(req.body);
+            const jsonRpcId = hasJsonRpcRequestId(req.body)
+              ? (req.body as { id?: number | string }).id
+              : undefined;
             let releaseToolCallSlot: (() => void) | undefined;
             try {
               const { release, waitDurationMs } =
                 await toolCallQueueService.acquire(sessionId, queueTimeoutMs);
               releaseToolCallSlot = release;
 
-              logger.info('TOOL_CALL_QUEUE_ACQUIRED', {
-                event: 'TOOL_CALL_QUEUE_ACQUIRED',
+              logger.info('SESSION_REQUEST_QUEUE_ACQUIRED', {
+                event: 'SESSION_REQUEST_QUEUE_ACQUIRED',
                 sessionId,
-                jsonRpcId: req.body?.id,
+                jsonRpcId,
+                jsonRpcMethod,
                 toolName: req.body?.params?.name,
                 waitDurationMs,
                 queueTimeoutMs,
@@ -296,29 +426,61 @@ app.post(
                 userId: req.auth?.extra?.user?.id,
               });
 
-              await handleSessionRequest(req, res, session);
+              if (jsonRpcMethod === 'tools/call') {
+                // Backward compatible event kept for existing dashboards.
+                logger.info('TOOL_CALL_QUEUE_ACQUIRED', {
+                  event: 'TOOL_CALL_QUEUE_ACQUIRED',
+                  sessionId,
+                  jsonRpcId,
+                  toolName: req.body?.params?.name,
+                  waitDurationMs,
+                  queueTimeoutMs,
+                  traceId: getTraceId(),
+                  userId: req.auth?.extra?.user?.id,
+                });
+              }
+
+              await executeSessionRequestWithTimeout(req, res, session, sessionId);
             } catch (error) {
               if (error instanceof ToolCallQueueTimeoutError) {
-                logger.warn('TOOL_CALL_QUEUE_TIMEOUT', {
-                  event: 'TOOL_CALL_QUEUE_TIMEOUT',
+                logger.warn('SESSION_REQUEST_QUEUE_TIMEOUT', {
+                  event: 'SESSION_REQUEST_QUEUE_TIMEOUT',
                   sessionId,
-                  jsonRpcId: req.body?.id,
+                  jsonRpcId,
+                  jsonRpcMethod,
                   toolName: req.body?.params?.name,
                   queueTimeoutMs,
                   traceId: getTraceId(),
                   userId: req.auth?.extra?.user?.id,
                 });
 
-                if (!res.headersSent) {
-                  res.status(200).json({
-                    jsonrpc: '2.0',
-                    error: {
-                      code: -32001,
-                      message:
-                        'Request timed out while waiting for previous tool call in this session.',
-                    },
-                    id: req.body?.id ?? null,
+                if (jsonRpcMethod === 'tools/call') {
+                  // Backward compatible event kept for existing dashboards.
+                  logger.warn('TOOL_CALL_QUEUE_TIMEOUT', {
+                    event: 'TOOL_CALL_QUEUE_TIMEOUT',
+                    sessionId,
+                    jsonRpcId,
+                    toolName: req.body?.params?.name,
+                    queueTimeoutMs,
+                    traceId: getTraceId(),
+                    userId: req.auth?.extra?.user?.id,
                   });
+                }
+
+                if (!res.headersSent) {
+                  if (jsonRpcId !== undefined) {
+                    res.status(200).json({
+                      jsonrpc: '2.0',
+                      error: {
+                        code: -32001,
+                        message:
+                          'Request timed out while waiting for previous request in this session.',
+                      },
+                      id: jsonRpcId,
+                    });
+                  } else {
+                    res.status(202).end();
+                  }
                 }
               } else {
                 throw error;

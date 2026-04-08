@@ -171,6 +171,40 @@ const Environment = z.object({
       }
       return n;
     }),
+  /**
+   * Max time (ms) any session-bound POST request can wait in the per-session queue.
+   * Defaults to MCP_TOOL_CALL_QUEUE_TIMEOUT_MS behavior for backward compatibility.
+   */
+  MCP_SESSION_REQUEST_QUEUE_TIMEOUT_MS: z
+    .string()
+    .optional()
+    .default(process.env.MCP_TOOL_CALL_QUEUE_TIMEOUT_MS || '15000')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'MCP_SESSION_REQUEST_QUEUE_TIMEOUT_MS must be a positive integer',
+        );
+      }
+      return n;
+    }),
+  /**
+   * Safety timeout for transport execution after a queue slot is acquired.
+   * Prevents indefinite hangs inside transport.handleRequest for a reused session.
+   */
+  MCP_TRANSPORT_EXECUTION_TIMEOUT_MS: z
+    .string()
+    .optional()
+    .default('30000')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'MCP_TRANSPORT_EXECUTION_TIMEOUT_MS must be a positive integer',
+        );
+      }
+      return n;
+    }),
 });
 
 const getEnvironment = (): z.infer<typeof Environment> => {
