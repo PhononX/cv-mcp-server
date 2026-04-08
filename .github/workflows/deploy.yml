@@ -42,7 +42,10 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: chmod +x iac/scripts/deploy-apprunner.sh
+      # Dev uses stateless HTTP so App Runner can scale horizontally; start command must match.
       - run: ./iac/scripts/deploy-apprunner.sh dev ${{ vars.APPRUNNER_SERVICE_NAME_DEV }}
+        env:
+          TRANSPORT_MODE: stateless
 
   check-version:
     name: Check Version Bump

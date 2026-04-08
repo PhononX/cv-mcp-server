@@ -60,6 +60,15 @@ else
     ENV_CONFIG="$ENVIRONMENT"
 fi
 
+# CI often passes an explicit service name; still pin the Git branch for update-service.
+if [ "$BRANCH" = "unknown" ]; then
+    if [ "$ENV_CONFIG" = "prod" ]; then
+        BRANCH="main"
+    else
+        BRANCH="develop"
+    fi
+fi
+
 # Set environment-specific variables
 if [ "$ENV_CONFIG" = "prod" ]; then
     ENV_VALUE="prod"
@@ -145,6 +154,22 @@ CURRENT_ENVIRONMENT=$(echo "$CURRENT_ENV_VARS" | jq -r '.ENVIRONMENT // "unknown
 CURRENT_LOG_LEVEL=$(echo "$CURRENT_ENV_VARS" | jq -r '.LOG_LEVEL // "unknown"')
 CURRENT_CARBON_VOICE_BASE_URL=$(echo "$CURRENT_ENV_VARS" | jq -r '.CARBON_VOICE_BASE_URL // "unknown"')
 
+CURRENT_START_COMMAND=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.SourceConfiguration.CodeRepository.CodeConfiguration.CodeConfigurationValues.StartCommand" --output text)
+if [ "$CURRENT_START_COMMAND" = "None" ] || [ -z "$CURRENT_START_COMMAND" ]; then
+    CURRENT_START_COMMAND=""
+fi
+
+TARGET_START_COMMAND="npm run start:http"
+if [ "$TRANSPORT_MODE" = "stateless" ]; then
+    TARGET_START_COMMAND="npm run start:http:stateless"
+fi
+
+CURRENT_SESSION_LOGS=$(echo "$CURRENT_ENV_VARS" | jq -r '.MCP_SESSION_LOGS_ENABLED // "unknown"')
+TARGET_SESSION_LOGS="true"
+if [ "$TRANSPORT_MODE" = "stateless" ]; then
+    TARGET_SESSION_LOGS="false"
+fi
+
 echo "Current ENVIRONMENT: $CURRENT_ENVIRONMENT"
 echo "Current LOG_LEVEL: $CURRENT_LOG_LEVEL"
 echo "Target ENVIRONMENT: $ENV_VALUE"
@@ -153,10 +178,25 @@ echo "Current CARBON_VOICE_BASE_URL: $CURRENT_CARBON_VOICE_BASE_URL"
 echo "Target CARBON_VOICE_BASE_URL: $CARBON_VOICE_BASE_URL"
 echo "Current GITHUB_CONNECTION_ARN: $CURRENT_GITHUB_CONNECTION_ARN"
 echo "Target GITHUB_CONNECTION_ARN: $GITHUB_CONNECTION_ARN"
+echo "Current StartCommand: ${CURRENT_START_COMMAND:-<empty>}"
+echo "Target StartCommand: $TARGET_START_COMMAND (TRANSPORT_MODE=$TRANSPORT_MODE)"
+echo "Current MCP_SESSION_LOGS_ENABLED: $CURRENT_SESSION_LOGS"
+echo "Target MCP_SESSION_LOGS_ENABLED: $TARGET_SESSION_LOGS"
 
-# Only update if environment variables have changed
+# Update when env/auth drifts OR start command / session-log flag drifts (e.g. stateless toggle).
+NEEDS_UPDATE=0
 if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG_LEVEL" ] || [ "$CURRENT_CARBON_VOICE_BASE_URL" != "$CARBON_VOICE_BASE_URL" ] || [ "$CURRENT_GITHUB_CONNECTION_ARN" != "$GITHUB_CONNECTION_ARN" ]; then
-    echo "🔄 Environment variables need update. Updating service configuration..."
+    NEEDS_UPDATE=1
+fi
+if [ "$CURRENT_START_COMMAND" != "$TARGET_START_COMMAND" ]; then
+    NEEDS_UPDATE=1
+fi
+if [ "$CURRENT_SESSION_LOGS" != "$TARGET_SESSION_LOGS" ]; then
+    NEEDS_UPDATE=1
+fi
+
+if [ "$NEEDS_UPDATE" -eq 1 ]; then
+    echo "🔄 Service configuration needs update (env and/or start command). Updating..."
     
     aws apprunner update-service \
         --service-arn "$SERVICE_ARN" \
@@ -176,14 +216,14 @@ if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG
                     "CodeConfigurationValues": {
                         "Runtime": "NODEJS_22",
                         "BuildCommand": "npm ci && npm run build",
-                        "StartCommand": "'"$([ "$TRANSPORT_MODE" = "stateless" ] && echo "npm run start:http:stateless" || echo "npm run start:http")"'",
+                        "StartCommand": "'"$TARGET_START_COMMAND"'",
                         "Port": "3000",
                         "RuntimeEnvironmentVariables": {
                             "ENVIRONMENT": "'"$ENV_VALUE"'",
                             "LOG_LEVEL": "'"$LOG_LEVEL"'",
                             "LOG_TRANSPORT": "cloudwatch",
                             "CARBON_VOICE_BASE_URL": "'"$CARBON_VOICE_BASE_URL"'",
-                            "MCP_SESSION_LOGS_ENABLED": "'"$([ "$TRANSPORT_MODE" = "stateless" ] && echo "false" || echo "true")"'"
+                            "MCP_SESSION_LOGS_ENABLED": "'"$TARGET_SESSION_LOGS"'"
                         }
                     }
                 }
