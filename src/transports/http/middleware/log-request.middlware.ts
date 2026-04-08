@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import { AuthenticatedRequest } from '../../../auth/interfaces';
+import { env } from '../../../config';
 import { formatBytesHuman, logger, timeToHuman } from '../../../utils';
 import { sessionService } from '../session';
 import { getSessionId } from '../utils';
@@ -83,16 +84,19 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
       });
     }
 
-    // Then log session metrics
-    const sessionId = getSessionId(req as AuthenticatedRequest);
-    if (sessionId) {
-      if (req.body?.method === 'tools/call') {
-        sessionService.logSessionMetrics(sessionId);
-      } else {
-        // Log metrics for regular interactions every 10 interactions
-        const metrics = sessionService.getSessionMetrics(sessionId);
-        if (metrics && metrics.totalInteractions % 10 === 0) {
+    // Log session metrics (skipped when MCP_SESSION_LOGS_ENABLED=false,
+    // e.g. when running the stateless transport).
+    if (env.MCP_SESSION_LOGS_ENABLED) {
+      const sessionId = getSessionId(req as AuthenticatedRequest);
+      if (sessionId) {
+        if (req.body?.method === 'tools/call') {
           sessionService.logSessionMetrics(sessionId);
+        } else {
+          // Log metrics for regular interactions every 10 interactions
+          const metrics = sessionService.getSessionMetrics(sessionId);
+          if (metrics && metrics.totalInteractions % 10 === 0) {
+            sessionService.logSessionMetrics(sessionId);
+          }
         }
       }
     }

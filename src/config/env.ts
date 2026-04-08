@@ -146,6 +146,17 @@ const Environment = z.object({
       return n;
     }),
   /**
+   * When false, suppresses all session-lifecycle log events
+   * (SESSION_CREATED, SESSION_DESTROYED, SESSION_METRICS, SESSION_REQUEST_QUEUE_ACQUIRED, etc.).
+   * Set to false when running the stateless transport so CloudWatch and local
+   * logs stay free of session noise.  Defaults to true for the session transport.
+   */
+  MCP_SESSION_LOGS_ENABLED: z
+    .string()
+    .optional()
+    .default('true')
+    .transform((value) => value.toLowerCase() === 'true'),
+  /**
    * TEMPORARY incident diagnostics toggle for MCP transport send path.
    * Keep disabled by default and enable only during active production investigation.
    */

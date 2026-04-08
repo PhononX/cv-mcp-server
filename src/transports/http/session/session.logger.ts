@@ -1,15 +1,22 @@
 import { SessionMetrics } from './session.types';
 
+import { env } from '../../../config';
 import { logger } from '../../../utils';
 
 export class SessionLogger {
+  private get enabled(): boolean {
+    return env.MCP_SESSION_LOGS_ENABLED;
+  }
+
   logSessionCreated(): void {
+    if (!this.enabled) return;
     logger.info('🆕 Session created', {
       event: 'SESSION_CREATED',
     });
   }
 
   logSessionDestroyed(duration: number, metrics: SessionMetrics): void {
+    if (!this.enabled) return;
     logger.info('🗑️ Session destroyed', {
       duration,
       metrics,
@@ -18,12 +25,14 @@ export class SessionLogger {
   }
 
   logSessionTimeout(): void {
+    if (!this.enabled) return;
     logger.info('⏰ Session timeout triggered', {
       event: 'SESSION_TIMEOUT',
     });
   }
 
   logSessionReused(totalInteractions: number): void {
+    if (!this.enabled) return;
     logger.debug('🔄 Session reused', {
       totalInteractions,
       event: 'SESSION_REUSED',
@@ -31,6 +40,7 @@ export class SessionLogger {
   }
 
   logSessionError(error: Error, context?: Record<string, unknown>): void {
+    if (!this.enabled) return;
     logger.error('❌ Session error', {
       error: {
         message: error.message,
@@ -43,6 +53,7 @@ export class SessionLogger {
   }
 
   logSessionDebug(message: string, context?: Record<string, unknown>): void {
+    if (!this.enabled) return;
     logger.debug('🔍 Session debug', {
       message,
       context,
@@ -51,6 +62,7 @@ export class SessionLogger {
   }
 
   logSessionMetrics(metrics: SessionMetrics): void {
+    if (!this.enabled) return;
     logger.debug('📊 Session metrics', {
       metrics,
       event: 'SESSION_METRICS',
@@ -58,6 +70,7 @@ export class SessionLogger {
   }
 
   logCleanupStarted(totalSessions: number): void {
+    if (!this.enabled) return;
     logger.info('🧹 Session cleanup started', {
       totalSessions,
       event: 'SESSION_CLEANUP_STARTED',
@@ -68,6 +81,7 @@ export class SessionLogger {
     cleanedSessions: number,
     remainingSessions: number,
   ): void {
+    if (!this.enabled) return;
     logger.info('✨ Session cleanup completed', {
       cleanedSessions,
       remainingSessions,

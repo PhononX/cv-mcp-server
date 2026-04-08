@@ -66,19 +66,17 @@ import { SummarizeConversationParams } from './interfaces/conversation.interface
 import { summarizeConversationParams } from './schemas';
 import { formatToMCPToolResponse, logger } from './utils';
 
-// Create server instance
-const server = new McpServer({
-  name: SERVICE_NAME,
-  version: SERVICE_VERSION,
-  capabilities: {
-    resources: {},
-    tools: {},
-  },
-});
-
 const simplifiedApi = getCarbonVoiceSimplifiedAPI();
 const cvApi = getCarbonVoiceAPI();
 
+/**
+ * Registers all Carbon Voice tools on an MCP server instance.
+ * Streamable HTTP stateless mode must use a fresh McpServer per request when
+ * handling concurrent clients: the SDK binds a single transport on the protocol
+ * object, so sharing one server across parallel `connect()` calls mis-routes
+ * JSON-RPC responses and surfaces as client timeouts (-32001) under load.
+ */
+function registerCarbonVoiceTools(server: McpServer): void {
 /**********************
  * Tools
  *********************/
@@ -943,5 +941,24 @@ server.registerTool(
     }
   },
 );
+}
 
+/**
+ * Builds a new MCP server with all tools registered. Use one instance per
+ * stateless HTTP request when handling concurrent clients.
+ */
+export function createMcpServer(): McpServer {
+  const server = new McpServer({
+    name: SERVICE_NAME,
+    version: SERVICE_VERSION,
+    capabilities: {
+      resources: {},
+      tools: {},
+    },
+  });
+  registerCarbonVoiceTools(server);
+  return server;
+}
+
+const server = createMcpServer();
 export default server;

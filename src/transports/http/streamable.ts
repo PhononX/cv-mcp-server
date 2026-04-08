@@ -13,6 +13,9 @@ import {
   LATEST_PROTOCOL_VERSION,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { REQUIRED_SCOPES } from './constants';
+import { createTransportSendDiagnostics } from './diagnostics/transport-send-diagnostics';
+import { ApiHealthStatus } from './interfaces';
 import {
   addMcpSessionId,
   addRequestIdMiddleware,
@@ -23,10 +26,7 @@ import {
   rateLimitMiddleware,
   requireBearerAuthWithAbsoluteMetadata,
   wellKnownCorsHeaders,
-} from '.';
-import { REQUIRED_SCOPES } from './constants';
-import { createTransportSendDiagnostics } from './diagnostics/transport-send-diagnostics';
-import { ApiHealthStatus } from './interfaces';
+} from './middleware';
 import {
   Session,
   SessionCleanupService,
@@ -312,21 +312,66 @@ const executeSessionRequestWithTimeout = async (
   const executionStartedAt = Date.now();
 
   const handleRequestPromise = handleSessionRequest(req, res, session);
+
   let timeoutHandle: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<'timeout'>((resolve) => {
     timeoutHandle = setTimeout(() => resolve('timeout'), executionTimeoutMs);
   });
 
+  // Detect client-side disconnect (e.g. the MCP client's ~120s HTTP timeout
+  // fires before the server can respond). This lets us clean up immediately
+  // instead of waiting for the server-side timeout and the subsequent
+  // MCP_TRANSPORT_SEND_ERROR cascade.
+  let removeDisconnectListener: (() => void) | undefined;
+  const clientDisconnectedPromise = new Promise<'client_disconnected'>(
+    (resolve) => {
+      const onClose = () => resolve('client_disconnected');
+      req.on('close', onClose);
+      removeDisconnectListener = () => req.off('close', onClose);
+    },
+  );
+
   const outcome = await Promise.race([
     handleRequestPromise.then(() => 'completed' as const),
     timeoutPromise,
+    clientDisconnectedPromise,
   ]);
 
   if (timeoutHandle) {
     clearTimeout(timeoutHandle);
   }
+  removeDisconnectListener?.();
 
   if (outcome === 'completed') {
+    return;
+  }
+
+  if (outcome === 'client_disconnected') {
+    logger.warn('MCP_CLIENT_DISCONNECTED', {
+      event: 'MCP_CLIENT_DISCONNECTED',
+      sessionId,
+      jsonRpcId,
+      jsonRpcMethod,
+      elapsedMs: Date.now() - executionStartedAt,
+      traceId: getTraceId(),
+      userId: req.auth?.extra?.user?.id,
+    });
+
+    sessionService.recordError(sessionId);
+    destroySessionTransportState(sessionId);
+
+    // Connection is already gone — no response can be sent.
+    void handleRequestPromise.catch((error) => {
+      logger.warn('MCP_CLIENT_DISCONNECTED_LATE_REJECTION', {
+        event: 'MCP_CLIENT_DISCONNECTED_LATE_REJECTION',
+        sessionId,
+        jsonRpcId,
+        jsonRpcMethod,
+        traceId: getTraceId(),
+        userId: req.auth?.extra?.user?.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
     return;
   }
 
@@ -440,7 +485,47 @@ app.post(
                 });
               }
 
-              await executeSessionRequestWithTimeout(req, res, session, sessionId);
+              // Re-fetch the session after waiting in queue: the previous
+              // request may have timed out and destroyed the session while
+              // this request was waiting for its slot.
+              const freshSession = sessionService.getSession(sessionId);
+              if (!freshSession) {
+                const jsonRpcId2 = hasJsonRpcRequestId(req.body)
+                  ? (req.body as { id?: number | string }).id
+                  : undefined;
+                logger.warn('SESSION_DESTROYED_WHILE_QUEUED', {
+                  event: 'SESSION_DESTROYED_WHILE_QUEUED',
+                  sessionId,
+                  jsonRpcId: jsonRpcId2,
+                  jsonRpcMethod,
+                  traceId: getTraceId(),
+                  userId: req.auth?.extra?.user?.id,
+                });
+                if (!res.headersSent) {
+                  if (jsonRpcId2 !== undefined) {
+                    res.status(200).json({
+                      jsonrpc: '2.0',
+                      error: {
+                        code: -32001,
+                        message:
+                          'Session was destroyed while request was queued. Please reinitialize.',
+                      },
+                      id: jsonRpcId2,
+                    });
+                  } else {
+                    res.status(404).json({
+                      jsonrpc: '2.0',
+                      error: {
+                        code: 404,
+                        message: 'Session not found. Please reinitialize.',
+                      },
+                      id: null,
+                    });
+                  }
+                }
+                return;
+              }
+              await executeSessionRequestWithTimeout(req, res, freshSession, sessionId);
             } catch (error) {
               if (error instanceof ToolCallQueueTimeoutError) {
                 logger.warn('SESSION_REQUEST_QUEUE_TIMEOUT', {

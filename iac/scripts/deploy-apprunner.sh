@@ -5,6 +5,8 @@ ENVIRONMENT=$1
 SERVICE_NAME=$2
 LOG_LEVEL="debug"
 BRANCH="unknown"
+# Set TRANSPORT_MODE=stateless to deploy the stateless transport instead.
+TRANSPORT_MODE="${TRANSPORT_MODE:-session}"
 GITHUB_CONNECTION_ARN="arn:aws:apprunner:us-east-2:336746746018:connection/GithubPhononX/5346579f49054a59a6e309da4d0e9634"
 REPOSITORY_URL="https://github.com/phononx/cv-mcp-server"
 CARBON_VOICE_BASE_URL="https://api.carbonvoice.app"
@@ -174,13 +176,14 @@ if [ "$CURRENT_ENVIRONMENT" != "$ENV_VALUE" ] || [ "$CURRENT_LOG_LEVEL" != "$LOG
                     "CodeConfigurationValues": {
                         "Runtime": "NODEJS_22",
                         "BuildCommand": "npm ci && npm run build",
-                        "StartCommand": "npm run start:http",
+                        "StartCommand": "'"$([ "$TRANSPORT_MODE" = "stateless" ] && echo "npm run start:http:stateless" || echo "npm run start:http")"'",
                         "Port": "3000",
                         "RuntimeEnvironmentVariables": {
                             "ENVIRONMENT": "'"$ENV_VALUE"'",
                             "LOG_LEVEL": "'"$LOG_LEVEL"'",
                             "LOG_TRANSPORT": "cloudwatch",
-                            "CARBON_VOICE_BASE_URL": "'"$CARBON_VOICE_BASE_URL"'"
+                            "CARBON_VOICE_BASE_URL": "'"$CARBON_VOICE_BASE_URL"'",
+                            "MCP_SESSION_LOGS_ENABLED": "'"$([ "$TRANSPORT_MODE" = "stateless" ] && echo "false" || echo "true")"'"
                         }
                     }
                 }
