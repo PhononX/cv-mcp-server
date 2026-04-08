@@ -101,6 +101,8 @@ jobs:
       # Deploy to production
       - run: chmod +x iac/scripts/deploy-apprunner.sh
       - run: ./iac/scripts/deploy-apprunner.sh prod ${{ vars.APPRUNNER_SERVICE_NAME_PROD }}
+        env:
+          TRANSPORT_MODE: stateless
 
       # Publish to NPM after successful deployment
       - run: npm publish
