@@ -1,4 +1,5 @@
 name: Complete CI/CD Pipeline (Test, Deploy & Release)
+
 on:
   push:
     branches: [main, develop]
@@ -13,12 +14,18 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
       - run: npm ci
       - run: npm run test:unit && npm run test:e2e
       - run: npm run build
@@ -29,21 +36,31 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
     environment: development
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::336746746018:role/github-actions-apprunner-dev
           aws-region: ${{ env.AWS_REGION }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
       - run: npm ci
+
       - run: chmod +x iac/scripts/deploy-apprunner.sh
-      # Dev uses stateless HTTP so App Runner can scale horizontally; start command must match.
-      - run: ./iac/scripts/deploy-apprunner.sh dev ${{ vars.APPRUNNER_SERVICE_NAME_DEV }}
+
+      - name: Deploy to App Runner development
+        run: ./iac/scripts/deploy-apprunner.sh dev ${{ vars.APPRUNNER_SERVICE_NAME_DEV }}
         env:
           TRANSPORT_MODE: stateless
 
@@ -52,13 +69,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+
     outputs:
       version-changed: ${{ steps.version-check.outputs.changed }}
       new-version: ${{ steps.version-check.outputs.version }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
       - id: version-check
         run: |
           CURRENT_VERSION=$(jq -r .version package.json)
@@ -67,6 +90,7 @@ jobs:
           git checkout HEAD
 
           echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
           if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
@@ -79,14 +103,18 @@ jobs:
     needs: [check-version]
     if: github.ref == 'refs/heads/main' && needs.check-version.outputs.version-changed == 'true'
     environment: production
+
+    permissions:
+      id-token: write
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
-      # Deploy to App Runner first
-      - uses: aws-actions/configure-aws-credentials@v6
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::336746746018:role/github-actions-apprunner-prod
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: actions/setup-node@v4
@@ -98,19 +126,20 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      # Deploy to production
       - run: chmod +x iac/scripts/deploy-apprunner.sh
-      - run: ./iac/scripts/deploy-apprunner.sh prod ${{ vars.APPRUNNER_SERVICE_NAME_PROD }}
+
+      - name: Deploy to App Runner production
+        run: ./iac/scripts/deploy-apprunner.sh prod ${{ vars.APPRUNNER_SERVICE_NAME_PROD }}
         env:
           TRANSPORT_MODE: stateless
 
-      # Publish to NPM after successful deployment
-      - run: npm publish
+      - name: Publish to NPM
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Create GitHub release
-      - uses: softprops/action-gh-release@v3
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.check-version.outputs.new-version }}
           name: Release v${{ needs.check-version.outputs.new-version }}
@@ -125,4 +154,4 @@ jobs:
             npm install cv-mcp-server@${{ needs.check-version.outputs.new-version }}
             ```
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
