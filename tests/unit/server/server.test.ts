@@ -98,6 +98,14 @@ describe('MCP Server', () => {
     authInfo: { token: 'test-token' },
   };
 
+  // Mock the getCarbonVoiceAPI function
+  const cvApiMock = {
+    getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
+    getContacts: jest.fn(),
+  };
+
+  const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
+
   // Create a single simplifiedApiMock object with all API methods
   const simplifiedApiMock = {
     listMessages: jest.fn().mockResolvedValue({ messages: [] }),
@@ -177,6 +185,10 @@ describe('MCP Server', () => {
 
     jest.doMock('../../../src/auth', () => ({
       setCarbonVoiceAuthHeader: mockSetCarbonVoiceAuthHeader,
+    }));
+
+    jest.doMock('../../../src/cv-api', () => ({
+      getCarbonVoiceAPI: mockGetCarbonVoiceAPI,
     }));
 
     // Import the server module after mocks are set up
@@ -1983,6 +1995,86 @@ describe('MCP Server', () => {
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
         expect(result).toBeDefined();
+      });
+    });
+
+    describe('get_user_info tool', () => {
+      let getUserInfoCall: any;
+      beforeEach(() => {
+        getUserInfoCall = mockRegisterTool.mock.calls.find(
+          (call: any) => call[0] === 'get_user_info',
+        );
+      });
+
+      it('should register get_user_info tool with correct parameters', () => {
+        expect(getUserInfoCall).toBeDefined();
+        expect(getUserInfoCall[0]).toBe('get_user_info');
+        expect(getUserInfoCall[1].inputSchema).toBeDefined();
+        expect(getUserInfoCall[1].annotations).toBeDefined();
+        expect(getUserInfoCall[1].annotations.readOnlyHint).toBe(true);
+        expect(getUserInfoCall[1].annotations.destructiveHint).toBe(false);
+        expect(getUserInfoCall[1].description).toBeDefined();
+      });
+
+      it('should call cvApi.getContacts with [id] and return matching entry', async () => {
+        const matchingUser = { id: 'user-123', first_name: 'Alice' };
+        const otherUser = { id: 'other-id', first_name: 'Bob' };
+        cvApiMock.getContacts.mockResolvedValueOnce([otherUser, matchingUser]);
+
+        const toolHandler = getUserInfoCall[2];
+        expect(toolHandler).toBeDefined();
+        expect(typeof toolHandler).toBe('function');
+
+        await expect(
+          toolHandler({ id: 'user-123' }, mockContext),
+        ).resolves.not.toThrow();
+
+        expect(cvApiMock.getContacts).toHaveBeenCalledWith(
+          ['user-123'],
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser);
+      });
+
+      it('should fall back to first entry when no entry matches id', async () => {
+        const firstUser = { id: 'other-id', first_name: 'Bob' };
+        cvApiMock.getContacts.mockResolvedValueOnce([firstUser]);
+
+        const toolHandler = getUserInfoCall[2];
+
+        await toolHandler({ id: 'user-123' }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(firstUser);
+      });
+
+      it('should throw user not found error when contacts is empty', async () => {
+        cvApiMock.getContacts.mockResolvedValueOnce([]);
+
+        const toolHandler = getUserInfoCall[2];
+        const result = await toolHandler({ id: 'user-123' }, mockContext);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error getting user info by id:',
+          expect.objectContaining({ args: { id: 'user-123' } }),
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.objectContaining({ message: 'user not found' }),
+        );
+        expect(result).toBeDefined();
+      });
+
+      it('should return single UserInfo object, not array', async () => {
+        const user = { id: 'user-123', first_name: 'Alice' };
+        cvApiMock.getContacts.mockResolvedValueOnce([user]);
+
+        const toolHandler = getUserInfoCall[2];
+
+        await toolHandler({ id: 'user-123' }, mockContext);
+
+        const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
+        expect(Array.isArray(callArg)).toBe(false);
+        expect(callArg).toEqual(user);
       });
     });
 
