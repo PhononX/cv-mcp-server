@@ -306,7 +306,8 @@ server.registerTool(
   'get_user_info',
   {
     description:
-      'Get detailed information about a User by their ID, including workspace memberships, roles, voice settings, languages, and notification preferences. ' +
+      'Get detailed information about a User by their ID, including workspace memberships, ' +
+      'roles, voice settings, languages, and notification preferences. ' +
       'Prefer this tool over get_user when detailed user information is needed.',
     inputSchema: getUserByIdParams.shape,
     annotations: {
