@@ -18,10 +18,14 @@ New direction: replace `get_user` in-place with the contacts-backed implementati
 
 ## What Remains
 
+All tasks complete. ✅
+
 | Task | File | Status |
 | --- | --- | --- |
-| T1: Replace `get_user` handler, remove `get_user_info`, update description | `src/server.ts` | Pending |
-| T2: Rename `get_user_info` tests → `get_user`, remove simplified-API tests | `tests/unit/server/server.test.ts` | Pending |
+| T1: Replace `get_user` handler, remove `get_user_info`, update description | `src/server.ts` | ✅ Done (a7194b1) |
+| T2: Rename `get_user_info` tests → `get_user`, remove simplified-API tests | `tests/unit/server/server.test.ts` | ✅ Done (8508e7c) |
+
+256/256 tests passing.
 
 ## Decisions
 
