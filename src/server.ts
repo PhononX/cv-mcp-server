@@ -303,12 +303,14 @@ server.registerTool(
 
 // Users
 server.registerTool(
-  'get_user_info',
+  'get_user',
   {
     description:
-      'Get detailed information about a User by their ID, including workspace memberships, ' +
-      'roles, voice settings, languages, and notification preferences. ' +
-      'Prefer this tool over get_user when detailed user information is needed.',
+      'Get detailed information about a specific user by their ID. ' +
+      'Returns the full user profile — name, languages, voice settings, ' +
+      'workspace memberships and roles, notification preferences, and timestamps. ' +
+      'This is richer than `search_user` (which only finds users by phone, email, or name). ' +
+      'Use this when you already have a user ID and need their complete information.',
     inputSchema: getUserByIdParams.shape,
     annotations: {
       readOnlyHint: true,
@@ -327,31 +329,6 @@ server.registerTool(
       const userInfo =
         contacts.find((c) => c.id === args.id) ?? contacts[0];
       return formatToMCPToolResponse(userInfo);
-    } catch (error) {
-      logger.error('Error getting user info by id:', { args, error });
-      return formatToMCPToolResponse(error);
-    }
-  },
-);
-
-server.registerTool(
-  'get_user',
-  {
-    description: '[DEPRECATED] Use `get_user_info` instead, which returns the full user information. Get a User by their ID.',
-    inputSchema: getUserByIdParams.shape,
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-    },
-  },
-  async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
-    try {
-      return formatToMCPToolResponse(
-        await simplifiedApi.getUserById(
-          args.id,
-          setCarbonVoiceAuthHeader(authInfo?.token),
-        ),
-      );
     } catch (error) {
       logger.error('Error getting user by id:', { args, error });
       return formatToMCPToolResponse(error);
