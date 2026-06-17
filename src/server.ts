@@ -336,7 +336,7 @@ server.registerTool(
 server.registerTool(
   'get_user',
   {
-    description: 'Get a User by their ID.',
+    description: '[DEPRECATED] Use `get_user_info` instead, which returns the full user information. Get a User by their ID.',
     inputSchema: getUserByIdParams.shape,
     annotations: {
       readOnlyHint: true,
