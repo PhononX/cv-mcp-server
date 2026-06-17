@@ -7,17 +7,6 @@ import { formatToMCPToolResponse, logger } from '../../../src/utils';
 import { listMessagesQueryParams } from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 import { getZodSchemaAsJson } from '../../utils/test-helpers';
 
-// Create a mock for registerTool that we can access
-const mockRegisterTool = jest.fn();
-
-// Mock the MCP SDK
-jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
-  const McpServer = jest.fn().mockImplementation(() => ({
-    registerTool: mockRegisterTool,
-  }));
-  return { McpServer };
-});
-
 // Mock the auth module
 jest.mock('../../../src/auth', () => ({
   setCarbonVoiceAuthHeader: jest.fn((token) => ({

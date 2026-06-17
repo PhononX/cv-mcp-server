@@ -1,7 +1,7 @@
 import { AxiosRequestConfig } from 'axios';
 
 import { env } from './config';
-import { UserInfo } from './interfaces';
+import { UserInfo, WorkspaceRole } from './interfaces';
 import { logger } from './utils';
 import { mutator } from './utils/axios-instance';
 
@@ -16,7 +16,7 @@ interface Contact {
   created_by: string;
   last_updated_at: string;
   workspace_guids: string[];
-  workspace_roles: UserInfo['workspace_roles'];
+  workspace_roles: WorkspaceRole[];
   is_allowed_to_receive_notification: boolean;
   user_type: 'user' | 'bot';
 }
