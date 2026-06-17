@@ -47,7 +47,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::336746746018:role/github-actions-apprunner-dev
+          role-to-assume: arn:aws:iam::336746746018:role/github-actions-cv-mcp-server-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: actions/setup-node@v4
@@ -114,7 +114,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::336746746018:role/github-actions-apprunner-prod
+          role-to-assume: arn:aws:iam::336746746018:role/github-actions-cv-mcp-server-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: actions/setup-node@v4
