@@ -783,84 +783,6 @@ describe('MCP Server', () => {
       });
     });
 
-    describe('get_user tool', () => {
-      let getUserCall: any;
-      beforeEach(() => {
-        // Find the get_user tool registration
-        getUserCall = mockRegisterTool.mock.calls.find(
-          (call: any) => call[0] === 'get_user',
-        );
-      });
-
-      it('should register get_user tool with correct parameters', () => {
-        expect(getUserCall).toBeDefined();
-        expect(getUserCall[0]).toBe('get_user');
-        expect(getUserCall[1].inputSchema).toBeDefined();
-        expect(getUserCall[1].annotations).toBeDefined();
-        expect(getUserCall[1].annotations.readOnlyHint).toBe(true);
-        expect(getUserCall[1].annotations.destructiveHint).toBe(false);
-        expect(getUserCall[1].description).toBeDefined();
-      });
-
-      it('should call simplified API with correct parameters', async () => {
-        const toolHandler = getUserCall[2];
-
-        // Verify the tool handler exists and is a function
-        expect(toolHandler).toBeDefined();
-        expect(typeof toolHandler).toBe('function');
-
-        // Test parameters
-        const testParams = {
-          id: 'test-user-id',
-        };
-
-        // Call the handler
-        await expect(
-          toolHandler(testParams, mockContext),
-        ).resolves.not.toThrow();
-
-        // Verify the API was called
-        expect(simplifiedApiMock.getUserById).toHaveBeenCalledWith(
-          testParams.id,
-          {
-            headers: { Authorization: 'Bearer test-token' },
-          },
-        );
-
-        // Verify formatToMCPToolResponse was called
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
-      });
-
-      it('should handle errors when API call fails', async () => {
-        // Mock the API to throw an error
-        const apiError = new Error('API error');
-        simplifiedApiMock.getUserById.mockRejectedValueOnce(apiError);
-
-        const toolHandler = getUserCall[2];
-
-        // Call the handler - it should NOT throw, but return a formatted error response
-        const result = await toolHandler({ id: 'test-id' }, mockContext);
-
-        // Verify the API was called
-        expect(simplifiedApiMock.getUserById).toHaveBeenCalled();
-
-        // Verify logger.error was called with the error
-        expect(mockLogger.error).toHaveBeenCalledWith(
-          'Error getting user by id:',
-          {
-            args: { id: 'test-id' },
-            error: apiError,
-          },
-        );
-
-        // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
-
-        // Verify the result is defined (the formatted error response)
-        expect(result).toBeDefined();
-      });
-    });
-
     describe('search_user tool', () => {
       let searchUserCall: any;
       beforeEach(() => {
@@ -1987,22 +1909,22 @@ describe('MCP Server', () => {
       });
     });
 
-    describe('get_user_info tool', () => {
-      let getUserInfoCall: any;
+    describe('get_user tool', () => {
+      let getUserCall: any;
       beforeEach(() => {
-        getUserInfoCall = mockRegisterTool.mock.calls.find(
-          (call: any) => call[0] === 'get_user_info',
+        getUserCall = mockRegisterTool.mock.calls.find(
+          (call: any) => call[0] === 'get_user',
         );
       });
 
-      it('should register get_user_info tool with correct parameters', () => {
-        expect(getUserInfoCall).toBeDefined();
-        expect(getUserInfoCall[0]).toBe('get_user_info');
-        expect(getUserInfoCall[1].inputSchema).toBeDefined();
-        expect(getUserInfoCall[1].annotations).toBeDefined();
-        expect(getUserInfoCall[1].annotations.readOnlyHint).toBe(true);
-        expect(getUserInfoCall[1].annotations.destructiveHint).toBe(false);
-        expect(getUserInfoCall[1].description).toBeDefined();
+      it('should register get_user tool with correct parameters', () => {
+        expect(getUserCall).toBeDefined();
+        expect(getUserCall[0]).toBe('get_user');
+        expect(getUserCall[1].inputSchema).toBeDefined();
+        expect(getUserCall[1].annotations).toBeDefined();
+        expect(getUserCall[1].annotations.readOnlyHint).toBe(true);
+        expect(getUserCall[1].annotations.destructiveHint).toBe(false);
+        expect(getUserCall[1].description).toBeDefined();
       });
 
       it('should call cvApi.getContacts with [id] and return matching entry', async () => {
@@ -2010,7 +1932,7 @@ describe('MCP Server', () => {
         const otherUser = { id: 'other-id', first_name: 'Bob' };
         cvApiMock.getContacts.mockResolvedValueOnce([otherUser, matchingUser]);
 
-        const toolHandler = getUserInfoCall[2];
+        const toolHandler = getUserCall[2];
         expect(toolHandler).toBeDefined();
         expect(typeof toolHandler).toBe('function');
 
@@ -2030,7 +1952,7 @@ describe('MCP Server', () => {
         const firstUser = { id: 'other-id', first_name: 'Bob' };
         cvApiMock.getContacts.mockResolvedValueOnce([firstUser]);
 
-        const toolHandler = getUserInfoCall[2];
+        const toolHandler = getUserCall[2];
 
         await toolHandler({ id: 'user-123' }, mockContext);
 
@@ -2040,11 +1962,11 @@ describe('MCP Server', () => {
       it('should throw user not found error when contacts is empty', async () => {
         cvApiMock.getContacts.mockResolvedValueOnce([]);
 
-        const toolHandler = getUserInfoCall[2];
+        const toolHandler = getUserCall[2];
         const result = await toolHandler({ id: 'user-123' }, mockContext);
 
         expect(mockLogger.error).toHaveBeenCalledWith(
-          'Error getting user info by id:',
+          'Error getting user by id:',
           expect.objectContaining({ args: { id: 'user-123' } }),
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
@@ -2057,7 +1979,7 @@ describe('MCP Server', () => {
         const user = { id: 'user-123', first_name: 'Alice' };
         cvApiMock.getContacts.mockResolvedValueOnce([user]);
 
-        const toolHandler = getUserInfoCall[2];
+        const toolHandler = getUserCall[2];
 
         await toolHandler({ id: 'user-123' }, mockContext);
 
