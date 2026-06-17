@@ -89,17 +89,17 @@ The desired end state is **one tool**, `get_user`, backed by `getContacts`, retu
 
 | Requirement ID | Story | Status |
 | --- | --- | --- |
-| USR-01 | Replace `get_user` handler with `getContacts` call | Pending |
-| USR-02 | Remove `get_user_info` registration | Pending |
-| USR-03 | Update `get_user` description (full-profile wording) | Pending |
-| USR-04 | Update server tests: rename `get_user_info` → `get_user`, remove simplified-API tests | Pending |
+| USR-01 | Replace `get_user` handler with `getContacts` call | ✅ Done (a7194b1) |
+| USR-02 | Remove `get_user_info` registration | ✅ Done (a7194b1) |
+| USR-03 | Update `get_user` description (full-profile wording) | ✅ Done (a7194b1) |
+| USR-04 | Update server tests: rename `get_user_info` → `get_user`, remove simplified-API tests | ✅ Done (8508e7c) |
 
-**Coverage:** 4 requirements, 0 mapped to tasks yet.
+**Coverage:** 4 requirements, all complete.
 
 ---
 
 ## Success Criteria
 
-- [ ] `get_user_info` is not registered; `get_user` is registered and returns `UserInfo`.
-- [ ] `get_user` rejects unknown id with a "user not found" error.
-- [ ] Project type-checks and all tests pass.
+- [x] `get_user_info` is not registered; `get_user` is registered and returns `UserInfo`.
+- [x] `get_user` rejects unknown id with a "user not found" error.
+- [x] Project type-checks and all tests pass (256/256).
