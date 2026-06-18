@@ -7,17 +7,6 @@ import { formatToMCPToolResponse, logger } from '../../../src/utils';
 import { listMessagesQueryParams } from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 import { getZodSchemaAsJson } from '../../utils/test-helpers';
 
-// Create a mock for registerTool that we can access
-const mockRegisterTool = jest.fn();
-
-// Mock the MCP SDK
-jest.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
-  const McpServer = jest.fn().mockImplementation(() => ({
-    registerTool: mockRegisterTool,
-  }));
-  return { McpServer };
-});
-
 // Mock the auth module
 jest.mock('../../../src/auth', () => ({
   setCarbonVoiceAuthHeader: jest.fn((token) => ({
@@ -98,6 +87,14 @@ describe('MCP Server', () => {
     authInfo: { token: 'test-token' },
   };
 
+  // Mock the getCarbonVoiceAPI function
+  const cvApiMock = {
+    getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
+    getContacts: jest.fn(),
+  };
+
+  const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
+
   // Create a single simplifiedApiMock object with all API methods
   const simplifiedApiMock = {
     listMessages: jest.fn().mockResolvedValue({ messages: [] }),
@@ -177,6 +174,10 @@ describe('MCP Server', () => {
 
     jest.doMock('../../../src/auth', () => ({
       setCarbonVoiceAuthHeader: mockSetCarbonVoiceAuthHeader,
+    }));
+
+    jest.doMock('../../../src/cv-api', () => ({
+      getCarbonVoiceAPI: mockGetCarbonVoiceAPI,
     }));
 
     // Import the server module after mocks are set up
@@ -770,84 +771,6 @@ describe('MCP Server', () => {
           'Error adding attachments to message:',
           {
             args: { id: 'test-id', links: ['test-link'] },
-            error: apiError,
-          },
-        );
-
-        // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
-
-        // Verify the result is defined (the formatted error response)
-        expect(result).toBeDefined();
-      });
-    });
-
-    describe('get_user tool', () => {
-      let getUserCall: any;
-      beforeEach(() => {
-        // Find the get_user tool registration
-        getUserCall = mockRegisterTool.mock.calls.find(
-          (call: any) => call[0] === 'get_user',
-        );
-      });
-
-      it('should register get_user tool with correct parameters', () => {
-        expect(getUserCall).toBeDefined();
-        expect(getUserCall[0]).toBe('get_user');
-        expect(getUserCall[1].inputSchema).toBeDefined();
-        expect(getUserCall[1].annotations).toBeDefined();
-        expect(getUserCall[1].annotations.readOnlyHint).toBe(true);
-        expect(getUserCall[1].annotations.destructiveHint).toBe(false);
-        expect(getUserCall[1].description).toBeDefined();
-      });
-
-      it('should call simplified API with correct parameters', async () => {
-        const toolHandler = getUserCall[2];
-
-        // Verify the tool handler exists and is a function
-        expect(toolHandler).toBeDefined();
-        expect(typeof toolHandler).toBe('function');
-
-        // Test parameters
-        const testParams = {
-          id: 'test-user-id',
-        };
-
-        // Call the handler
-        await expect(
-          toolHandler(testParams, mockContext),
-        ).resolves.not.toThrow();
-
-        // Verify the API was called
-        expect(simplifiedApiMock.getUserById).toHaveBeenCalledWith(
-          testParams.id,
-          {
-            headers: { Authorization: 'Bearer test-token' },
-          },
-        );
-
-        // Verify formatToMCPToolResponse was called
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
-      });
-
-      it('should handle errors when API call fails', async () => {
-        // Mock the API to throw an error
-        const apiError = new Error('API error');
-        simplifiedApiMock.getUserById.mockRejectedValueOnce(apiError);
-
-        const toolHandler = getUserCall[2];
-
-        // Call the handler - it should NOT throw, but return a formatted error response
-        const result = await toolHandler({ id: 'test-id' }, mockContext);
-
-        // Verify the API was called
-        expect(simplifiedApiMock.getUserById).toHaveBeenCalled();
-
-        // Verify logger.error was called with the error
-        expect(mockLogger.error).toHaveBeenCalledWith(
-          'Error getting user by id:',
-          {
-            args: { id: 'test-id' },
             error: apiError,
           },
         );
@@ -1983,6 +1906,86 @@ describe('MCP Server', () => {
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
         expect(result).toBeDefined();
+      });
+    });
+
+    describe('get_user tool', () => {
+      let getUserCall: any;
+      beforeEach(() => {
+        getUserCall = mockRegisterTool.mock.calls.find(
+          (call: any) => call[0] === 'get_user',
+        );
+      });
+
+      it('should register get_user tool with correct parameters', () => {
+        expect(getUserCall).toBeDefined();
+        expect(getUserCall[0]).toBe('get_user');
+        expect(getUserCall[1].inputSchema).toBeDefined();
+        expect(getUserCall[1].annotations).toBeDefined();
+        expect(getUserCall[1].annotations.readOnlyHint).toBe(true);
+        expect(getUserCall[1].annotations.destructiveHint).toBe(false);
+        expect(getUserCall[1].description).toBeDefined();
+      });
+
+      it('should call cvApi.getContacts with [id] and return matching entry', async () => {
+        const matchingUser = { id: 'user-123', first_name: 'Alice' };
+        const otherUser = { id: 'other-id', first_name: 'Bob' };
+        cvApiMock.getContacts.mockResolvedValueOnce([otherUser, matchingUser]);
+
+        const toolHandler = getUserCall[2];
+        expect(toolHandler).toBeDefined();
+        expect(typeof toolHandler).toBe('function');
+
+        await expect(
+          toolHandler({ id: 'user-123' }, mockContext),
+        ).resolves.not.toThrow();
+
+        expect(cvApiMock.getContacts).toHaveBeenCalledWith(
+          ['user-123'],
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser);
+      });
+
+      it('should fall back to first entry when no entry matches id', async () => {
+        const firstUser = { id: 'other-id', first_name: 'Bob' };
+        cvApiMock.getContacts.mockResolvedValueOnce([firstUser]);
+
+        const toolHandler = getUserCall[2];
+
+        await toolHandler({ id: 'user-123' }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(firstUser);
+      });
+
+      it('should throw user not found error when contacts is empty', async () => {
+        cvApiMock.getContacts.mockResolvedValueOnce([]);
+
+        const toolHandler = getUserCall[2];
+        const result = await toolHandler({ id: 'user-123' }, mockContext);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error getting user by id:',
+          expect.objectContaining({ args: { id: 'user-123' } }),
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.objectContaining({ message: 'user not found' }),
+        );
+        expect(result).toBeDefined();
+      });
+
+      it('should return single UserInfo object, not array', async () => {
+        const user = { id: 'user-123', first_name: 'Alice' };
+        cvApiMock.getContacts.mockResolvedValueOnce([user]);
+
+        const toolHandler = getUserCall[2];
+
+        await toolHandler({ id: 'user-123' }, mockContext);
+
+        const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
+        expect(Array.isArray(callArg)).toBe(false);
+        expect(callArg).toEqual(user);
       });
     });
 
