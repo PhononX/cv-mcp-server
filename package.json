@@ -7,6 +7,10 @@
   "private": false,
   "homepage": "https://getcarbon.app",
   "bugs": "https://github.com/PhononX/cv-mcp-server/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PhononX/cv-mcp-server"
+  },
   "main": "./dist/transports/stdio/stdio.js",
   "bin": {
     "cv-mcp-server": "./dist/transports/stdio/stdio.js"
