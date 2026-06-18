@@ -19,9 +19,9 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -42,7 +42,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6
@@ -50,7 +50,7 @@ jobs:
           role-to-assume: arn:aws:iam::336746746018:role/github-actions-cv-mcp-server-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -78,7 +78,7 @@ jobs:
       new-version: ${{ steps.version-check.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
@@ -109,7 +109,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6
@@ -117,7 +117,7 @@ jobs:
           role-to-assume: arn:aws:iam::336746746018:role/github-actions-cv-mcp-server-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
