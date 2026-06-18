@@ -134,7 +134,7 @@ jobs:
           TRANSPORT_MODE: stateless
 
       - name: Publish to NPM
-        run: npm publish --provenance --access public
+        run: npm publish --verbose
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
