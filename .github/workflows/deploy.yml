@@ -8,7 +8,7 @@ on:
 
 env:
   AWS_REGION: us-east-2
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
 
 jobs:
   test:
@@ -133,11 +133,8 @@ jobs:
         env:
           TRANSPORT_MODE: stateless
 
-      - name: Upgrade npm for OIDC trusted publishing
-        run: npm install -g npm@latest
-
       - name: Publish to NPM
-        run: npm publish --verbose
+        run: npm publish
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
