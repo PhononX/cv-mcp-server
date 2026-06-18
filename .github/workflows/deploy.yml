@@ -133,6 +133,9 @@ jobs:
         env:
           TRANSPORT_MODE: stateless
 
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
+
       - name: Publish to NPM
         run: npm publish --verbose
 
