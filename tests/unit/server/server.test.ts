@@ -8,7 +8,6 @@ import {
   listMessagesQueryParams,
   getAllConversationsQueryParams,
 } from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
-import { getZodSchemaAsJson } from '../../utils/test-helpers';
 
 // Mock the auth module
 jest.mock('../../../src/auth', () => ({
@@ -997,9 +996,22 @@ describe('MCP Server', () => {
       });
 
       it('should accept user_ids and match query params via inputSchema', () => {
-        expect(getZodSchemaAsJson(listConversationsCall[1].inputSchema)).toEqual(
-          getZodSchemaAsJson(getAllConversationsQueryParams.shape),
+        expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual(
+          Object.keys(getAllConversationsQueryParams.shape),
         );
+      });
+
+      it('should document user_ids as filtering by ID, not username', () => {
+        expect(listConversationsCall[1].inputSchema.user_ids.description).toContain(
+          'IDs, not usernames',
+        );
+      });
+
+      it('should document match options and default', () => {
+        const description = listConversationsCall[1].inputSchema.match.description;
+        expect(description).toContain('any');
+        expect(description).toContain('all');
+        expect(description).toContain('default');
       });
 
       it('should call simplified API with correct parameters', async () => {

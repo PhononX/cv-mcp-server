@@ -416,13 +416,23 @@ function registerCarbonVoiceTools(server: McpServer): void {
   );
 
   // Conversations
+  const listConversationsQueryParams = z.object({
+    ...getAllConversationsQueryParams.shape,
+    user_ids: getAllConversationsQueryParams.shape.user_ids.describe(
+      'List of user IDs to filter conversations by. When omitted, all conversations for the caller are returned. Note: filter by user IDs, not usernames or display names.',
+    ),
+    match: getAllConversationsQueryParams.shape.match.describe(
+      'Match mode: `any` (union, default) or `all` (intersection). `any` returns conversations with at least one of the given users; `all` returns conversations with all of them.',
+    ),
+  });
+
   server.registerTool(
     'list_conversations',
     {
       description:
         'List all conversations. ' +
         'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
-      inputSchema: getAllConversationsQueryParams.shape,
+      inputSchema: listConversationsQueryParams.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
