@@ -19,6 +19,7 @@ import {
   createShareLinkAIResponseBody,
   createVoiceMemoMessageBody,
   deleteFolderParams,
+  getAllConversationsQueryParams,
   getAllRootFoldersQueryParams,
   getConversationByIdParams,
   getFolderByIdParams,
