@@ -446,14 +446,14 @@ function registerCarbonVoiceTools(server: McpServer): void {
       args: GetAllConversationsParams,
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const params: GetAllConversationsParams = {};
+      if (args.user_ids?.length) {
+        params.user_ids = args.user_ids;
+      }
+      if (args.match) {
+        params.match = args.match;
+      }
       try {
-        const params: GetAllConversationsParams = {};
-        if (args.user_ids?.length) {
-          params.user_ids = args.user_ids;
-        }
-        if (args.match) {
-          params.match = args.match;
-        }
         return formatToMCPToolResponse(
           await simplifiedApi.getAllConversations(
             params,
@@ -461,7 +461,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
           ),
         );
       } catch (error) {
-        logger.error('Error listing conversations:', { error });
+        logger.error('Error listing conversations:', { params, error });
         return formatToMCPToolResponse(error);
       }
     },

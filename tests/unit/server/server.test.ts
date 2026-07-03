@@ -1057,7 +1057,7 @@ describe('MCP Server', () => {
         expect(simplifiedApiMock.getAllConversations).toHaveBeenCalled();
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Error listing conversations:',
-          { error: apiError },
+          { params: {}, error: apiError },
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
         expect(result).toBeDefined();
