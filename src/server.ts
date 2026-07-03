@@ -421,7 +421,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       description:
         'List all conversations. ' +
         'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
-      inputSchema: z.object({}).shape,
+      inputSchema: getAllConversationsQueryParams.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

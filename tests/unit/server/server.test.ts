@@ -4,7 +4,10 @@ import { setCarbonVoiceAuthHeader } from '../../../src/auth';
 import { getCarbonVoiceAPI } from '../../../src/cv-api';
 import { getCarbonVoiceSimplifiedAPI } from '../../../src/generated';
 import { formatToMCPToolResponse, logger } from '../../../src/utils';
-import { listMessagesQueryParams } from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
+import {
+  listMessagesQueryParams,
+  getAllConversationsQueryParams,
+} from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 import { getZodSchemaAsJson } from '../../utils/test-helpers';
 
 // Mock the auth module
@@ -991,6 +994,12 @@ describe('MCP Server', () => {
           false,
         );
         expect(listConversationsCall[1].description).toBeDefined();
+      });
+
+      it('should accept user_ids and match query params via inputSchema', () => {
+        expect(getZodSchemaAsJson(listConversationsCall[1].inputSchema)).toEqual(
+          getZodSchemaAsJson(getAllConversationsQueryParams.shape),
+        );
       });
 
       it('should call simplified API with correct parameters', async () => {
