@@ -431,7 +431,9 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description:
         'List all conversations. ' +
-        'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
+        'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months. ' +
+        'Each result includes id, name, workspace_id, and type ' +
+        '(directMessage, customerConversation, namedConversation, or asyncMeeting).',
       inputSchema: listConversationsQueryParams.shape,
       annotations: {
         readOnlyHint: true,

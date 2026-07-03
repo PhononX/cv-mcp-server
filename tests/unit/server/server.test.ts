@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { setCarbonVoiceAuthHeader } from '../../../src/auth';
@@ -1012,6 +1014,23 @@ describe('MCP Server', () => {
         expect(description).toContain('any');
         expect(description).toContain('all');
         expect(description).toContain('default');
+      });
+
+      it('should document the returned conversation fields', () => {
+        const description = listConversationsCall[1].description;
+        expect(description).toContain('id');
+        expect(description).toContain('name');
+        expect(description).toContain('workspace_id');
+        expect(description).toContain('type');
+      });
+
+      it('should reject an invalid match value via schema validation', () => {
+        const schema = z.object(listConversationsCall[1].inputSchema);
+
+        const result = schema.safeParse({ match: 'invalid-match' });
+
+        expect(result.success).toBe(false);
+        expect(simplifiedApiMock.getAllConversations).not.toHaveBeenCalled();
       });
 
       it('should call simplified API with correct parameters', async () => {
