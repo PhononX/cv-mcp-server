@@ -1000,9 +1000,10 @@ describe('MCP Server', () => {
 
         await expect(toolHandler({}, mockContext)).resolves.not.toThrow();
 
-        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith({
-          headers: { Authorization: 'Bearer test-token' },
-        });
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          {},
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
       });
 

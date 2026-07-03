@@ -4,75 +4,48 @@
  * Carbon Voice Simplified API
  * # Introduction
 
-The simplified version of the Carbon Voice API is designed to enhance usability for third-party clients looking to 
-seamlessly integrate with our application. By streamlining authentication methods, providing clear error handling guidelines, 
-and implementing straightforward rate limiting policies, we ensure that developers can quickly and efficiently connect to our services. 
-This user-friendly approach minimizes complexity, making it easier for external applications to leverage the powerful communication 
-features of Carbon Voice without extensive technical overhead.
+Simplified Carbon Voice API for third-party integrations. Full API [here](/docs).
 
-This API is designed for people who feel comfortable integrating with RESTful APIs.
-
-## Full API Version
-We also have a full version of the API. You can find it [here](/docs).
+**[Developer Portal](https://www.developer.carbonvoice.app/)** — Create API keys, OAuth integrations, and explore how-to examples.
 
 ## Terminology
- 
-* **Workspace**: An area that groups together people and Conversations.
-* **Conversation**: A channel of communication. A grouping of people and messages related to a given topic.
-* **Collaborators**: A group of people who are part of a Conversation.
-* **Discussion**: Any post into a conversation
-* **CarbonLink**: A link (on a website, QR code, or phone call) to start a conversation.
 
-## BaseURL
+* **Workspace**: Area that groups people and conversations.
+* **Conversation**: A channel of communication (people + messages around a topic).
+* **Collaborators**: People who are part of a conversation.
+* **Discussion**: A post into a conversation.
+* **CarbonLink**: Link (website, QR code, phone) to start a conversation.
 
-This API is served over HTTPS.
+## Base URL
 
-All URLs referenced in the documentation have the following base: https://api.carbonvoice.app/api/simplified.
+`https://api.carbonvoice.app/api/simplified`
 
 ## Authentication
 
-There are three ways to authenticate with this API:
+Authenticate using one of these methods:
 
-* with an OAuth2 Access Token in the Authorization request header field 
-(which uses the Bearer authentication scheme to transmit the Access Token)
-* with your Client ID and Client Secret credentials
-* with a PXToken
-
-Each endpoint supports only one option.
+1. **OAuth2 Bearer token** — `Authorization: Bearer <access_token>` (obtain via OAuth2 flow)
+2. **PXToken** — `pxtoken` header, query param, body, or cookie (session token from login)
+3. **API Key** — `x-api-key` header
 
 <SecurityDefinitions />
 
 ## Errors
 
-When an error occurs, you will receive an error object. Most of these error objects 
-contain an error code and an error description so that your applications can more 
-efficiently identify the problem.
+4xx responses indicate a client error. 5xx indicate a server error. Check [health](https://api.carbonvoice.app/v2/health) for system status.
 
-If you get an 4xx HTTP response code, then you can assume that there is a bad request
-from your end. In this case, check the [Error Responses section](#section/Introduction/Error-Responses) for more context.
+Error format: `{ "success": false, requestId: "uuid", errmsg: "error message" }`
 
-5xx errors suggest a problem on our end, so in this case, check [Carbon Voice's Status](https://status.carbonvoice.app)
- to see how our systems are doing.
+## Rate Limiting
 
-In any other case you can use our support options.
+Rate limits vary per endpoint. On 429 responses, check `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers.
 
-## Error Responses
+## Resources
 
-`{ "success": false, requestId: "uuid", errmsg: "error message"`
-
-## Rate-Limiting 
-
-This API is subject to rate limiting. The limits differ per endpoint.
-
-If you exceed the provided rate limit for a given endpoint, you will receive the 429
-Too Many Requests response with the following message: Too many requests. Check the
-X-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset headers.
-
-For details on rate limiting, refer to Rate Limit Policy.
-
-## Support
-
-If you have problems or need help with your case, you can always reach out to our Support.
+* **[Developer Portal](https://www.developer.carbonvoice.app/)** — API keys, integrations, and how-to examples
+* **[User Terms of Service](https://www.getcarbon.app/usertos)** — Legal terms for API use
+* **[Support](https://www.getcarbon.app/support)** — Help and documentation
+* **Email** — support@carbonvoice.app
 
  * OpenAPI spec version: 1.0.0
  */
@@ -83,7 +56,12 @@ import type {
   AIResponse,
   AIResponseControllerGetAllResponsesParams,
   AIShareLinkResponse,
+  ActionItem,
+  ActionItemControllerListIdsParams,
+  ActionItemControllerListMyActionItemsParams,
+  ActionItemControllerListParams,
   AddAttachmentsResponse,
+  AddConversationUsers,
   AddLinkAttachmentPayload,
   AddMessageToFolderPayload,
   AllConversationsResponse,
@@ -91,12 +69,18 @@ import type {
   Conversation,
   CreateAIPrompt,
   CreateAIResponse,
+  CreateActionItemPayload,
   CreateConversationMessage,
   CreateFolderPayload,
+  CreateMessageShareLink,
   CreateShareLinkAIResponse,
+  CreateSuggestionsFromMessagesPayload,
   CreateVoicememoMessage,
   Folder,
   FolderWithMessages,
+  GetAIResponsesByIds,
+  GetActionItemsByIdsPayload,
+  GetAllConversationsParams,
   GetAllRootFoldersParams,
   GetCountsGroupedByWorkspaceParams,
   GetFolderByIdParams,
@@ -106,20 +90,30 @@ import type {
   GetTenRecentMessagesResponse,
   GetTenRecentMessagesResponseParams,
   Language,
+  ListActionItemsIdsResponse,
+  ListActionItemsResponse,
   ListCountFoldersGroupedByWorkspace,
   ListFoldersResponse,
   ListMessagesParams,
   ListMessagesResponse,
+  ListOwnedSubscriptionsParams,
+  ListSubscriptionsResponse,
+  MessageShareLink,
   MessageV2,
   MoveFolderPayload,
   SearchUserParams,
   SearchUsersBody,
   SendDirectMessage,
   SimplifiedAIPrompt,
+  SimplifiedUser,
   SubscribeUserPayload,
   SubscribedUser,
+  Subscription,
+  UpdateAIPrompt,
+  UpdateActionItemPayload,
+  UpdateActionItemStatusPayload,
   UpdateFolderNamePayload,
-  User,
+  UpdateSubscriptionPayload,
   WorkspaceBasicInfo,
 } from './models';
 
@@ -153,11 +147,27 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     );
   };
 
+  const aIPromptControllerUpdatePrompt = (
+    id: string,
+    updateAIPrompt: UpdateAIPrompt,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<AIPrompt>(
+      {
+        url: `/prompts/${id}`,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        data: updateAIPrompt,
+      },
+      options,
+    );
+  };
+
   const aIPromptControllerDeletePrompt = (
     id: string,
     options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<boolean>(
+    return mutator<string>(
       { url: `/prompts/${id}`, method: 'DELETE' },
       options,
     );
@@ -216,18 +226,216 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     );
   };
 
+  const aIResponseControllerGetResponseById = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<AIResponse>(
+      { url: `/responses/${id}`, method: 'GET' },
+      options,
+    );
+  };
+
   const aIResponseControllerDeletePrompt = (
     id: string,
     options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<boolean>(
+    return mutator<string>(
       { url: `/responses/${id}`, method: 'DELETE' },
       options,
     );
   };
 
+  const aIResponseControllerGetResponseByIds = (
+    getAIResponsesByIds: GetAIResponsesByIds,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<AIResponse[]>(
+      {
+        url: `/responses/by-id`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: getAIResponsesByIds,
+      },
+      options,
+    );
+  };
+
   /**
-   * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields.
+   * @summary Create an action item
+   */
+  const actionItemControllerCreate = (
+    createActionItemPayload: CreateActionItemPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ActionItem>(
+      {
+        url: `/action-items`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createActionItemPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * @summary List action items
+   */
+  const actionItemControllerList = (
+    containerType: string,
+    containerId: string,
+    params?: ActionItemControllerListParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ListActionItemsResponse>(
+      {
+        url: `/action-items/${containerType}/${containerId}`,
+        method: 'GET',
+        params,
+      },
+      options,
+    );
+  };
+
+  /**
+   * @summary List action items IDs
+   */
+  const actionItemControllerListIds = (
+    containerType: string,
+    containerId: string,
+    params?: ActionItemControllerListIdsParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ListActionItemsIdsResponse>(
+      {
+        url: `/action-items/${containerType}/${containerId}/ids`,
+        method: 'GET',
+        params,
+      },
+      options,
+    );
+  };
+
+  /**
+   * @summary Get List of Action Items by ID
+   */
+  const actionItemControllerGetByIds = (
+    containerType: string,
+    containerId: string,
+    getActionItemsByIdsPayload: GetActionItemsByIdsPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ActionItem[]>(
+      {
+        url: `/action-items/${containerType}/${containerId}/by-id`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: getActionItemsByIdsPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * Returns action items assigned to the authenticated user or created by them that are currently unassigned (no assigned_to).
+   * @summary Get logged in user action items
+   */
+  const actionItemControllerListMyActionItems = (
+    params?: ActionItemControllerListMyActionItemsParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ListActionItemsResponse>(
+      { url: `/action-items/mine`, method: 'GET', params },
+      options,
+    );
+  };
+
+  /**
+   * @summary Get action item by id
+   */
+  const actionItemControllerGetById = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ActionItem>(
+      { url: `/action-items/${id}`, method: 'GET' },
+      options,
+    );
+  };
+
+  /**
+   * @summary Delete Action Item
+   */
+  const actionItemControllerDelete = (
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ActionItem>(
+      { url: `/action-items/${id}`, method: 'DELETE' },
+      options,
+    );
+  };
+
+  /**
+   * @summary Update action item
+   */
+  const actionItemControllerUpdate = (
+    id: string,
+    updateActionItemPayload: UpdateActionItemPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ActionItem>(
+      {
+        url: `/action-items/${id}`,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        data: updateActionItemPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * @summary Update action item status
+   */
+  const actionItemControllerSetStatus = (
+    id: string,
+    updateActionItemStatusPayload: UpdateActionItemStatusPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ActionItem>(
+      {
+        url: `/action-items/${id}/status`,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        data: updateActionItemStatusPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * The process will be enqueued and will be processed in the background. No response will be returned.
+   * @summary Create suggestion(s) Action Item(s) from a list of messages
+   */
+  const actionItemControllerCreateSuggestionsFromMessages = (
+    createSuggestionsFromMessagesPayload: CreateSuggestionsFromMessagesPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<void>(
+      {
+        url: `/action-items/suggestions`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createSuggestionsFromMessagesPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields. Does not include the auto-managed default subscription app (`POST /apps/subscribe`); that client cannot be listed here or edited via OAuth client APIs.
    * @summary Get List of My Apps
    */
   const getMyApps = (options?: SecondParameter<typeof mutator>) => {
@@ -235,7 +443,27 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   };
 
   /**
-   * @summary Subscribe user into app
+   * Registers a webhook for the user without requiring a client_id. A client_id will be generated automatically. To update or delete, use the client_id returned in the response. Authorization matches `POST /apps/:client_id/subscribe` once the implicit client exists: OAuth access token for that client, Personal Access Token with cv:write on an app you own, short-lived stateless agent JWT (minted via `POST /agents/:id/tokens`) whose payload includes cv:read and cv:write, or session token (pxtoken) for an app you own.
+   * @summary Subscribe user to events subscribed via a Webhook
+   */
+  const subscribeUserImplicitClient = (
+    subscribeUserPayload: SubscribeUserPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<SubscribedUser>(
+      {
+        url: `/apps/subscribe`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: subscribeUserPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * OAuth access token must be issued for this client_id. With a personal access token (PAT), use cv:write and an app you own (client.owner_id matches the authenticated user). With a stateless agent JWT (`POST /agents/:id/tokens`), the same cv:write rule applies via embedded scopes (cv:read + cv:write). With a session token (pxtoken), ownership of the app is required; no scope is needed.
+   * @summary Subscribe user to events sent via webhook
    */
   const subscribeUserIntoApp = (
     clientId: string,
@@ -254,7 +482,58 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   };
 
   /**
-   * @summary Unsubscribe user from app
+   * Same authorization as subscribe: OAuth access token for this client_id, PAT or stateless agent JWT with cv:write on an app you own, or pxtoken session for an app you own.
+   * @summary Unsubscribe user from registered event
+   */
+  const unsubscribeSpecificSubscriptionFromApp = (
+    clientId: string,
+    id: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<void>(
+      { url: `/apps/${clientId}/unsubscribe/${id}`, method: 'DELETE' },
+      options,
+    );
+  };
+
+  /**
+   * List subscriptions for this user. Any authenticated user (including agents via session, PAT, or stateless agent JWT) sees only their own rows.
+   * @summary List owned subscriptions
+   */
+  const listOwnedSubscriptions = (
+    params?: ListOwnedSubscriptionsParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<ListSubscriptionsResponse>(
+      { url: `/apps/subscriptions`, method: 'GET', params },
+      options,
+    );
+  };
+
+  /**
+   * Updates a subscription previously registered by this user. Requires an authenticated user for that subscription row (same as today); agents authenticated with PAT or stateless agent JWT follow the same rule.
+   * @summary Update subscription
+   */
+  const updateSubscription = (
+    clientId: string,
+    id: string,
+    updateSubscriptionPayload: UpdateSubscriptionPayload,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Subscription>(
+      {
+        url: `/apps/${clientId}/subscriptions/${id}`,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        data: updateSubscriptionPayload,
+      },
+      options,
+    );
+  };
+
+  /**
+   * Same auth as subscribe: OAuth access token for this client_id, PAT or stateless agent JWT with cv:write for an app you own, or session token (pxtoken) for an app you own.
+   * @summary Unsubscribe user from all events and removes all access tokens associated with this app.
    */
   const unsubscribeUserFromApp = (
     clientId: string,
@@ -383,12 +662,31 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     createVoicememoMessage: CreateVoicememoMessage,
     options?: SecondParameter<typeof mutator>,
   ) => {
+    const formData = new FormData();
+    if (createVoicememoMessage.transcript !== undefined) {
+      formData.append(`transcript`, createVoicememoMessage.transcript);
+    }
+    if (createVoicememoMessage.links !== undefined) {
+      createVoicememoMessage.links.forEach((value) =>
+        formData.append(`links`, value),
+      );
+    }
+    if (createVoicememoMessage.folder_id !== undefined) {
+      formData.append(`folder_id`, createVoicememoMessage.folder_id);
+    }
+    if (createVoicememoMessage.workspace_id !== undefined) {
+      formData.append(`workspace_id`, createVoicememoMessage.workspace_id);
+    }
+    if (createVoicememoMessage.audio_file !== undefined) {
+      formData.append(`audio_file`, createVoicememoMessage.audio_file);
+    }
+
     return mutator<GetMessageResponse>(
       {
         url: `/simplified/messages/voicememo`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        data: createVoicememoMessage,
+        headers: { 'Content-Type': 'multipart/form-data' },
+        data: formData,
       },
       options,
     );
@@ -402,7 +700,7 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     params?: SearchUserParams,
     options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<User>(
+    return mutator<SimplifiedUser>(
       { url: `/simplified/users/search`, method: 'GET', params },
       options,
     );
@@ -415,7 +713,7 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     searchUsersBody: SearchUsersBody,
     options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<User[]>(
+    return mutator<SimplifiedUser[]>(
       {
         url: `/simplified/users/search`,
         method: 'POST',
@@ -433,7 +731,7 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     id: string,
     options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<User>(
+    return mutator<SimplifiedUser>(
       { url: `/simplified/users/${id}`, method: 'GET' },
       options,
     );
@@ -442,9 +740,12 @@ export const getCarbonVoiceSimplifiedAPI = () => {
   /**
    * @summary Get all user conversations (Only _id and name available
    */
-  const getAllConversations = (options?: SecondParameter<typeof mutator>) => {
+  const getAllConversations = (
+    params?: GetAllConversationsParams,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
     return mutator<AllConversationsResponse>(
-      { url: `/simplified/conversations/all`, method: 'GET' },
+      { url: `/simplified/conversations/all`, method: 'GET', params },
       options,
     );
   };
@@ -469,8 +770,27 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     id: string,
     options?: SecondParameter<typeof mutator>,
   ) => {
-    return mutator<User[]>(
+    return mutator<SimplifiedUser[]>(
       { url: `/simplified/conversations/${id}/users`, method: 'GET' },
+      options,
+    );
+  };
+
+  /**
+   * @summary Add users to a conversation
+   */
+  const addUsersToConversation = (
+    id: string,
+    addConversationUsers: AddConversationUsers,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<Conversation>(
+      {
+        url: `/simplified/conversations/${id}/users`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: addConversationUsers,
+      },
       options,
     );
   };
@@ -654,17 +974,65 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     );
   };
 
+  /**
+   * @summary Get MessageShareLink
+   */
+  const simplifiedMessageShareLinkControllerGetMessageShareLink = (
+    shareLinkId: string,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<MessageShareLink>(
+      { url: `/simplified/message-sharelinks/${shareLinkId}`, method: 'GET' },
+      options,
+    );
+  };
+
+  /**
+   * @summary Create a MessageShareLink
+   */
+  const simplifiedMessageShareLinkControllerCreate = (
+    createMessageShareLink: CreateMessageShareLink,
+    options?: SecondParameter<typeof mutator>,
+  ) => {
+    return mutator<MessageShareLink>(
+      {
+        url: `/simplified/message-sharelinks`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: createMessageShareLink,
+      },
+      options,
+    );
+  };
+
   return {
     aIPromptControllerGetPrompts,
     aIPromptControllerCreatePrompt,
+    aIPromptControllerUpdatePrompt,
     aIPromptControllerDeletePrompt,
     aIResponseControllerGetAllResponses,
     aIResponseControllerCreateResponse,
     aIResponseControllerGetLatestTenAIResponseByPrompt,
     createShareLinkAIResponse,
+    aIResponseControllerGetResponseById,
     aIResponseControllerDeletePrompt,
+    aIResponseControllerGetResponseByIds,
+    actionItemControllerCreate,
+    actionItemControllerList,
+    actionItemControllerListIds,
+    actionItemControllerGetByIds,
+    actionItemControllerListMyActionItems,
+    actionItemControllerGetById,
+    actionItemControllerDelete,
+    actionItemControllerUpdate,
+    actionItemControllerSetStatus,
+    actionItemControllerCreateSuggestionsFromMessages,
     getMyApps,
+    subscribeUserImplicitClient,
     subscribeUserIntoApp,
+    unsubscribeSpecificSubscriptionFromApp,
+    listOwnedSubscriptions,
+    updateSubscription,
     unsubscribeUserFromApp,
     languageControllerGetAll,
     getTenRecentMessagesResponse,
@@ -680,6 +1048,7 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     getAllConversations,
     getConversationById,
     getConversationUsers,
+    addUsersToConversation,
     getAllWorkspacesWithBasicInfo,
     getSystemAIPrompts,
     getAiSystemPromptResponse,
@@ -692,6 +1061,8 @@ export const getCarbonVoiceSimplifiedAPI = () => {
     deleteFolder,
     addMessageToFolderOrWorkspace,
     moveFolder,
+    simplifiedMessageShareLinkControllerGetMessageShareLink,
+    simplifiedMessageShareLinkControllerCreate,
   };
 };
 export type AIPromptControllerGetPromptsResult = NonNullable<
@@ -709,6 +1080,15 @@ export type AIPromptControllerCreatePromptResult = NonNullable<
       ReturnType<
         typeof getCarbonVoiceSimplifiedAPI
       >['aIPromptControllerCreatePrompt']
+    >
+  >
+>;
+export type AIPromptControllerUpdatePromptResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIPromptControllerUpdatePrompt']
     >
   >
 >;
@@ -758,6 +1138,15 @@ export type CreateShareLinkAIResponseResult = NonNullable<
     >
   >
 >;
+export type AIResponseControllerGetResponseByIdResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIResponseControllerGetResponseById']
+    >
+  >
+>;
 export type AIResponseControllerDeletePromptResult = NonNullable<
   Awaited<
     ReturnType<
@@ -767,15 +1156,145 @@ export type AIResponseControllerDeletePromptResult = NonNullable<
     >
   >
 >;
+export type AIResponseControllerGetResponseByIdsResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['aIResponseControllerGetResponseByIds']
+    >
+  >
+>;
+export type ActionItemControllerCreateResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerCreate']
+    >
+  >
+>;
+export type ActionItemControllerListResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['actionItemControllerList']
+    >
+  >
+>;
+export type ActionItemControllerListIdsResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerListIds']
+    >
+  >
+>;
+export type ActionItemControllerGetByIdsResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerGetByIds']
+    >
+  >
+>;
+export type ActionItemControllerListMyActionItemsResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerListMyActionItems']
+    >
+  >
+>;
+export type ActionItemControllerGetByIdResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerGetById']
+    >
+  >
+>;
+export type ActionItemControllerDeleteResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerDelete']
+    >
+  >
+>;
+export type ActionItemControllerUpdateResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerUpdate']
+    >
+  >
+>;
+export type ActionItemControllerSetStatusResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['actionItemControllerSetStatus']
+    >
+  >
+>;
+export type ActionItemControllerCreateSuggestionsFromMessagesResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        ReturnType<
+          typeof getCarbonVoiceSimplifiedAPI
+        >['actionItemControllerCreateSuggestionsFromMessages']
+      >
+    >
+  >;
 export type GetMyAppsResult = NonNullable<
   Awaited<
     ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['getMyApps']>
+  >
+>;
+export type SubscribeUserImplicitClientResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['subscribeUserImplicitClient']
+    >
   >
 >;
 export type SubscribeUserIntoAppResult = NonNullable<
   Awaited<
     ReturnType<
       ReturnType<typeof getCarbonVoiceSimplifiedAPI>['subscribeUserIntoApp']
+    >
+  >
+>;
+export type UnsubscribeSpecificSubscriptionFromAppResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['unsubscribeSpecificSubscriptionFromApp']
+    >
+  >
+>;
+export type ListOwnedSubscriptionsResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['listOwnedSubscriptions']
+    >
+  >
+>;
+export type UpdateSubscriptionResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['updateSubscription']
     >
   >
 >;
@@ -880,6 +1399,13 @@ export type GetConversationUsersResult = NonNullable<
     >
   >
 >;
+export type AddUsersToConversationResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<typeof getCarbonVoiceSimplifiedAPI>['addUsersToConversation']
+    >
+  >
+>;
 export type GetAllWorkspacesWithBasicInfoResult = NonNullable<
   Awaited<
     ReturnType<
@@ -962,5 +1488,24 @@ export type AddMessageToFolderOrWorkspaceResult = NonNullable<
 export type MoveFolderResult = NonNullable<
   Awaited<
     ReturnType<ReturnType<typeof getCarbonVoiceSimplifiedAPI>['moveFolder']>
+  >
+>;
+export type SimplifiedMessageShareLinkControllerGetMessageShareLinkResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        ReturnType<
+          typeof getCarbonVoiceSimplifiedAPI
+        >['simplifiedMessageShareLinkControllerGetMessageShareLink']
+      >
+    >
+  >;
+export type SimplifiedMessageShareLinkControllerCreateResult = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<
+        typeof getCarbonVoiceSimplifiedAPI
+      >['simplifiedMessageShareLinkControllerCreate']
+    >
   >
 >;

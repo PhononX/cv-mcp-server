@@ -4,75 +4,48 @@
  * Carbon Voice Simplified API
  * # Introduction
 
-The simplified version of the Carbon Voice API is designed to enhance usability for third-party clients looking to 
-seamlessly integrate with our application. By streamlining authentication methods, providing clear error handling guidelines, 
-and implementing straightforward rate limiting policies, we ensure that developers can quickly and efficiently connect to our services. 
-This user-friendly approach minimizes complexity, making it easier for external applications to leverage the powerful communication 
-features of Carbon Voice without extensive technical overhead.
+Simplified Carbon Voice API for third-party integrations. Full API [here](/docs).
 
-This API is designed for people who feel comfortable integrating with RESTful APIs.
-
-## Full API Version
-We also have a full version of the API. You can find it [here](/docs).
+**[Developer Portal](https://www.developer.carbonvoice.app/)** — Create API keys, OAuth integrations, and explore how-to examples.
 
 ## Terminology
- 
-* **Workspace**: An area that groups together people and Conversations.
-* **Conversation**: A channel of communication. A grouping of people and messages related to a given topic.
-* **Collaborators**: A group of people who are part of a Conversation.
-* **Discussion**: Any post into a conversation
-* **CarbonLink**: A link (on a website, QR code, or phone call) to start a conversation.
 
-## BaseURL
+* **Workspace**: Area that groups people and conversations.
+* **Conversation**: A channel of communication (people + messages around a topic).
+* **Collaborators**: People who are part of a conversation.
+* **Discussion**: A post into a conversation.
+* **CarbonLink**: Link (website, QR code, phone) to start a conversation.
 
-This API is served over HTTPS.
+## Base URL
 
-All URLs referenced in the documentation have the following base: https://api.carbonvoice.app/api/simplified.
+`https://api.carbonvoice.app/api/simplified`
 
 ## Authentication
 
-There are three ways to authenticate with this API:
+Authenticate using one of these methods:
 
-* with an OAuth2 Access Token in the Authorization request header field 
-(which uses the Bearer authentication scheme to transmit the Access Token)
-* with your Client ID and Client Secret credentials
-* with a PXToken
-
-Each endpoint supports only one option.
+1. **OAuth2 Bearer token** — `Authorization: Bearer <access_token>` (obtain via OAuth2 flow)
+2. **PXToken** — `pxtoken` header, query param, body, or cookie (session token from login)
+3. **API Key** — `x-api-key` header
 
 <SecurityDefinitions />
 
 ## Errors
 
-When an error occurs, you will receive an error object. Most of these error objects 
-contain an error code and an error description so that your applications can more 
-efficiently identify the problem.
+4xx responses indicate a client error. 5xx indicate a server error. Check [health](https://api.carbonvoice.app/v2/health) for system status.
 
-If you get an 4xx HTTP response code, then you can assume that there is a bad request
-from your end. In this case, check the [Error Responses section](#section/Introduction/Error-Responses) for more context.
+Error format: `{ "success": false, requestId: "uuid", errmsg: "error message" }`
 
-5xx errors suggest a problem on our end, so in this case, check [Carbon Voice's Status](https://status.carbonvoice.app)
- to see how our systems are doing.
+## Rate Limiting
 
-In any other case you can use our support options.
+Rate limits vary per endpoint. On 429 responses, check `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers.
 
-## Error Responses
+## Resources
 
-`{ "success": false, requestId: "uuid", errmsg: "error message"`
-
-## Rate-Limiting 
-
-This API is subject to rate limiting. The limits differ per endpoint.
-
-If you exceed the provided rate limit for a given endpoint, you will receive the 429
-Too Many Requests response with the following message: Too many requests. Check the
-X-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset headers.
-
-For details on rate limiting, refer to Rate Limit Policy.
-
-## Support
-
-If you have problems or need help with your case, you can always reach out to our Support.
+* **[Developer Portal](https://www.developer.carbonvoice.app/)** — API keys, integrations, and how-to examples
+* **[User Terms of Service](https://www.getcarbon.app/usertos)** — Legal terms for API use
+* **[Support](https://www.getcarbon.app/support)** — Help and documentation
+* **Email** — support@carbonvoice.app
 
  * OpenAPI spec version: 1.0.0
  */
@@ -88,7 +61,18 @@ export * from './AIResponse';
 export * from './AIResponseControllerGetAllResponsesDirection';
 export * from './AIResponseControllerGetAllResponsesParams';
 export * from './AIShareLinkResponse';
+export * from './ActionItem';
+export * from './ActionItemContainerType';
+export * from './ActionItemControllerListDirection';
+export * from './ActionItemControllerListIdsDirection';
+export * from './ActionItemControllerListIdsParams';
+export * from './ActionItemControllerListMyActionItemsDirection';
+export * from './ActionItemControllerListMyActionItemsParams';
+export * from './ActionItemControllerListParams';
+export * from './ActionItemStatus';
+export * from './ActionMetadata';
 export * from './AddAttachmentsResponse';
+export * from './AddConversationUsers';
 export * from './AddLinkAttachmentPayload';
 export * from './AddMessageToFolderPayload';
 export * from './AllConversationsResponse';
@@ -98,26 +82,41 @@ export * from './AppWebhooksUrlMode';
 export * from './AsyncConversationStats';
 export * from './Attachment';
 export * from './AttachmentLocation';
+export * from './AttachmentStatus';
+export * from './AttachmentStatusProperty';
 export * from './AttachmentType';
+export * from './AudioDelivery';
 export * from './AudioModelV2';
+export * from './CaughtUpStatus';
 export * from './Conversation';
+export * from './ConversationMatch';
 export * from './ConversationResponse';
 export * from './ConversationResponseType';
 export * from './ConversationType';
+export * from './ConversationUsersInput';
 export * from './ConversationVisibility';
 export * from './CreateAIPrompt';
 export * from './CreateAIPromptOwnerType';
 export * from './CreateAIPromptResponseFormat';
 export * from './CreateAIResponse';
+export * from './CreateActionItemPayload';
 export * from './CreateConversationMessage';
 export * from './CreateConversationMessageFromMessageType';
 export * from './CreateFolderPayload';
 export * from './CreateFolderPayloadType';
+export * from './CreateMessageShareLink';
+export * from './CreateMessageShareLinkAccessType';
+export * from './CreateMessageShareLinkShareType';
 export * from './CreateShareLinkAIResponse';
+export * from './CreateSuggestionsFromMessagesPayload';
 export * from './CreateVoicememoMessage';
 export * from './Folder';
 export * from './FolderType';
 export * from './FolderWithMessages';
+export * from './Gender';
+export * from './GetAIResponsesByIds';
+export * from './GetActionItemsByIdsPayload';
+export * from './GetAllConversationsParams';
 export * from './GetAllRootFoldersParams';
 export * from './GetAllRootFoldersSortBy';
 export * from './GetAllRootFoldersSortDirection';
@@ -131,10 +130,16 @@ export * from './GetMessageResponse';
 export * from './GetTenRecentAIPromptResponse';
 export * from './GetTenRecentMessagesResponse';
 export * from './GetTenRecentMessagesResponseParams';
+export * from './IdResponse';
 export * from './Label';
 export * from './LabelBehavior';
 export * from './LabelType';
 export * from './Language';
+export * from './LatLon';
+export * from './ListActionItemsFilters';
+export * from './ListActionItemsFiltersDirection';
+export * from './ListActionItemsIdsResponse';
+export * from './ListActionItemsResponse';
 export * from './ListCountFoldersGroupedByWorkspace';
 export * from './ListFoldersResponse';
 export * from './ListFoldersResponseSortBy';
@@ -147,7 +152,15 @@ export * from './ListMessagesResponse';
 export * from './ListMessagesResponseSortDirection';
 export * from './ListMessagesSortDirection';
 export * from './ListMessagesType';
+export * from './ListOwnedSubscriptionsDirection';
+export * from './ListOwnedSubscriptionsParams';
+export * from './ListSubscriptionsPagination';
+export * from './ListSubscriptionsPaginationDirection';
+export * from './ListSubscriptionsResponse';
 export * from './Message';
+export * from './MessageShareLink';
+export * from './MessageShareLinkAccessType';
+export * from './MessageShareLinkShareType';
 export * from './MessageStatus';
 export * from './MessageType';
 export * from './MessageV2';
@@ -158,33 +171,56 @@ export * from './MessageV2UsersCaughtUp';
 export * from './MessageV2UtmData';
 export * from './MoveFolderPayload';
 export * from './PromptResponse';
+export * from './Quality';
 export * from './ReactionSummary';
 export * from './ReactionSummaryReactionCounts';
 export * from './ResponseByLanguage';
 export * from './ResponseByLanguageJson';
+export * from './ResponseFormat';
+export * from './Role';
 export * from './SearchUserParams';
 export * from './SearchUsersBody';
 export * from './SendDirectMessage';
 export * from './SendDirectMessageFromMessageType';
 export * from './SimplifiedAIPrompt';
+export * from './SimplifiedAttachment';
+export * from './SimplifiedAttachmentLocation';
+export * from './SimplifiedLabel';
+export * from './SimplifiedLabelBehavior';
+export * from './SimplifiedLabelType';
+export * from './SimplifiedUser';
+export * from './SortFolderBy';
+export * from './SpecifiedAccess';
+export * from './SpecifiedAccessType';
 export * from './Stats';
 export * from './SubFolder';
 export * from './SubFolderType';
 export * from './SubscribeUserPayload';
 export * from './SubscribeUserPayloadSubscriptionsItem';
+export * from './SubscribeUserPayloadWebhookHeaders';
 export * from './SubscribedUser';
 export * from './SubscribedUserSubscriptionsItem';
+export * from './SubscribedUserWebhookHeaders';
+export * from './Subscription';
 export * from './SubscriptionAction';
 export * from './SubscriptionActionActionId';
 export * from './SubscriptionActionEntityType';
 export * from './SubscriptionFilter';
 export * from './SubscriptionFilterOperator';
 export * from './SubscriptionFilterValue';
+export * from './SubscriptionSubscriptionsItem';
+export * from './SubscriptionWebhookHeaders';
 export * from './TextModel';
 export * from './TextModelType';
 export * from './TimedText';
 export * from './ToRecipient';
+export * from './UpdateAIPrompt';
+export * from './UpdateActionItemPayload';
+export * from './UpdateActionItemStatusPayload';
 export * from './UpdateFolderNamePayload';
+export * from './UpdateSubscriptionPayload';
+export * from './UpdateSubscriptionPayloadSubscriptionsItem';
+export * from './UpdateSubscriptionPayloadWebhookHeaders';
 export * from './User';
 export * from './UserReaction';
 export * from './UserStats';

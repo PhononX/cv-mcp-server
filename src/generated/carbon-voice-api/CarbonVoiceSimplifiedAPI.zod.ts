@@ -4,75 +4,48 @@
  * Carbon Voice Simplified API
  * # Introduction
 
-The simplified version of the Carbon Voice API is designed to enhance usability for third-party clients looking to 
-seamlessly integrate with our application. By streamlining authentication methods, providing clear error handling guidelines, 
-and implementing straightforward rate limiting policies, we ensure that developers can quickly and efficiently connect to our services. 
-This user-friendly approach minimizes complexity, making it easier for external applications to leverage the powerful communication 
-features of Carbon Voice without extensive technical overhead.
+Simplified Carbon Voice API for third-party integrations. Full API [here](/docs).
 
-This API is designed for people who feel comfortable integrating with RESTful APIs.
-
-## Full API Version
-We also have a full version of the API. You can find it [here](/docs).
+**[Developer Portal](https://www.developer.carbonvoice.app/)** — Create API keys, OAuth integrations, and explore how-to examples.
 
 ## Terminology
- 
-* **Workspace**: An area that groups together people and Conversations.
-* **Conversation**: A channel of communication. A grouping of people and messages related to a given topic.
-* **Collaborators**: A group of people who are part of a Conversation.
-* **Discussion**: Any post into a conversation
-* **CarbonLink**: A link (on a website, QR code, or phone call) to start a conversation.
 
-## BaseURL
+* **Workspace**: Area that groups people and conversations.
+* **Conversation**: A channel of communication (people + messages around a topic).
+* **Collaborators**: People who are part of a conversation.
+* **Discussion**: A post into a conversation.
+* **CarbonLink**: Link (website, QR code, phone) to start a conversation.
 
-This API is served over HTTPS.
+## Base URL
 
-All URLs referenced in the documentation have the following base: https://api.carbonvoice.app/api/simplified.
+`https://api.carbonvoice.app/api/simplified`
 
 ## Authentication
 
-There are three ways to authenticate with this API:
+Authenticate using one of these methods:
 
-* with an OAuth2 Access Token in the Authorization request header field 
-(which uses the Bearer authentication scheme to transmit the Access Token)
-* with your Client ID and Client Secret credentials
-* with a PXToken
-
-Each endpoint supports only one option.
+1. **OAuth2 Bearer token** — `Authorization: Bearer <access_token>` (obtain via OAuth2 flow)
+2. **PXToken** — `pxtoken` header, query param, body, or cookie (session token from login)
+3. **API Key** — `x-api-key` header
 
 <SecurityDefinitions />
 
 ## Errors
 
-When an error occurs, you will receive an error object. Most of these error objects 
-contain an error code and an error description so that your applications can more 
-efficiently identify the problem.
+4xx responses indicate a client error. 5xx indicate a server error. Check [health](https://api.carbonvoice.app/v2/health) for system status.
 
-If you get an 4xx HTTP response code, then you can assume that there is a bad request
-from your end. In this case, check the [Error Responses section](#section/Introduction/Error-Responses) for more context.
+Error format: `{ "success": false, requestId: "uuid", errmsg: "error message" }`
 
-5xx errors suggest a problem on our end, so in this case, check [Carbon Voice's Status](https://status.carbonvoice.app)
- to see how our systems are doing.
+## Rate Limiting
 
-In any other case you can use our support options.
+Rate limits vary per endpoint. On 429 responses, check `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers.
 
-## Error Responses
+## Resources
 
-`{ "success": false, requestId: "uuid", errmsg: "error message"`
-
-## Rate-Limiting 
-
-This API is subject to rate limiting. The limits differ per endpoint.
-
-If you exceed the provided rate limit for a given endpoint, you will receive the 429
-Too Many Requests response with the following message: Too many requests. Check the
-X-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset headers.
-
-For details on rate limiting, refer to Rate Limit Policy.
-
-## Support
-
-If you have problems or need help with your case, you can always reach out to our Support.
+* **[Developer Portal](https://www.developer.carbonvoice.app/)** — API keys, integrations, and how-to examples
+* **[User Terms of Service](https://www.getcarbon.app/usertos)** — Legal terms for API use
+* **[Support](https://www.getcarbon.app/support)** — Help and documentation
+* **Email** — support@carbonvoice.app
 
  * OpenAPI spec version: 1.0.0
  */
@@ -119,6 +92,40 @@ export const aIPromptControllerCreatePromptBody = zod.object({
 })
 
 
+export const aIPromptControllerUpdatePromptParams = zod.object({
+  "id": zod.string()
+})
+
+export const aIPromptControllerUpdatePromptBody = zod.object({
+  "prompt": zod.string().optional(),
+  "name": zod.string().optional(),
+  "description": zod.string().optional(),
+  "format_instructions": zod.string().optional(),
+  "response_format": zod.enum(['text', 'json']).optional(),
+  "workspace_id": zod.string().optional()
+})
+
+export const aIPromptControllerUpdatePromptResponseNameMax = 100;
+export const aIPromptControllerUpdatePromptResponseDescriptionMax = 500;
+
+
+export const aIPromptControllerUpdatePromptResponse = zod.object({
+  "id": zod.string(),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "creator_id": zod.string(),
+  "workspace_id": zod.string().optional(),
+  "prompt": zod.string(),
+  "name": zod.string().max(aIPromptControllerUpdatePromptResponseNameMax),
+  "description": zod.string().max(aIPromptControllerUpdatePromptResponseDescriptionMax).optional(),
+  "format_instructions": zod.string().optional(),
+  "response_format": zod.enum(['text', 'json']).optional(),
+  "owner_type": zod.enum(['user', 'workspace', 'system']),
+  "category_number": zod.number().optional(),
+  "order_in_category": zod.number().optional()
+})
+
+
 export const aIPromptControllerDeletePromptParams = zod.object({
   "id": zod.string()
 })
@@ -162,7 +169,8 @@ export const aIResponseControllerCreateResponseBody = zod.object({
   "message_ids": zod.array(zod.string()),
   "channel_id": zod.string().optional(),
   "workspace_id": zod.string().optional(),
-  "language": zod.string().optional().describe('The language of the response. Defaults to original message.')
+  "language": zod.string().optional().describe('The language of the response. Defaults to original message.'),
+  "ignore_existing_response": zod.boolean().optional().describe('Whether to ignore existing response and generate a new one. Defaults to false.')
 })
 
 
@@ -214,13 +222,13 @@ export const aIResponseControllerGetLatestTenAIResponseByPromptResponse = zod.ob
   "reply_count": zod.number().describe('The number of replies to the message'),
   "parent_message_id": zod.string().optional().describe('Parent Message unique ID (only available for replies)'),
   "language": zod.string().default(aIResponseControllerGetLatestTenAIResponseByPromptResponseResultsItemMessagesItemMessageLanguageDefault).describe('Language for the message (Transcript, AI summary, Audio...)'),
-  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message'),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message').describe('Current status of the Message'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').describe('Type of the Message'),
   "attachments": zod.array(zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -242,8 +250,8 @@ export const aIResponseControllerGetLatestTenAIResponseByPromptResponse = zod.ob
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 }).optional(),
   "conversation": zod.object({
@@ -310,13 +318,415 @@ export const createShareLinkAIResponseBody = zod.object({
 })
 
 
+export const aIResponseControllerGetResponseByIdParams = zod.object({
+  "id": zod.string()
+})
+
+export const aIResponseControllerGetResponseByIdResponse = zod.object({
+  "id": zod.string(),
+  "creator_id": zod.string(),
+  "prompt_id": zod.string(),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "responses": zod.array(zod.object({
+  "language": zod.string().describe('Language'),
+  "json": zod.record(zod.string(), zod.string().or(zod.number()).or(zod.boolean()).or(zod.object({
+
+})).or(zod.array(zod.string()))).optional().describe('Json format'),
+  "text": zod.string().optional().describe('Text format'),
+  "html": zod.string().optional().describe('Html format'),
+  "markdown": zod.string().optional().describe('Markdown format')
+})).describe('Responses by language'),
+  "message_ids": zod.array(zod.string()),
+  "workspace_id": zod.string().optional(),
+  "channel_id": zod.string().optional()
+})
+
+
 export const aIResponseControllerDeletePromptParams = zod.object({
   "id": zod.string()
 })
 
 
+export const aIResponseControllerGetResponseByIdsBody = zod.object({
+  "ids": zod.array(zod.string()).describe('List of AI response IDs Max 500')
+})
+
+export const aIResponseControllerGetResponseByIdsResponseItem = zod.object({
+  "id": zod.string(),
+  "creator_id": zod.string(),
+  "prompt_id": zod.string(),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "responses": zod.array(zod.object({
+  "language": zod.string().describe('Language'),
+  "json": zod.record(zod.string(), zod.string().or(zod.number()).or(zod.boolean()).or(zod.object({
+
+})).or(zod.array(zod.string()))).optional().describe('Json format'),
+  "text": zod.string().optional().describe('Text format'),
+  "html": zod.string().optional().describe('Html format'),
+  "markdown": zod.string().optional().describe('Markdown format')
+})).describe('Responses by language'),
+  "message_ids": zod.array(zod.string()),
+  "workspace_id": zod.string().optional(),
+  "channel_id": zod.string().optional()
+})
+export const aIResponseControllerGetResponseByIdsResponse = zod.array(aIResponseControllerGetResponseByIdsResponseItem)
+
+
 /**
- * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields.
+ * @summary Create an action item
+ */
+export const actionItemControllerCreateBody = zod.object({
+  "title": zod.string(),
+  "notes_text": zod.string().optional(),
+  "assigned_to": zod.string().optional(),
+  "due_date": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "source_message_id": zod.string().optional(),
+  "workspace_id": zod.string().optional()
+})
+
+export const actionItemControllerCreateResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})
+
+
+/**
+ * @summary List action items
+ */
+export const actionItemControllerListParams = zod.object({
+  "container_type": zod.string(),
+  "container_id": zod.string()
+})
+
+export const actionItemControllerListQueryDirectionDefault = "newer";export const actionItemControllerListQueryLimitDefault = 50;
+export const actionItemControllerListQueryLimitMax = 100;
+
+
+export const actionItemControllerListQueryParams = zod.object({
+  "direction": zod.enum(['older', 'newer']).default(actionItemControllerListQueryDirectionDefault),
+  "limit": zod.number().min(1).max(actionItemControllerListQueryLimitMax).default(actionItemControllerListQueryLimitDefault).describe('Number of items to return (min: 1, max: 100)'),
+  "date": zod.string().optional().describe('Anchor timestamp to start from. Uses updated_at. Ignored when starting_after/ending_before is provided.'),
+  "starting_after": zod.string().optional().describe('Cursor to fetch the next page (use value from next_cursor).'),
+  "ending_before": zod.string().optional().describe('Cursor to fetch the previous page (use value from previous_cursor).'),
+  "assigned_to": zod.string().optional().describe('Filter by assigned_to (user_id). Use \'null\' to filter by unassigned items.'),
+  "status": zod.enum(['suggested', 'todo', 'done']).optional()
+})
+
+export const actionItemControllerListResponseFiltersDirectionDefault = "newer";export const actionItemControllerListResponseFiltersLimitDefault = 50;
+export const actionItemControllerListResponseFiltersLimitMax = 100;
+
+
+export const actionItemControllerListResponse = zod.object({
+  "next_cursor": zod.string().nullish().describe('Cursor to fetch the next page (use as `after`).'),
+  "has_more": zod.boolean().optional().describe('Whether there are more elements available after this set in the current sort direction'),
+  "results_count": zod.number().optional().describe('Results count (paginated results)'),
+  "total": zod.number().optional().describe('Total number of records by applied filters (ignores cursor/date anchors)'),
+  "filters": zod.object({
+  "direction": zod.enum(['older', 'newer']).default(actionItemControllerListResponseFiltersDirectionDefault),
+  "limit": zod.number().min(1).max(actionItemControllerListResponseFiltersLimitMax).default(actionItemControllerListResponseFiltersLimitDefault).describe('Number of items to return (min: 1, max: 100)'),
+  "date": zod.string().optional().describe('Anchor timestamp to start from. Uses updated_at. Ignored when starting_after/ending_before is provided.'),
+  "starting_after": zod.string().optional().describe('Cursor to fetch the next page (use value from next_cursor).'),
+  "ending_before": zod.string().optional().describe('Cursor to fetch the previous page (use value from previous_cursor).'),
+  "assigned_to": zod.string().optional().describe('Filter by assigned_to (user_id). Use \'null\' to filter by unassigned items.'),
+  "status": zod.enum(['suggested', 'todo', 'done']).optional()
+}).optional().describe('Filters'),
+  "results": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})).describe('List of Results')
+})
+
+
+/**
+ * @summary List action items IDs
+ */
+export const actionItemControllerListIdsParams = zod.object({
+  "container_type": zod.string(),
+  "container_id": zod.string()
+})
+
+export const actionItemControllerListIdsQueryDirectionDefault = "newer";export const actionItemControllerListIdsQueryLimitDefault = 500;
+export const actionItemControllerListIdsQueryLimitMax = 1000;
+
+
+export const actionItemControllerListIdsQueryParams = zod.object({
+  "direction": zod.enum(['older', 'newer']).default(actionItemControllerListIdsQueryDirectionDefault),
+  "limit": zod.number().min(1).max(actionItemControllerListIdsQueryLimitMax).default(actionItemControllerListIdsQueryLimitDefault).describe('Number of items to return (min: 1, max: 1000)'),
+  "date": zod.string().optional().describe('Anchor timestamp to start from. Uses updated_at. Ignored when starting_after/ending_before is provided.'),
+  "starting_after": zod.string().optional().describe('Cursor to fetch the next page (use value from next_cursor).'),
+  "ending_before": zod.string().optional().describe('Cursor to fetch the previous page (use value from previous_cursor).'),
+  "assigned_to": zod.string().optional().describe('Filter by assigned_to (user_id). Use \'null\' to filter by unassigned items.'),
+  "status": zod.enum(['suggested', 'todo', 'done']).optional()
+})
+
+export const actionItemControllerListIdsResponseFiltersDirectionDefault = "newer";export const actionItemControllerListIdsResponseFiltersLimitDefault = 50;
+export const actionItemControllerListIdsResponseFiltersLimitMax = 100;
+
+
+export const actionItemControllerListIdsResponse = zod.object({
+  "next_cursor": zod.string().nullish().describe('Cursor to fetch the next page (use as `after`).'),
+  "has_more": zod.boolean().optional().describe('Whether there are more elements available after this set in the current sort direction'),
+  "results_count": zod.number().optional().describe('Results count (paginated results)'),
+  "total": zod.number().optional().describe('Total number of records by applied filters (ignores cursor/date anchors)'),
+  "filters": zod.object({
+  "direction": zod.enum(['older', 'newer']).default(actionItemControllerListIdsResponseFiltersDirectionDefault),
+  "limit": zod.number().min(1).max(actionItemControllerListIdsResponseFiltersLimitMax).default(actionItemControllerListIdsResponseFiltersLimitDefault).describe('Number of items to return (min: 1, max: 100)'),
+  "date": zod.string().optional().describe('Anchor timestamp to start from. Uses updated_at. Ignored when starting_after/ending_before is provided.'),
+  "starting_after": zod.string().optional().describe('Cursor to fetch the next page (use value from next_cursor).'),
+  "ending_before": zod.string().optional().describe('Cursor to fetch the previous page (use value from previous_cursor).'),
+  "assigned_to": zod.string().optional().describe('Filter by assigned_to (user_id). Use \'null\' to filter by unassigned items.'),
+  "status": zod.enum(['suggested', 'todo', 'done']).optional()
+}).optional().describe('Filters'),
+  "results": zod.array(zod.object({
+  "id": zod.string(),
+  "updated_at": zod.string()
+})).describe('List of Results')
+})
+
+
+/**
+ * @summary Get List of Action Items by ID
+ */
+export const actionItemControllerGetByIdsParams = zod.object({
+  "container_type": zod.string(),
+  "container_id": zod.string()
+})
+
+export const actionItemControllerGetByIdsBody = zod.object({
+  "ids": zod.array(zod.string()).describe('List of action item IDs')
+})
+
+export const actionItemControllerGetByIdsResponseItem = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})
+export const actionItemControllerGetByIdsResponse = zod.array(actionItemControllerGetByIdsResponseItem)
+
+
+/**
+ * Returns action items assigned to the authenticated user or created by them that are currently unassigned (no assigned_to).
+ * @summary Get logged in user action items
+ */
+export const actionItemControllerListMyActionItemsQueryDirectionDefault = "newer";export const actionItemControllerListMyActionItemsQueryLimitDefault = 50;
+export const actionItemControllerListMyActionItemsQueryLimitMax = 100;
+
+
+export const actionItemControllerListMyActionItemsQueryParams = zod.object({
+  "direction": zod.enum(['older', 'newer']).default(actionItemControllerListMyActionItemsQueryDirectionDefault),
+  "limit": zod.number().min(1).max(actionItemControllerListMyActionItemsQueryLimitMax).default(actionItemControllerListMyActionItemsQueryLimitDefault).describe('Number of items to return (min: 1, max: 100)'),
+  "date": zod.string().optional().describe('Anchor timestamp to start from. Uses updated_at. Ignored when starting_after/ending_before is provided.'),
+  "starting_after": zod.string().optional().describe('Cursor to fetch the next page (use value from next_cursor).'),
+  "ending_before": zod.string().optional().describe('Cursor to fetch the previous page (use value from previous_cursor).'),
+  "status": zod.enum(['suggested', 'todo', 'done']).optional()
+})
+
+export const actionItemControllerListMyActionItemsResponseFiltersDirectionDefault = "newer";export const actionItemControllerListMyActionItemsResponseFiltersLimitDefault = 50;
+export const actionItemControllerListMyActionItemsResponseFiltersLimitMax = 100;
+
+
+export const actionItemControllerListMyActionItemsResponse = zod.object({
+  "next_cursor": zod.string().nullish().describe('Cursor to fetch the next page (use as `after`).'),
+  "has_more": zod.boolean().optional().describe('Whether there are more elements available after this set in the current sort direction'),
+  "results_count": zod.number().optional().describe('Results count (paginated results)'),
+  "total": zod.number().optional().describe('Total number of records by applied filters (ignores cursor/date anchors)'),
+  "filters": zod.object({
+  "direction": zod.enum(['older', 'newer']).default(actionItemControllerListMyActionItemsResponseFiltersDirectionDefault),
+  "limit": zod.number().min(1).max(actionItemControllerListMyActionItemsResponseFiltersLimitMax).default(actionItemControllerListMyActionItemsResponseFiltersLimitDefault).describe('Number of items to return (min: 1, max: 100)'),
+  "date": zod.string().optional().describe('Anchor timestamp to start from. Uses updated_at. Ignored when starting_after/ending_before is provided.'),
+  "starting_after": zod.string().optional().describe('Cursor to fetch the next page (use value from next_cursor).'),
+  "ending_before": zod.string().optional().describe('Cursor to fetch the previous page (use value from previous_cursor).'),
+  "assigned_to": zod.string().optional().describe('Filter by assigned_to (user_id). Use \'null\' to filter by unassigned items.'),
+  "status": zod.enum(['suggested', 'todo', 'done']).optional()
+}).optional().describe('Filters'),
+  "results": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})).describe('List of Results')
+})
+
+
+/**
+ * @summary Get action item by id
+ */
+export const actionItemControllerGetByIdParams = zod.object({
+  "id": zod.string()
+})
+
+export const actionItemControllerGetByIdResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})
+
+
+/**
+ * @summary Delete Action Item
+ */
+export const actionItemControllerDeleteParams = zod.object({
+  "id": zod.string()
+})
+
+export const actionItemControllerDeleteResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})
+
+
+/**
+ * @summary Update action item
+ */
+export const actionItemControllerUpdateParams = zod.object({
+  "id": zod.string()
+})
+
+export const actionItemControllerUpdateBody = zod.object({
+  "title": zod.string().optional(),
+  "notes_text": zod.string().optional(),
+  "assigned_to": zod.string().optional(),
+  "due_date": zod.string().optional()
+})
+
+export const actionItemControllerUpdateResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})
+
+
+/**
+ * @summary Update action item status
+ */
+export const actionItemControllerSetStatusParams = zod.object({
+  "id": zod.string()
+})
+
+export const actionItemControllerSetStatusBody = zod.object({
+  "status": zod.enum(['suggested', 'todo', 'done'])
+})
+
+export const actionItemControllerSetStatusResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['suggested', 'todo', 'done']),
+  "notes_text": zod.string().optional(),
+  "creator_id": zod.string(),
+  "source_message_id": zod.string().optional(),
+  "last_updated_by": zod.string(),
+  "assigned_to": zod.string().optional(),
+  "container_id": zod.string().optional(),
+  "container_type": zod.enum(['channel', 'folder', 'home']).optional(),
+  "workspace_id": zod.string(),
+  "due_date": zod.string().datetime({}).nullish(),
+  "created_at": zod.string().datetime({}),
+  "updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).nullish()
+})
+
+
+/**
+ * The process will be enqueued and will be processed in the background. No response will be returned.
+ * @summary Create suggestion(s) Action Item(s) from a list of messages
+ */
+export const actionItemControllerCreateSuggestionsFromMessagesBody = zod.object({
+  "message_ids": zod.array(zod.string()).describe('List of message IDs')
+})
+
+
+/**
+ * Apps that the user has access to (subscribed or not). If the user is the owner of the app, details will be returned with the private fields. Does not include the auto-managed default subscription app (`POST /apps/subscribe`); that client cannot be listed here or edited via OAuth client APIs.
  * @summary Get List of My Apps
  */
 export const getMyAppsResponseItem = zod.object({
@@ -335,17 +745,46 @@ export const getMyAppsResponseItem = zod.object({
   "updated_at": zod.string().datetime({}).describe('Updated at'),
   "deleted_at": zod.string().datetime({}).optional().describe('Deleted at'),
   "webhooks_url_mode": zod.enum(['one_per_client', 'one_per_subscription']).describe('Webhook URL mode'),
-  "send_invalid_refresh_token_webhook_notification": zod.boolean().optional().describe('Send invalid refresh token webhook notification'),
-  "send_webhook_when_invalid_access_or_refresh_token": zod.boolean().optional().describe('Send webhook when invalid access or refresh token'),
   "owner_id": zod.string().optional(),
   "user_is_subscribed_with_valid_tokens": zod.boolean().describe('Indicates whether the user is subscribed to the app and has valid authentication tokens (access or refresh).'),
-  "image_url": zod.string().optional().describe('Image URL')
+  "image_url": zod.string().optional().describe('Image URL'),
+  "is_default_subscription_client": zod.boolean().optional().describe('When true, this app is the default portal client for webhook subscriptions (one webhook URL per subscription).')
 })
 export const getMyAppsResponse = zod.array(getMyAppsResponseItem)
 
 
 /**
- * @summary Subscribe user into app
+ * Registers a webhook for the user without requiring a client_id. A client_id will be generated automatically. To update or delete, use the client_id returned in the response. Authorization matches `POST /apps/:client_id/subscribe` once the implicit client exists: OAuth access token for that client, Personal Access Token with cv:write on an app you own, short-lived stateless agent JWT (minted via `POST /agents/:id/tokens`) whose payload includes cv:read and cv:write, or session token (pxtoken) for an app you own.
+ * @summary Subscribe user to events subscribed via a Webhook
+ */
+export const subscribeUserImplicitClientBodySubscriptionFiltersItemOperatorDefault = "eq";
+
+export const subscribeUserImplicitClientBody = zod.object({
+  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'ai.prompt.response.generated', 'action-item.created', 'action-item.updated', 'action-item.deleted', 'action-item.status.changed'])).optional().describe('All events are subscribed by default: message.initializing, message.started, message.paused, message.resumed, message.offline, message.processing, message.finished, message.deleted, message.discussion-notes.added, message.label.added, message.posted.to.channel, message.voicememo.created, channel.created, channel.deleted, channel.user.joined, channel.users.added, channel.user.left, channel.user.removed, channel.async-check.mid, channel.async-check.ending, channel.async.ended, channel.async.extended, channel.async.shortened, channel.ai-summary.generated, workspace.user.joined, workspace.user.added, workspace.user.left, workspace.user.removed, workspace.findable-channel.created, ai.prompt.response.generated, action-item.created, action-item.updated, action-item.deleted, action-item.status.changed. Also supports \'schedule\' trigger for time-based triggers.'),
+  "webhookURL": zod.string().optional().describe('Webhook URL to send the data'),
+  "subscription_filters": zod.array(zod.object({
+  "key": zod.string().describe('What is the key to filter the data before sending to the webhook'),
+  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('Must match `operator`: use a string or number for \"eq\" and \"ne\"; use a non-empty array only for \"in\".'),
+  "operator": zod.enum(['eq', 'ne', 'in']).describe('What is the operator to filter the data')
+})).optional(),
+  "subscription_actions": zod.array(zod.object({
+  "action_id": zod.enum(['run_ai_prompt', 'send_channel_message_reminder']).describe('What is the action to perform'),
+  "entity_type": zod.enum(['ai_prompt', 'channel_reminder']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
+  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)'),
+  "metadata": zod.object({
+  "conversation_id": zod.string().optional().describe('The conversation/channel ID where the reminder message should be sent'),
+  "send_as_bot": zod.boolean().optional().describe('Whether the message should be sent as a bot. If true, bot_user_id should be provided'),
+  "message": zod.string().optional().describe('The message text to send. Either message or from_message_id must be provided'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message')
+}).optional().describe('Additional metadata for the action. Structure varies by entity_type')
+})).optional().describe('Actions are used only for internal apps. (Not allowed to external apps)'),
+  "webhook_headers": zod.record(zod.string(), zod.string().or(zod.number())).nullish().describe('Custom HTTP headers Carbon Voice will forward on every webhook delivery for this subscription. Pass null to clear previously set headers; omit the field to leave existing headers unchanged.')
+})
+
+
+/**
+ * OAuth access token must be issued for this client_id. With a personal access token (PAT), use cv:write and an app you own (client.owner_id matches the authenticated user). With a stateless agent JWT (`POST /agents/:id/tokens`), the same cv:write rule applies via embedded scopes (cv:read + cv:write). With a session token (pxtoken), ownership of the app is required; no scope is needed.
+ * @summary Subscribe user to events sent via webhook
  */
 export const subscribeUserIntoAppParams = zod.object({
   "client_id": zod.string()
@@ -354,18 +793,25 @@ export const subscribeUserIntoAppParams = zod.object({
 export const subscribeUserIntoAppBodySubscriptionFiltersItemOperatorDefault = "eq";
 
 export const subscribeUserIntoAppBody = zod.object({
-  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'access_token.expired', 'refresh_token.expired', 'ai.prompt.response.generated'])).optional().describe('All events are subscribed by default: message.initializing, message.started, message.paused, message.resumed, message.offline, message.processing, message.finished, message.deleted, message.discussion-notes.added, message.label.added, message.posted.to.channel, message.voicememo.created, channel.created, channel.deleted, channel.user.joined, channel.users.added, channel.user.left, channel.user.removed, channel.async-check.mid, channel.async-check.ending, channel.async.ended, channel.async.extended, channel.async.shortened, channel.ai-summary.generated, workspace.user.joined, workspace.user.added, workspace.user.left, workspace.user.removed, workspace.findable-channel.created, access_token.expired, refresh_token.expired, ai.prompt.response.generated'),
+  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'ai.prompt.response.generated', 'action-item.created', 'action-item.updated', 'action-item.deleted', 'action-item.status.changed'])).optional().describe('All events are subscribed by default: message.initializing, message.started, message.paused, message.resumed, message.offline, message.processing, message.finished, message.deleted, message.discussion-notes.added, message.label.added, message.posted.to.channel, message.voicememo.created, channel.created, channel.deleted, channel.user.joined, channel.users.added, channel.user.left, channel.user.removed, channel.async-check.mid, channel.async-check.ending, channel.async.ended, channel.async.extended, channel.async.shortened, channel.ai-summary.generated, workspace.user.joined, workspace.user.added, workspace.user.left, workspace.user.removed, workspace.findable-channel.created, ai.prompt.response.generated, action-item.created, action-item.updated, action-item.deleted, action-item.status.changed. Also supports \'schedule\' trigger for time-based triggers.'),
   "webhookURL": zod.string().optional().describe('Webhook URL to send the data'),
   "subscription_filters": zod.array(zod.object({
   "key": zod.string().describe('What is the key to filter the data before sending to the webhook'),
-  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('What is the value to filter the data (string or number)'),
+  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('Must match `operator`: use a string or number for \"eq\" and \"ne\"; use a non-empty array only for \"in\".'),
   "operator": zod.enum(['eq', 'ne', 'in']).describe('What is the operator to filter the data')
 })).optional(),
   "subscription_actions": zod.array(zod.object({
-  "action_id": zod.enum(['run_ai_prompt']).describe('What is the action to perform'),
-  "entity_type": zod.enum(['ai_prompt']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
-  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)')
-})).optional().describe('Actions are used only for internal apps. (Not allowed to external apps)')
+  "action_id": zod.enum(['run_ai_prompt', 'send_channel_message_reminder']).describe('What is the action to perform'),
+  "entity_type": zod.enum(['ai_prompt', 'channel_reminder']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
+  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)'),
+  "metadata": zod.object({
+  "conversation_id": zod.string().optional().describe('The conversation/channel ID where the reminder message should be sent'),
+  "send_as_bot": zod.boolean().optional().describe('Whether the message should be sent as a bot. If true, bot_user_id should be provided'),
+  "message": zod.string().optional().describe('The message text to send. Either message or from_message_id must be provided'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message')
+}).optional().describe('Additional metadata for the action. Structure varies by entity_type')
+})).optional().describe('Actions are used only for internal apps. (Not allowed to external apps)'),
+  "webhook_headers": zod.record(zod.string(), zod.string().or(zod.number())).nullish().describe('Custom HTTP headers Carbon Voice will forward on every webhook delivery for this subscription. Pass null to clear previously set headers; omit the field to leave existing headers unchanged.')
 })
 
 export const subscribeUserIntoAppResponseSubscriptionFiltersItemOperatorDefault = "eq";
@@ -376,23 +822,165 @@ export const subscribeUserIntoAppResponse = zod.object({
   "id": zod.string().describe('The primary key of the resource.'),
   "client_id": zod.string(),
   "user_id": zod.string(),
-  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'access_token.expired', 'refresh_token.expired', 'ai.prompt.response.generated'])),
+  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'ai.prompt.response.generated', 'action-item.created', 'action-item.updated', 'action-item.deleted', 'action-item.status.changed'])).describe('Array of subscription events or triggers (including \"schedule\" for time-based triggers)'),
   "webhookURL": zod.string().optional().describe('Webhook URL to send the data'),
   "subscription_filters": zod.array(zod.object({
   "key": zod.string().describe('What is the key to filter the data before sending to the webhook'),
-  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('What is the value to filter the data (string or number)'),
+  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('Must match `operator`: use a string or number for \"eq\" and \"ne\"; use a non-empty array only for \"in\".'),
   "operator": zod.enum(['eq', 'ne', 'in']).describe('What is the operator to filter the data')
 })).optional(),
   "subscription_actions": zod.array(zod.object({
-  "action_id": zod.enum(['run_ai_prompt']).describe('What is the action to perform'),
-  "entity_type": zod.enum(['ai_prompt']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
-  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)')
-})).optional()
+  "action_id": zod.enum(['run_ai_prompt', 'send_channel_message_reminder']).describe('What is the action to perform'),
+  "entity_type": zod.enum(['ai_prompt', 'channel_reminder']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
+  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)'),
+  "metadata": zod.object({
+  "conversation_id": zod.string().optional().describe('The conversation/channel ID where the reminder message should be sent'),
+  "send_as_bot": zod.boolean().optional().describe('Whether the message should be sent as a bot. If true, bot_user_id should be provided'),
+  "message": zod.string().optional().describe('The message text to send. Either message or from_message_id must be provided'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message')
+}).optional().describe('Additional metadata for the action. Structure varies by entity_type')
+})).optional(),
+  "webhook_headers": zod.record(zod.string(), zod.string().or(zod.number())).optional().describe('Custom HTTP headers forwarded on webhook deliveries for this subscription.')
 })
 
 
 /**
- * @summary Unsubscribe user from app
+ * Same authorization as subscribe: OAuth access token for this client_id, PAT or stateless agent JWT with cv:write on an app you own, or pxtoken session for an app you own.
+ * @summary Unsubscribe user from registered event
+ */
+export const unsubscribeSpecificSubscriptionFromAppParams = zod.object({
+  "client_id": zod.string(),
+  "id": zod.string()
+})
+
+
+/**
+ * List subscriptions for this user. Any authenticated user (including agents via session, PAT, or stateless agent JWT) sees only their own rows.
+ * @summary List owned subscriptions
+ */
+export const listOwnedSubscriptionsQuerySkipDefault = 0;
+export const listOwnedSubscriptionsQuerySkipMin = 0;
+export const listOwnedSubscriptionsQueryLimitDefault = 100;
+export const listOwnedSubscriptionsQueryLimitMax = 100;
+export const listOwnedSubscriptionsQueryDirectionDefault = "newer";
+
+export const listOwnedSubscriptionsQueryParams = zod.object({
+  "skip": zod.number().min(listOwnedSubscriptionsQuerySkipMin).optional(),
+  "limit": zod.number().min(1).max(listOwnedSubscriptionsQueryLimitMax).default(listOwnedSubscriptionsQueryLimitDefault).describe('Max number of results allowed per page is: **100**'),
+  "direction": zod.enum(['older', 'newer']).default(listOwnedSubscriptionsQueryDirectionDefault),
+  "date": zod.string().optional().describe('ISO 8601 date string for cursor pagination')
+})
+
+export const listOwnedSubscriptionsResponsePaginationSkipDefault = 0;
+export const listOwnedSubscriptionsResponsePaginationSkipMin = 0;
+export const listOwnedSubscriptionsResponsePaginationLimitDefault = 100;
+export const listOwnedSubscriptionsResponsePaginationLimitMax = 100;
+export const listOwnedSubscriptionsResponsePaginationDirectionDefault = "newer";export const listOwnedSubscriptionsResponseResultsItemSubscriptionFiltersItemOperatorDefault = "eq";
+
+export const listOwnedSubscriptionsResponse = zod.object({
+  "pagination": zod.object({
+  "skip": zod.number().min(listOwnedSubscriptionsResponsePaginationSkipMin).optional(),
+  "limit": zod.number().min(1).max(listOwnedSubscriptionsResponsePaginationLimitMax).default(listOwnedSubscriptionsResponsePaginationLimitDefault).describe('Max number of results allowed per page is: **100**'),
+  "direction": zod.enum(['older', 'newer']).default(listOwnedSubscriptionsResponsePaginationDirectionDefault),
+  "date": zod.string().optional().describe('ISO 8601 date string for cursor pagination')
+}),
+  "total_results": zod.number(),
+  "results": zod.array(zod.object({
+  "created_at": zod.string().datetime({}).describe('The date and time at which the resource was created.'),
+  "updated_at": zod.string().datetime({}).describe('The date and time at which the resource was last updated.'),
+  "id": zod.string().describe('The primary key of the resource.'),
+  "client_id": zod.string(),
+  "user_id": zod.string(),
+  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'ai.prompt.response.generated', 'action-item.created', 'action-item.updated', 'action-item.deleted', 'action-item.status.changed'])).describe('Array of subscription events or triggers (including \"schedule\" for time-based triggers)'),
+  "webhookURL": zod.string().optional().describe('Webhook URL to send the data'),
+  "subscription_filters": zod.array(zod.object({
+  "key": zod.string().describe('What is the key to filter the data before sending to the webhook'),
+  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('Must match `operator`: use a string or number for \"eq\" and \"ne\"; use a non-empty array only for \"in\".'),
+  "operator": zod.enum(['eq', 'ne', 'in']).describe('What is the operator to filter the data')
+})).optional(),
+  "subscription_actions": zod.array(zod.object({
+  "action_id": zod.enum(['run_ai_prompt', 'send_channel_message_reminder']).describe('What is the action to perform'),
+  "entity_type": zod.enum(['ai_prompt', 'channel_reminder']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
+  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)'),
+  "metadata": zod.object({
+  "conversation_id": zod.string().optional().describe('The conversation/channel ID where the reminder message should be sent'),
+  "send_as_bot": zod.boolean().optional().describe('Whether the message should be sent as a bot. If true, bot_user_id should be provided'),
+  "message": zod.string().optional().describe('The message text to send. Either message or from_message_id must be provided'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message')
+}).optional().describe('Additional metadata for the action. Structure varies by entity_type')
+})).optional(),
+  "webhook_headers": zod.record(zod.string(), zod.string().or(zod.number())).optional().describe('Custom HTTP headers forwarded on webhook deliveries for this subscription.')
+}))
+})
+
+
+/**
+ * Updates a subscription previously registered by this user. Requires an authenticated user for that subscription row (same as today); agents authenticated with PAT or stateless agent JWT follow the same rule.
+ * @summary Update subscription
+ */
+export const updateSubscriptionParams = zod.object({
+  "client_id": zod.string(),
+  "id": zod.string()
+})
+
+export const updateSubscriptionBodySubscriptionFiltersItemOperatorDefault = "eq";
+
+export const updateSubscriptionBody = zod.object({
+  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'ai.prompt.response.generated', 'action-item.created', 'action-item.updated', 'action-item.deleted', 'action-item.status.changed'])).optional().describe('All events are subscribed by default: message.initializing, message.started, message.paused, message.resumed, message.offline, message.processing, message.finished, message.deleted, message.discussion-notes.added, message.label.added, message.posted.to.channel, message.voicememo.created, channel.created, channel.deleted, channel.user.joined, channel.users.added, channel.user.left, channel.user.removed, channel.async-check.mid, channel.async-check.ending, channel.async.ended, channel.async.extended, channel.async.shortened, channel.ai-summary.generated, workspace.user.joined, workspace.user.added, workspace.user.left, workspace.user.removed, workspace.findable-channel.created, ai.prompt.response.generated, action-item.created, action-item.updated, action-item.deleted, action-item.status.changed. Also supports \'schedule\' trigger for time-based triggers.'),
+  "webhookURL": zod.string().optional().describe('Webhook URL to send the data'),
+  "subscription_filters": zod.array(zod.object({
+  "key": zod.string().describe('What is the key to filter the data before sending to the webhook'),
+  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('Must match `operator`: use a string or number for \"eq\" and \"ne\"; use a non-empty array only for \"in\".'),
+  "operator": zod.enum(['eq', 'ne', 'in']).describe('What is the operator to filter the data')
+})).optional(),
+  "subscription_actions": zod.array(zod.object({
+  "action_id": zod.enum(['run_ai_prompt', 'send_channel_message_reminder']).describe('What is the action to perform'),
+  "entity_type": zod.enum(['ai_prompt', 'channel_reminder']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
+  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)'),
+  "metadata": zod.object({
+  "conversation_id": zod.string().optional().describe('The conversation/channel ID where the reminder message should be sent'),
+  "send_as_bot": zod.boolean().optional().describe('Whether the message should be sent as a bot. If true, bot_user_id should be provided'),
+  "message": zod.string().optional().describe('The message text to send. Either message or from_message_id must be provided'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message')
+}).optional().describe('Additional metadata for the action. Structure varies by entity_type')
+})).optional().describe('Actions are used only for internal apps. (Not allowed to external apps)'),
+  "webhook_headers": zod.record(zod.string(), zod.string().or(zod.number())).nullish().describe('Custom HTTP headers Carbon Voice will forward on every webhook delivery for this subscription. Pass null to clear previously set headers; omit the field to leave existing headers unchanged.'),
+  "scheduler_job_metadata": zod.string().optional().describe('JSON stringified scheduler metadata used for schedule-based subscriptions')
+})
+
+export const updateSubscriptionResponseSubscriptionFiltersItemOperatorDefault = "eq";
+
+export const updateSubscriptionResponse = zod.object({
+  "created_at": zod.string().datetime({}).describe('The date and time at which the resource was created.'),
+  "updated_at": zod.string().datetime({}).describe('The date and time at which the resource was last updated.'),
+  "id": zod.string().describe('The primary key of the resource.'),
+  "client_id": zod.string(),
+  "user_id": zod.string(),
+  "subscriptions": zod.array(zod.enum(['message.initializing', 'message.started', 'message.paused', 'message.resumed', 'message.offline', 'message.processing', 'message.finished', 'message.deleted', 'message.discussion-notes.added', 'message.label.added', 'message.posted.to.channel', 'message.voicememo.created', 'channel.created', 'channel.deleted', 'channel.user.joined', 'channel.users.added', 'channel.user.left', 'channel.user.removed', 'channel.async-check.mid', 'channel.async-check.ending', 'channel.async.ended', 'channel.async.extended', 'channel.async.shortened', 'channel.ai-summary.generated', 'workspace.user.joined', 'workspace.user.added', 'workspace.user.left', 'workspace.user.removed', 'workspace.findable-channel.created', 'ai.prompt.response.generated', 'action-item.created', 'action-item.updated', 'action-item.deleted', 'action-item.status.changed'])).describe('Array of subscription events or triggers (including \"schedule\" for time-based triggers)'),
+  "webhookURL": zod.string().optional().describe('Webhook URL to send the data'),
+  "subscription_filters": zod.array(zod.object({
+  "key": zod.string().describe('What is the key to filter the data before sending to the webhook'),
+  "value": zod.string().or(zod.number()).or(zod.array(zod.string())).describe('Must match `operator`: use a string or number for \"eq\" and \"ne\"; use a non-empty array only for \"in\".'),
+  "operator": zod.enum(['eq', 'ne', 'in']).describe('What is the operator to filter the data')
+})).optional(),
+  "subscription_actions": zod.array(zod.object({
+  "action_id": zod.enum(['run_ai_prompt', 'send_channel_message_reminder']).describe('What is the action to perform'),
+  "entity_type": zod.enum(['ai_prompt', 'channel_reminder']).optional().describe('What is the entity_type to perform the action on (required when entity_id is provided)'),
+  "entity_id": zod.string().optional().describe('What is the entity_id to perform the action on (required when entity_type is provided)'),
+  "metadata": zod.object({
+  "conversation_id": zod.string().optional().describe('The conversation/channel ID where the reminder message should be sent'),
+  "send_as_bot": zod.boolean().optional().describe('Whether the message should be sent as a bot. If true, bot_user_id should be provided'),
+  "message": zod.string().optional().describe('The message text to send. Either message or from_message_id must be provided'),
+  "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message')
+}).optional().describe('Additional metadata for the action. Structure varies by entity_type')
+})).optional(),
+  "webhook_headers": zod.record(zod.string(), zod.string().or(zod.number())).optional().describe('Custom HTTP headers forwarded on webhook deliveries for this subscription.')
+})
+
+
+/**
+ * Same auth as subscribe: OAuth access token for this client_id, PAT or stateless agent JWT with cv:write for an app you own, or session token (pxtoken) for an app you own.
+ * @summary Unsubscribe user from all events and removes all access tokens associated with this app.
  */
 export const unsubscribeUserFromAppParams = zod.object({
   "client_id": zod.string()
@@ -448,13 +1036,13 @@ export const getTenRecentMessagesResponseResponse = zod.object({
   "reply_count": zod.number().describe('The number of replies to the message'),
   "parent_message_id": zod.string().optional().describe('Parent Message unique ID (only available for replies)'),
   "language": zod.string().default(getTenRecentMessagesResponseResponseResultsItemMessageLanguageDefault).describe('Language for the message (Transcript, AI summary, Audio...)'),
-  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message'),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message').describe('Current status of the Message'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').describe('Type of the Message'),
   "attachments": zod.array(zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -476,8 +1064,8 @@ export const getTenRecentMessagesResponseResponse = zod.object({
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 }).optional(),
   "conversation": zod.object({
@@ -567,13 +1155,13 @@ export const getMessageByIdResponse = zod.object({
   "reply_count": zod.number().describe('The number of replies to the message'),
   "parent_message_id": zod.string().optional().describe('Parent Message unique ID (only available for replies)'),
   "language": zod.string().default(getMessageByIdResponseMessageLanguageDefault).describe('Language for the message (Transcript, AI summary, Audio...)'),
-  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message'),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message').describe('Current status of the Message'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').describe('Type of the Message'),
   "attachments": zod.array(zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -595,8 +1183,8 @@ export const getMessageByIdResponse = zod.object({
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 }).optional(),
   "conversation": zod.object({
@@ -713,13 +1301,13 @@ export const listMessagesResponse = zod.object({
   "reply_count": zod.number().describe('The number of replies to the message'),
   "parent_message_id": zod.string().optional().describe('Parent Message unique ID (only available for replies)'),
   "language": zod.string().default(listMessagesResponseResultsItemLanguageDefault).describe('Language for the message (Transcript, AI summary, Audio...)'),
-  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message'),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message').describe('Current status of the Message'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').describe('Type of the Message'),
   "attachments": zod.array(zod.object({
   "id": zod.string(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
   "link": zod.string(),
   "active_begin": zod.string().datetime({}).optional(),
   "active_end": zod.string().datetime({}).optional(),
@@ -762,7 +1350,7 @@ export const createConversationMessageBodyFromMessageTypeDefault = "NewMessage";
 export const createConversationMessageBody = zod.object({
   "transcript": zod.string().optional().describe('The Message transcript will be used to generate audio using text-to-speech'),
   "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message'),
-  "from_message_type": zod.enum(['PreRecorded', 'NewMessage', 'Forward']).default(createConversationMessageBodyFromMessageTypeDefault).describe('From Message type'),
+  "from_message_type": zod.enum(['PreRecorded', 'NewMessage', 'Forward', 'MessageId']).default(createConversationMessageBodyFromMessageTypeDefault).describe('From Message type'),
   "from_message_id": zod.string().optional().describe('Message ID to be used as a base for the new message. (Optional only when from_message_type is NewMessage)')
 })
 
@@ -781,7 +1369,7 @@ export const sendDirectMessageBody = zod.object({
   "workspace_id": zod.string().default(sendDirectMessageBodyWorkspaceIdDefault).describe('The workspace ID to send the message to'),
   "transcript": zod.string().optional().describe('The Message transcript will be used to generate audio using text-to-speech'),
   "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message'),
-  "from_message_type": zod.enum(['PreRecorded', 'NewMessage', 'Forward']).default(sendDirectMessageBodyFromMessageTypeDefault).describe('From Message type'),
+  "from_message_type": zod.enum(['PreRecorded', 'NewMessage', 'Forward', 'MessageId']).default(sendDirectMessageBodyFromMessageTypeDefault).describe('From Message type'),
   "from_message_id": zod.string().optional().describe('Message ID to be used as a base for the new message. (Optional only when from_message_type is NewMessage)')
 })
 
@@ -794,7 +1382,8 @@ export const createVoiceMemoMessageBody = zod.object({
   "transcript": zod.string().optional().describe('The Message transcript will be used to generate audio using text-to-speech'),
   "links": zod.array(zod.string()).optional().describe('Array of links to be attached to the message'),
   "folder_id": zod.string().optional().describe('Folder ID (not allowed when workspace_id specified is different from the folder_id)'),
-  "workspace_id": zod.string().optional().describe('Workspace ID (not allowed when folder_id specified is different from the folder_id)')
+  "workspace_id": zod.string().optional().describe('Workspace ID (not allowed when folder_id specified is different from the folder_id)'),
+  "audio_file": zod.instanceof(File).optional().describe('Audio file upload on multipart requests. Supported Formats: .mp3, .m4a, .wav, .aac, .ogg, .flac, .wma, .opus, .webm. (Overwrites transcript)')
 })
 
 
@@ -816,8 +1405,8 @@ export const searchUserResponse = zod.object({
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 })
 
@@ -840,8 +1429,8 @@ export const searchUsersResponseItem = zod.object({
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 })
 export const searchUsersResponse = zod.array(searchUsersResponseItem)
@@ -862,8 +1451,8 @@ export const getUserByIdResponse = zod.object({
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 })
 
@@ -871,6 +1460,11 @@ export const getUserByIdResponse = zod.object({
 /**
  * @summary Get all user conversations (Only _id and name available
  */
+export const getAllConversationsQueryParams = zod.object({
+  "user_ids": zod.array(zod.string()).optional().describe('List of user IDs to filter conversations by. When omitted, all conversations for the caller are returned.'),
+  "match": zod.enum(['any', 'all']).optional().describe('Match mode: any (union) or all (intersection). Defaults to any.')
+})
+
 export const getAllConversationsResponse = zod.object({
   "results_count": zod.number().describe('Results count'),
   "results": zod.array(zod.object({
@@ -944,11 +1538,69 @@ export const getConversationUsersResponseItem = zod.object({
   "last_name": zod.string().optional().describe('Last Name'),
   "full_name": zod.string().describe('Full Name'),
   "image_url": zod.string().optional().describe('Image Url'),
-  "emails": zod.array(zod.string()).optional().describe('List of emails (First one is the primary)'),
-  "phones": zod.array(zod.string()).optional().describe('List of phones (First one is the primary)'),
+  "emails": zod.array(zod.string()).optional().describe('List of emails matched by the search query. Only present when the user was found by email. Deprecated: use identities instead.'),
+  "phones": zod.array(zod.string()).optional().describe('List of phones matched by the search query. Only present when the user was found by phone. Deprecated: use identities instead.'),
   "languages": zod.array(zod.string()).optional().describe('List of languages (First one is the primary)')
 })
 export const getConversationUsersResponse = zod.array(getConversationUsersResponseItem)
+
+
+/**
+ * @summary Add users to a conversation
+ */
+export const addUsersToConversationParams = zod.object({
+  "id": zod.string()
+})
+
+export const addUsersToConversationBodyRoleDefault = "member";
+
+export const addUsersToConversationBody = zod.object({
+  "users": zod.object({
+  "emails": zod.array(zod.string()).optional().describe('List of emails'),
+  "ids": zod.array(zod.string()).optional().describe('List of user ids'),
+  "phones": zod.array(zod.string()).optional().describe('List of phone numbers')
+}).describe('List of users to add to the conversation. (At least one of ids, emails, or phones is required)'),
+  "role": zod.enum(['admin', 'owner', 'creator', 'member', 'guest']).default(addUsersToConversationBodyRoleDefault)
+})
+
+export const addUsersToConversationResponse = zod.object({
+  "id": zod.string().describe('ID'),
+  "link": zod.string().describe('Link to Conversation'),
+  "name": zod.string().describe('Name'),
+  "description": zod.string().optional().describe('Description'),
+  "workspace_id": zod.string().describe('Workspace ID'),
+  "workspace_name": zod.string().describe('Workspace Name'),
+  "workspace_image_url": zod.string().optional().describe('Workspace Image Url'),
+  "owner_id": zod.string().describe('owner unique ID'),
+  "type": zod.enum(['directMessage', 'customerConversation', 'namedConversation', 'asyncMeeting']).describe('Type'),
+  "visibility": zod.enum(['private', 'workspace', 'public']).describe('Visibility'),
+  "total_messages": zod.number().describe('Total Messages'),
+  "total_duration_ms": zod.number().describe('Total duration in milliseconds'),
+  "image_url": zod.string().optional().describe('Image Url'),
+  "is_private": zod.boolean().describe('Is Private Conversation'),
+  "is_async": zod.boolean().describe('Is Async Conversation'),
+  "async_stats": zod.object({
+  "stats": zod.object({
+  "total_duration_milliseconds": zod.number().describe('Total duration in milliseconds'),
+  "total_heard_milliseconds": zod.number().describe('Total heard in milliseconds'),
+  "total_engaged_percentage": zod.number().describe('Total engaged percentage'),
+  "total_messages_posted": zod.number().describe('Total messages posted'),
+  "total_users": zod.number().describe('Total users')
+}).describe('Conversation stats'),
+  "user_stats": zod.array(zod.object({
+  "user_id": zod.string().describe('User unique ID'),
+  "total_messages_posted": zod.number().describe('Total messages posted'),
+  "total_sent_milliseconds": zod.number().describe('Total sent in milliseconds'),
+  "total_heard_milliseconds": zod.number().describe('Total heard in milliseconds'),
+  "total_engaged_percentage": zod.number().describe('Total engaged percentage'),
+  "total_heard_messages": zod.number().describe('Total heard messages'),
+  "total_unheard_messages": zod.number().describe('Total unheard messages')
+})).describe('User stats')
+}).optional().describe('Async Meeting Stats'),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).optional()
+})
 
 
 /**
@@ -972,14 +1624,14 @@ export const getAiSystemPromptResponseParams = zod.object({
 /**
  * @summary Get all root Folders
  */
-export const getAllRootFoldersQueryIncludeAllTreeDefault = false;export const getAllRootFoldersQuerySortDirectionDefault = "ASC";export const getAllRootFoldersQuerySortByDefault = "name";
+export const getAllRootFoldersQueryIncludeAllTreeDefault = false;export const getAllRootFoldersQuerySortDirectionDefault = "ASC";
 
 export const getAllRootFoldersQueryParams = zod.object({
   "type": zod.enum(['voicememo', 'prerecorded']).describe('Folder Type'),
   "include_all_tree": zod.boolean().optional().describe('Return all folders tree'),
   "workspace_id": zod.string().optional().describe('Workspace ID'),
   "sort_direction": zod.enum(['ASC', 'DESC']).default(getAllRootFoldersQuerySortDirectionDefault).describe('Sort order direction'),
-  "sort_by": zod.enum(['created_at', 'last_updated_at', 'name']).default(getAllRootFoldersQuerySortByDefault).describe('Field to sort by')
+  "sort_by": zod.enum(['created_at', 'last_updated_at', 'name']).optional().describe('Field to sort by')
 })
 
 export const getAllRootFoldersResponseIncludeAllTreeDefault = false;export const getAllRootFoldersResponseSortDirectionDefault = "ASC";export const getAllRootFoldersResponseSortByDefault = "name";export const getAllRootFoldersResponseResultsItemTotalNestedFoldersCountDefault = 0;export const getAllRootFoldersResponseResultsItemTotalNestedMessagesCountDefault = 0;export const getAllRootFoldersResponseResultsItemSubfoldersItemTotalNestedFoldersCountDefault = 0;export const getAllRootFoldersResponseResultsItemSubfoldersItemTotalNestedMessagesCountDefault = 0;
@@ -1183,19 +1835,23 @@ export const getFolderMessagesResponse = zod.object({
   "utm_content": zod.string().optional()
 }).nullish(),
   "attachments": zod.array(zod.object({
-  "id": zod.string(),
+  "_id": zod.string(),
+  "client_id": zod.string().nullish(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
   "link": zod.string(),
-  "active_begin": zod.string().datetime({}).optional(),
-  "active_end": zod.string().datetime({}).optional(),
-  "filename": zod.string().optional(),
-  "mime_type": zod.string().optional(),
-  "length_in_bytes": zod.number().optional(),
+  "active_begin": zod.string().datetime({}).nullish(),
+  "active_end": zod.string().datetime({}).nullish(),
+  "filename": zod.string().nullish(),
+  "mime_type": zod.string().nullish(),
+  "length_in_bytes": zod.number().nullish(),
   "location": zod.object({
-
-}).optional()
+  "latitude": zod.number(),
+  "longitude": zod.number()
+}).nullish(),
+  "status": zod.enum(['Initializing', 'Uploading', 'Uploaded', 'Failed']).nullish(),
+  "percent_complete": zod.number().nullish()
 })),
   "notes": zod.string(),
   "notify": zod.boolean().describe('Has the logged in user cleared the notification for this message'),
@@ -1209,7 +1865,7 @@ export const getFolderMessagesResponse = zod.object({
 }),
   "name": zod.string().nullish(),
   "is_text_message": zod.boolean(),
-  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message'),
   "label_ids": zod.array(zod.string()),
   "audio_models": zod.array(zod.object({
   "_id": zod.string(),
@@ -1247,15 +1903,16 @@ export const getFolderMessagesResponse = zod.object({
   "duration_ms": zod.number().describe('The length of the message in milliseconds'),
   "total_heard_ms": zod.number().describe('The number of ms of audio listened to by all users'),
   "notified_users": zod.number().describe('Then number of users who have a notification for this message and have not listened to the audio.'),
-  "users_caught_up": zod.enum(['all', 'some', 'none']).describe('The number of users that listened to the audio or removed the notification'),
+  "users_caught_up": zod.enum(['all', 'some', 'none']).describe('The number of users that listened to the audio or removed the notification').describe('The number of users that listened to the audio or removed the notification'),
   "forward_id": zod.string().nullish().describe('The ID of a forwarded message (Deprecated, for new implementations we should start using share_link_id'),
   "share_link_id": zod.string().nullish().describe('The ID of a Share Link to a message'),
   "stream_key": zod.string().nullish().describe('The stream key used to add audio to the message'),
   "socket_disconnects_while_streaming": zod.number().describe('The number of times the socket disconnected while the creator was sending audio'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).nullable().describe('Message type'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').nullable().describe('Message type'),
   "channel_sequence": zod.number().describe('The sequencial id of the message within the channel'),
   "last_heard_at": zod.string().datetime({}).describe('The last time anyone listened or cleared notified on this message'),
-  "folder_id": zod.string().nullish().describe('Folder ID, only present when the message type is one of: voicememo,prerecorded')
+  "folder_id": zod.string().nullish().describe('Folder ID, only present when the message type is one of: voicememo,prerecorded'),
+  "tagged_user_ids": zod.array(zod.string()).describe('IDs of users tagged in the message')
 })).optional().describe('List of Messages')
 })
 
@@ -1396,19 +2053,23 @@ export const addMessageToFolderOrWorkspaceResponse = zod.object({
   "utm_content": zod.string().optional()
 }).nullish(),
   "attachments": zod.array(zod.object({
-  "id": zod.string(),
+  "_id": zod.string(),
+  "client_id": zod.string().nullish(),
   "creator_id": zod.string(),
   "created_at": zod.string().datetime({}),
-  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id']),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
   "link": zod.string(),
-  "active_begin": zod.string().datetime({}).optional(),
-  "active_end": zod.string().datetime({}).optional(),
-  "filename": zod.string().optional(),
-  "mime_type": zod.string().optional(),
-  "length_in_bytes": zod.number().optional(),
+  "active_begin": zod.string().datetime({}).nullish(),
+  "active_end": zod.string().datetime({}).nullish(),
+  "filename": zod.string().nullish(),
+  "mime_type": zod.string().nullish(),
+  "length_in_bytes": zod.number().nullish(),
   "location": zod.object({
-
-}).optional()
+  "latitude": zod.number(),
+  "longitude": zod.number()
+}).nullish(),
+  "status": zod.enum(['Initializing', 'Uploading', 'Uploaded', 'Failed']).nullish(),
+  "percent_complete": zod.number().nullish()
 })),
   "notes": zod.string(),
   "notify": zod.boolean().describe('Has the logged in user cleared the notification for this message'),
@@ -1422,7 +2083,7 @@ export const addMessageToFolderOrWorkspaceResponse = zod.object({
 }),
   "name": zod.string().nullish(),
   "is_text_message": zod.boolean(),
-  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message'),
   "label_ids": zod.array(zod.string()),
   "audio_models": zod.array(zod.object({
   "_id": zod.string(),
@@ -1460,15 +2121,16 @@ export const addMessageToFolderOrWorkspaceResponse = zod.object({
   "duration_ms": zod.number().describe('The length of the message in milliseconds'),
   "total_heard_ms": zod.number().describe('The number of ms of audio listened to by all users'),
   "notified_users": zod.number().describe('Then number of users who have a notification for this message and have not listened to the audio.'),
-  "users_caught_up": zod.enum(['all', 'some', 'none']).describe('The number of users that listened to the audio or removed the notification'),
+  "users_caught_up": zod.enum(['all', 'some', 'none']).describe('The number of users that listened to the audio or removed the notification').describe('The number of users that listened to the audio or removed the notification'),
   "forward_id": zod.string().nullish().describe('The ID of a forwarded message (Deprecated, for new implementations we should start using share_link_id'),
   "share_link_id": zod.string().nullish().describe('The ID of a Share Link to a message'),
   "stream_key": zod.string().nullish().describe('The stream key used to add audio to the message'),
   "socket_disconnects_while_streaming": zod.number().describe('The number of times the socket disconnected while the creator was sending audio'),
-  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).nullable().describe('Message type'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').nullable().describe('Message type'),
   "channel_sequence": zod.number().describe('The sequencial id of the message within the channel'),
   "last_heard_at": zod.string().datetime({}).describe('The last time anyone listened or cleared notified on this message'),
-  "folder_id": zod.string().nullish().describe('Folder ID, only present when the message type is one of: voicememo,prerecorded')
+  "folder_id": zod.string().nullish().describe('Folder ID, only present when the message type is one of: voicememo,prerecorded'),
+  "tagged_user_ids": zod.array(zod.string()).describe('IDs of users tagged in the message')
 })
 
 
@@ -1517,6 +2179,90 @@ export const moveFolderResponse = zod.object({
   "last_updated_at": zod.string().datetime({}),
   "deleted_at": zod.string().datetime({}).optional()
 })).optional().describe('Subfolders (only one deep level)')
+})
+
+
+/**
+ * @summary Get MessageShareLink
+ */
+export const simplifiedMessageShareLinkControllerGetMessageShareLinkParams = zod.object({
+  "share_link_id": zod.string()
+})
+
+export const simplifiedMessageShareLinkControllerGetMessageShareLinkResponseSharedMessageLanguageDefault = "english";
+
+export const simplifiedMessageShareLinkControllerGetMessageShareLinkResponse = zod.object({
+  "created_by": zod.string().describe('Identifier of the User who created the share/forward'),
+  "message_id": zod.string().nullish().describe('Message ID that has the share_link_id attached to'),
+  "revoked_by": zod.string().nullish(),
+  "share_type": zod.enum(['forward', 'link']).describe('What is the ShareType of the MessageShareLink'),
+  "access_type": zod.enum(['public', 'specified', 'forward']).describe('What is the access type for the MessageShareLink'),
+  "specified_access": zod.array(zod.object({
+  "type": zod.enum(['channel', 'workspace', 'workspace_group', 'user']).describe('What is the Specified access type for the MessageShareLink'),
+  "ids": zod.array(zod.string()).describe('List of IDs that have access to the MessageShareLink')
+})).optional().describe('List of Specified Access for the MessageShareLink'),
+  "id": zod.string().describe('Unique Identifier of share link'),
+  "conversation_id": zod.string().optional().describe('Conversation ID'),
+  "link": zod.string().describe('Link to Message Share Link'),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "end_access_at": zod.string().datetime({}).optional(),
+  "revoked_at": zod.string().datetime({}).optional(),
+  "shared_message": zod.object({
+  "id": zod.string().describe('ID'),
+  "name": zod.string().optional().describe('Name'),
+  "link": zod.string().describe('Link to Message'),
+  "creator_id": zod.string().describe('Creator ID'),
+  "conversation_id": zod.string().optional().describe('Conversation ID'),
+  "workspace_id": zod.string().optional().describe('Workspace ID'),
+  "created_at": zod.string().datetime({}),
+  "last_updated_at": zod.string().datetime({}),
+  "deleted_at": zod.string().datetime({}).optional(),
+  "duration_ms": zod.number().describe('The length of the message in milliseconds'),
+  "audio_url": zod.string().optional().describe('The URL for the message audio file'),
+  "audio_stream_url": zod.string().optional().describe('The URL for the message audio stream'),
+  "transcript": zod.string().optional().describe('Transcript of the message'),
+  "ai_summary": zod.string().optional().describe('AI Summary generated of the message'),
+  "waveform_url": zod.string().optional().describe('The URL for the message waveform image'),
+  "reply_count": zod.number().describe('The number of replies to the message'),
+  "parent_message_id": zod.string().optional().describe('Parent Message unique ID (only available for replies)'),
+  "language": zod.string().default(simplifiedMessageShareLinkControllerGetMessageShareLinkResponseSharedMessageLanguageDefault).describe('Language for the message (Transcript, AI summary, Audio...)'),
+  "status": zod.enum(['offline', 'paused', 'processing', 'scheduled', 'active', 'deleted', 'account-deleted', 'initializing', 'inprogress', 'canceled', 'failed']).describe('Current status of the Message').describe('Current status of the Message'),
+  "type": zod.enum(['channel', 'prerecorded', 'voicememo', 'stored', 'welcome']).describe('Type of the Message').describe('Type of the Message'),
+  "attachments": zod.array(zod.object({
+  "id": zod.string(),
+  "creator_id": zod.string(),
+  "created_at": zod.string().datetime({}),
+  "type": zod.enum(['link', 'file', 'location', 'ai-response-id', 'ai-prompt-id', 'action-item-id']),
+  "link": zod.string(),
+  "active_begin": zod.string().datetime({}).optional(),
+  "active_end": zod.string().datetime({}).optional(),
+  "filename": zod.string().optional(),
+  "mime_type": zod.string().optional(),
+  "length_in_bytes": zod.number().optional(),
+  "location": zod.object({
+
+}).optional()
+})).optional().describe('List of attachments for the message'),
+  "share_link_id": zod.string().optional().describe('Share Link ID to a message'),
+  "folder_id": zod.string().optional().describe('Folder ID where the message is stored')
+})
+})
+
+
+/**
+ * @summary Create a MessageShareLink
+ */
+export const simplifiedMessageShareLinkControllerCreateBody = zod.object({
+  "shared_message_id": zod.string().describe('Message ID that will be shared/forwarded'),
+  "share_type": zod.enum(['forward', 'link']).describe('What is the ShareType of the MessageShareLink'),
+  "message_id": zod.string().nullish().describe('Message ID that will have the forward on it. Only required if share_type is forward.'),
+  "access_type": zod.enum(['public', 'specified', 'forward']).describe('What is the access type for the MessageShareLink'),
+  "specified_access": zod.array(zod.object({
+  "type": zod.enum(['channel', 'workspace', 'workspace_group', 'user']).describe('What is the Specified access type for the MessageShareLink'),
+  "ids": zod.array(zod.string()).describe('List of IDs that have access to the MessageShareLink')
+})).nullish().describe('List of Specified Access for the MessageShareLink'),
+  "end_access_at": zod.string().datetime({}).nullish().describe('Date when the access to MessageShareLink ends')
 })
 
 

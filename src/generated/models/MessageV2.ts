@@ -4,88 +4,61 @@
  * Carbon Voice Simplified API
  * # Introduction
 
-The simplified version of the Carbon Voice API is designed to enhance usability for third-party clients looking to 
-seamlessly integrate with our application. By streamlining authentication methods, providing clear error handling guidelines, 
-and implementing straightforward rate limiting policies, we ensure that developers can quickly and efficiently connect to our services. 
-This user-friendly approach minimizes complexity, making it easier for external applications to leverage the powerful communication 
-features of Carbon Voice without extensive technical overhead.
+Simplified Carbon Voice API for third-party integrations. Full API [here](/docs).
 
-This API is designed for people who feel comfortable integrating with RESTful APIs.
-
-## Full API Version
-We also have a full version of the API. You can find it [here](/docs).
+**[Developer Portal](https://www.developer.carbonvoice.app/)** — Create API keys, OAuth integrations, and explore how-to examples.
 
 ## Terminology
- 
-* **Workspace**: An area that groups together people and Conversations.
-* **Conversation**: A channel of communication. A grouping of people and messages related to a given topic.
-* **Collaborators**: A group of people who are part of a Conversation.
-* **Discussion**: Any post into a conversation
-* **CarbonLink**: A link (on a website, QR code, or phone call) to start a conversation.
 
-## BaseURL
+* **Workspace**: Area that groups people and conversations.
+* **Conversation**: A channel of communication (people + messages around a topic).
+* **Collaborators**: People who are part of a conversation.
+* **Discussion**: A post into a conversation.
+* **CarbonLink**: Link (website, QR code, phone) to start a conversation.
 
-This API is served over HTTPS.
+## Base URL
 
-All URLs referenced in the documentation have the following base: https://api.carbonvoice.app/api/simplified.
+`https://api.carbonvoice.app/api/simplified`
 
 ## Authentication
 
-There are three ways to authenticate with this API:
+Authenticate using one of these methods:
 
-* with an OAuth2 Access Token in the Authorization request header field 
-(which uses the Bearer authentication scheme to transmit the Access Token)
-* with your Client ID and Client Secret credentials
-* with a PXToken
-
-Each endpoint supports only one option.
+1. **OAuth2 Bearer token** — `Authorization: Bearer <access_token>` (obtain via OAuth2 flow)
+2. **PXToken** — `pxtoken` header, query param, body, or cookie (session token from login)
+3. **API Key** — `x-api-key` header
 
 <SecurityDefinitions />
 
 ## Errors
 
-When an error occurs, you will receive an error object. Most of these error objects 
-contain an error code and an error description so that your applications can more 
-efficiently identify the problem.
+4xx responses indicate a client error. 5xx indicate a server error. Check [health](https://api.carbonvoice.app/v2/health) for system status.
 
-If you get an 4xx HTTP response code, then you can assume that there is a bad request
-from your end. In this case, check the [Error Responses section](#section/Introduction/Error-Responses) for more context.
+Error format: `{ "success": false, requestId: "uuid", errmsg: "error message" }`
 
-5xx errors suggest a problem on our end, so in this case, check [Carbon Voice's Status](https://status.carbonvoice.app)
- to see how our systems are doing.
+## Rate Limiting
 
-In any other case you can use our support options.
+Rate limits vary per endpoint. On 429 responses, check `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers.
 
-## Error Responses
+## Resources
 
-`{ "success": false, requestId: "uuid", errmsg: "error message"`
-
-## Rate-Limiting 
-
-This API is subject to rate limiting. The limits differ per endpoint.
-
-If you exceed the provided rate limit for a given endpoint, you will receive the 429
-Too Many Requests response with the following message: Too many requests. Check the
-X-RateLimit-Limit, X-RateLimit-Remaining and X-RateLimit-Reset headers.
-
-For details on rate limiting, refer to Rate Limit Policy.
-
-## Support
-
-If you have problems or need help with your case, you can always reach out to our Support.
+* **[Developer Portal](https://www.developer.carbonvoice.app/)** — API keys, integrations, and how-to examples
+* **[User Terms of Service](https://www.getcarbon.app/usertos)** — Legal terms for API use
+* **[Support](https://www.getcarbon.app/support)** — Help and documentation
+* **Email** — support@carbonvoice.app
 
  * OpenAPI spec version: 1.0.0
  */
 import type { MessageV2UtmData } from './MessageV2UtmData';
 import type { Attachment } from './Attachment';
 import type { ReactionSummary } from './ReactionSummary';
-import type { MessageV2Status } from './MessageV2Status';
+import type { MessageStatus } from './MessageStatus';
 import type { AudioModelV2 } from './AudioModelV2';
 import type { TextModel } from './TextModel';
-import type { MessageV2AudioDelivery } from './MessageV2AudioDelivery';
+import type { AudioDelivery } from './AudioDelivery';
 import type { UsersNotAllowedReceiveNotifications } from './UsersNotAllowedReceiveNotifications';
 import type { UsersNotAllowedReceiveNotificationsV2 } from './UsersNotAllowedReceiveNotificationsV2';
-import type { MessageV2UsersCaughtUp } from './MessageV2UsersCaughtUp';
+import type { CaughtUpStatus } from './CaughtUpStatus';
 import type { MessageV2Type } from './MessageV2Type';
 
 export interface MessageV2 {
@@ -118,14 +91,14 @@ export interface MessageV2 {
   /** @nullable */
   name?: string | null;
   is_text_message: boolean;
-  status: MessageV2Status;
+  status: MessageStatus;
   label_ids: string[];
   audio_models: AudioModelV2[];
   text_models: TextModel[];
   /** @nullable */
   source_message_id: string | null;
   cache_key: string;
-  audio_delivery: MessageV2AudioDelivery;
+  audio_delivery: AudioDelivery;
   users_not_allowed_to_receive_notifications?: UsersNotAllowedReceiveNotifications[];
   users_not_allowed_to_receive_notifications_v2?: UsersNotAllowedReceiveNotificationsV2[];
   /** The length of the message in milliseconds */
@@ -135,7 +108,7 @@ export interface MessageV2 {
   /** Then number of users who have a notification for this message and have not listened to the audio. */
   notified_users: number;
   /** The number of users that listened to the audio or removed the notification */
-  users_caught_up: MessageV2UsersCaughtUp;
+  users_caught_up: CaughtUpStatus;
   /**
    * The ID of a forwarded message (Deprecated, for new implementations we should start using share_link_id
    * @deprecated
@@ -174,4 +147,6 @@ export interface MessageV2 {
    * @nullable
    */
   folder_id?: string | null;
+  /** IDs of users tagged in the message */
+  tagged_user_ids: string[];
 }
