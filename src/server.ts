@@ -46,6 +46,7 @@ import {
   CreateFolderPayload,
   CreateShareLinkAIResponse,
   CreateVoicememoMessage,
+  GetAllConversationsParams,
   GetAllRootFoldersParams,
   GetTenRecentMessagesResponseParams,
   ListMessagesParams,
@@ -427,11 +428,21 @@ function registerCarbonVoiceTools(server: McpServer): void {
         destructiveHint: false,
       },
     },
-    async (args: unknown, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      args: GetAllConversationsParams,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
       try {
+        const params: GetAllConversationsParams = {};
+        if (args.user_ids?.length) {
+          params.user_ids = args.user_ids;
+        }
+        if (args.match) {
+          params.match = args.match;
+        }
         return formatToMCPToolResponse(
           await simplifiedApi.getAllConversations(
-            {},
+            params,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
         );

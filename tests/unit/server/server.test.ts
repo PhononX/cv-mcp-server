@@ -1031,6 +1031,53 @@ describe('MCP Server', () => {
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
         expect(result).toBeDefined();
       });
+
+      it('should forward user_ids and match to the simplified API', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler(
+          { user_ids: ['user-1', 'user-2'], match: 'all' },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          { user_ids: ['user-1', 'user-2'], match: 'all' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should omit user_ids when undefined', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler({ match: 'any' }, mockContext);
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          { match: 'any' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should omit user_ids when it is an empty array', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler({ user_ids: [] }, mockContext);
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          {},
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should omit match when undefined', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler({ user_ids: ['user-1'] }, mockContext);
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          { user_ids: ['user-1'] },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
     });
 
     describe('get_conversation tool', () => {
