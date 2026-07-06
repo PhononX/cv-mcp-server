@@ -420,7 +420,9 @@ function registerCarbonVoiceTools(server: McpServer): void {
     ...getAllConversationsQueryParams.shape,
     user_ids: getAllConversationsQueryParams.shape.user_ids.describe(
       'List of user IDs to filter conversations by. When omitted, all conversations for the caller are returned. ' +
-        'Note: filter by user IDs, not usernames or display names.',
+        'Requires actual user IDs, not usernames or display names. If you only have a person\'s name, call ' +
+        '`search_users` first (e.g. `names: ["Brett"]`) to resolve it to a user ID. If `search_users` returns ' +
+        'more than one candidate for a name, ask the caller which person they meant instead of guessing.',
     ),
     match: getAllConversationsQueryParams.shape.match.describe(
       'Match mode: `any` (union, default) or `all` (intersection). `any` returns conversations with ' +
