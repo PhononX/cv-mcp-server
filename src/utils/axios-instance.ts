@@ -57,6 +57,27 @@ interface ErrorResponseData {
  */
 const NOT_LOG_ROUTES = ['/health'];
 
+/**
+ * Serializes query params with repeated keys for arrays (`user_ids=a&user_ids=b`)
+ * instead of axios's default bracket notation (`user_ids[]=a&user_ids[]=b`).
+ * The Carbon Voice API's array query params (e.g. `user_ids`) are dropped when
+ * sent with unencoded brackets, so this matches the format confirmed to work.
+ */
+export const serializeParams = (params: Record<string, unknown>): string => {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => searchParams.append(key, String(item)));
+    } else {
+      searchParams.append(key, String(value));
+    }
+  });
+  return searchParams.toString();
+};
+
 const serializeAxiosError = (error: AxiosError): Record<string, unknown> => {
   return {
     message: error.message,
@@ -98,6 +119,7 @@ const getAxiosInstance = (): AxiosInstance => {
       'Content-Type': 'application/json',
       'x-api-key': env.CARBON_VOICE_API_KEY,
     },
+    paramsSerializer: serializeParams,
   });
 
   // Add request interceptor for logging
