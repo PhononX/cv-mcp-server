@@ -256,7 +256,7 @@ The server will create two log files in this directory:
 
 ### Conversations
 
-- **`list_conversations`** - Get all conversations from the last 6 months
+- **`list_conversations`** - Get all conversations from the last 6 months, with optional filtering by user IDs
 - **`get_conversation`** - Retrieve conversation details by ID
 - **`get_conversation_users`** - Get all users in a conversation
 

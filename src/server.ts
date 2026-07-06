@@ -19,6 +19,7 @@ import {
   createShareLinkAIResponseBody,
   createVoiceMemoMessageBody,
   deleteFolderParams,
+  getAllConversationsQueryParams,
   getAllRootFoldersQueryParams,
   getConversationByIdParams,
   getFolderByIdParams,
@@ -45,6 +46,7 @@ import {
   CreateFolderPayload,
   CreateShareLinkAIResponse,
   CreateVoicememoMessage,
+  GetAllConversationsParams,
   GetAllRootFoldersParams,
   GetTenRecentMessagesResponseParams,
   ListMessagesParams,
@@ -414,28 +416,54 @@ function registerCarbonVoiceTools(server: McpServer): void {
   );
 
   // Conversations
+  const listConversationsQueryParams = z.object({
+    ...getAllConversationsQueryParams.shape,
+    user_ids: getAllConversationsQueryParams.shape.user_ids.describe(
+      'List of user IDs to filter conversations by. When omitted, all conversations for the caller are returned. ' +
+        'Requires actual user IDs, not usernames or display names. If you only have a person\'s name, call ' +
+        '`search_users` first (e.g. `names: ["Brett"]`) to resolve it to a user ID. If `search_users` returns ' +
+        'more than one candidate for a name, ask the caller which person they meant instead of guessing.',
+    ),
+    match: getAllConversationsQueryParams.shape.match.describe(
+      'Match mode: `any` (union, default) or `all` (intersection). `any` returns conversations with ' +
+        'at least one of the given users; `all` returns conversations with all of them.',
+    ),
+  });
+
   server.registerTool(
     'list_conversations',
     {
       description:
         'List all conversations. ' +
-        'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months.',
-      inputSchema: z.object({}).shape,
+        'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months. ' +
+        'Each result includes id, name, workspace_id, and type ' +
+        '(directMessage, customerConversation, namedConversation, or asyncMeeting).',
+      inputSchema: listConversationsQueryParams.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: unknown, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      args: GetAllConversationsParams,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const params: GetAllConversationsParams = {};
+      if (args.user_ids?.length) {
+        params.user_ids = args.user_ids;
+      }
+      if (args.match) {
+        params.match = args.match;
+      }
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getAllConversations(
-            {},
+            params,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
         );
       } catch (error) {
-        logger.error('Error listing conversations:', { error });
+        logger.error('Error listing conversations:', { params, error });
         return formatToMCPToolResponse(error);
       }
     },

@@ -1,11 +1,15 @@
+import { z } from 'zod';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { setCarbonVoiceAuthHeader } from '../../../src/auth';
 import { getCarbonVoiceAPI } from '../../../src/cv-api';
 import { getCarbonVoiceSimplifiedAPI } from '../../../src/generated';
 import { formatToMCPToolResponse, logger } from '../../../src/utils';
-import { listMessagesQueryParams } from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
-import { getZodSchemaAsJson } from '../../utils/test-helpers';
+import {
+  listMessagesQueryParams,
+  getAllConversationsQueryParams,
+} from '../../../src/generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 
 // Mock the auth module
 jest.mock('../../../src/auth', () => ({
@@ -993,6 +997,42 @@ describe('MCP Server', () => {
         expect(listConversationsCall[1].description).toBeDefined();
       });
 
+      it('should accept user_ids and match query params via inputSchema', () => {
+        expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual(
+          Object.keys(getAllConversationsQueryParams.shape),
+        );
+      });
+
+      it('should document user_ids as filtering by ID, not username', () => {
+        expect(listConversationsCall[1].inputSchema.user_ids.description).toContain(
+          'IDs, not usernames',
+        );
+      });
+
+      it('should document match options and default', () => {
+        const description = listConversationsCall[1].inputSchema.match.description;
+        expect(description).toContain('any');
+        expect(description).toContain('all');
+        expect(description).toContain('default');
+      });
+
+      it('should document the returned conversation fields', () => {
+        const description = listConversationsCall[1].description;
+        expect(description).toContain('id');
+        expect(description).toContain('name');
+        expect(description).toContain('workspace_id');
+        expect(description).toContain('type');
+      });
+
+      it('should reject an invalid match value via schema validation', () => {
+        const schema = z.object(listConversationsCall[1].inputSchema);
+
+        const result = schema.safeParse({ match: 'invalid-match' });
+
+        expect(result.success).toBe(false);
+        expect(simplifiedApiMock.getAllConversations).not.toHaveBeenCalled();
+      });
+
       it('should call simplified API with correct parameters', async () => {
         const toolHandler = listConversationsCall[2];
         expect(toolHandler).toBeDefined();
@@ -1017,10 +1057,57 @@ describe('MCP Server', () => {
         expect(simplifiedApiMock.getAllConversations).toHaveBeenCalled();
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Error listing conversations:',
-          { error: apiError },
+          { params: {}, error: apiError },
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
         expect(result).toBeDefined();
+      });
+
+      it('should forward user_ids and match to the simplified API', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler(
+          { user_ids: ['user-1', 'user-2'], match: 'all' },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          { user_ids: ['user-1', 'user-2'], match: 'all' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should omit user_ids when undefined', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler({ match: 'any' }, mockContext);
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          { match: 'any' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should omit user_ids when it is an empty array', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler({ user_ids: [] }, mockContext);
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          {},
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should omit match when undefined', async () => {
+        const toolHandler = listConversationsCall[2];
+
+        await toolHandler({ user_ids: ['user-1'] }, mockContext);
+
+        expect(simplifiedApiMock.getAllConversations).toHaveBeenCalledWith(
+          { user_ids: ['user-1'] },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
       });
     });
 
