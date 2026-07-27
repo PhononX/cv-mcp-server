@@ -245,20 +245,36 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description:
         'Create a VoiceMemo Message. In order to create a VoiceMemo Message, you must provide a transcript or link attachments.',
-      inputSchema: createVoiceMemoMessageBody.shape,
+      inputSchema: {
+        ...createVoiceMemoMessageBody.shape,
+        // `audio_file` is a multipart file upload. Over MCP (JSON-RPC) it can
+        // only be represented as a string, so we override the generated
+        // `z.instanceof(File)` — which emits no JSON Schema `type` and trips the
+        // MCP directory validator ("Parameters missing type: audio_file") — with
+        // an explicitly typed string field.
+        audio_file: z
+          .string()
+          .optional()
+          .describe(
+            'Audio file upload on multipart requests. Supported Formats: ' +
+              '.mp3, .m4a, .wav, .aac, .ogg, .flac, .wma, .opus, .webm. ' +
+              '(Overwrites transcript)',
+          ),
+      },
       annotations: {
+        title: 'Create Voice Memo',
         readOnlyHint: false,
         destructiveHint: false,
       },
     },
-    async (
-      args: CreateVoicememoMessage,
-      { authInfo },
-    ): Promise<McpToolResponse> => {
+    async (args, { authInfo }): Promise<McpToolResponse> => {
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.createVoiceMemoMessage(
-            args,
+            // Over MCP (JSON-RPC) `audio_file` arrives as a string, but the
+            // generated client still types it as `Blob`. FormData.append()
+            // accepts the string at runtime, so the cast is safe here.
+            args as unknown as CreateVoicememoMessage,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
         );
