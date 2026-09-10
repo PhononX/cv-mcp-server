@@ -43,7 +43,11 @@
     "release:minor": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && npm version minor && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
     "release:major": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && npm version major && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
     "deploy:release": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
-    "measure:payloads": "ts-node scripts/measure-payloads.ts"
+    "measure:payloads": "ts-node scripts/measure-payloads.ts",
+    "mcp:list": "node scripts/mcp-client.mjs list",
+    "mcp:schema": "node scripts/mcp-client.mjs schema",
+    "mcp:call": "node scripts/mcp-client.mjs call",
+    "mcp:size": "node scripts/mcp-client.mjs size"
   },
   "files": [
     "dist"

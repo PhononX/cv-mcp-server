@@ -397,6 +397,74 @@ The server includes comprehensive error handling and logging. Errors are returne
 - Request context
 - Debugging information
 
+## Local Testing
+
+```bash
+cp .env.sample .env      # CARBON_VOICE_API_KEY only needed for real tool calls
+npm run build
+```
+
+### Driving the server from the terminal
+
+`scripts/mcp-client.mjs` is a minimal stdio MCP client — the MCP Inspector is a
+browser UI, which is no help in a terminal or CI.
+
+```bash
+npm run mcp:list                     # every tool with its wire cost
+npm run mcp:schema -- get_message    # description + input JSON Schema an agent sees
+npm run mcp:size                     # tools/list payload budget
+npm run mcp:call -- get_current_user '{"response_fields":["user.user_guid"]}'
+```
+
+`MCP_DEBUG=1` shows server logs (they go to stderr, so they never corrupt the
+JSON-RPC stream on stdout).
+
+**`list`, `schema` and `size` need no credentials** — the server builds its tool
+list without calling out. So do any calls rejected by local validation, which is
+a useful way to exercise error paths:
+
+```bash
+npm run mcp:call -- create_voicememo_message '{"audio_url":"http://169.254.169.254/"}'
+# -> isError: true, INVALID_AUDIO_URL, with a next_action hint
+```
+
+Calls that reach the API need a valid `CARBON_VOICE_API_KEY`.
+
+### MCP Inspector
+
+```bash
+npm run mcp:inspector:stdio          # browser UI against the stdio server
+npm run dev:http                     # then: npm run mcp:inspector:http
+```
+
+### HTTP transport
+
+```bash
+npm run dev:http                     # stateful (what production runs)
+npm run dev:http:stateless           # fresh server per request
+```
+
+Unauthenticated endpoints for a quick check:
+
+```bash
+curl localhost:3005/health           # includes upstream API reachability
+curl localhost:3005/info
+curl localhost:3005/.well-known/oauth-protected-resource
+```
+
+`POST /` (the MCP endpoint) requires a bearer token — it returns **401** without
+one, so tool calls over HTTP can't be exercised locally without a real OAuth
+token. Use the stdio path for tool-level work.
+
+### Tests
+
+```bash
+npm run test:unit                    # fast, no network
+npm run test:e2e                     # HTTP transport
+npm run test:coverage
+npm run measure:payloads             # response projection + tools/list budget
+```
+
 ## Development
 
 This section is for developers who want to contribute, implement new features, or fix issues.
