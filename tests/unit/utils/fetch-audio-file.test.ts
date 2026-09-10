@@ -351,6 +351,37 @@ describe('fetchAudioFile', () => {
     expect(file.size).toBe(4);
   });
 
+  it('bounds DNS resolution by the fetch timeout', async () => {
+    // Codex finding on PR #6: dns.lookup takes no AbortSignal, so aborting the
+    // fetch controller does nothing to a stalled resolver — a caller-supplied
+    // hostname could hold the tool call well past AUDIO_FETCH_TIMEOUT_MS.
+    const dns = require('node:dns/promises');
+    const hang = jest
+      .spyOn(dns, 'lookup')
+      .mockImplementation(() => new Promise(() => undefined));
+    const fetchSpy = jest.fn();
+    global.fetch = fetchSpy as any;
+
+    const started = Date.now();
+    await expect(
+      fetchAudioFile('https://slow-resolver.example.com/memo.mp3'),
+    ).rejects.toThrow(/timed out/);
+
+    // Bounded by the configured timeout, not left hanging on the resolver.
+    expect(Date.now() - started).toBeLessThan(35_000);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    hang.mockRestore();
+  }, 40_000);
+
+  it('does not echo the supplied URL in the invalid-URL error', async () => {
+    // That message is logged, and an audio_url is commonly presigned.
+    const error = await fetchAudioFile(
+      'not a url ?X-Amz-Signature=secret',
+    ).catch((e) => e);
+    expect(error.message).not.toContain('secret');
+    expect(error.message).toBe('audio_url is not a valid URL');
+  });
+
   it('surfaces an upstream failure status', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

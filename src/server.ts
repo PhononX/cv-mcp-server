@@ -92,7 +92,12 @@ import {
   summarizeConversationParams,
   updateActionItemBodyShape,
 } from './schemas';
-import { fetchAudioFile, formatToMCPToolResponse, logger } from './utils';
+import {
+  fetchAudioFile,
+  formatToMCPToolResponse,
+  logger,
+  redactUrlForLog,
+} from './utils';
 
 const simplifiedApi = getCarbonVoiceSimplifiedAPI();
 const cvApi = getCarbonVoiceAPI();
@@ -381,8 +386,11 @@ function registerCarbonVoiceTools(server: McpServer): void {
         // requireActual, a dual CJS/ESM resolution), and `instanceof` silently
         // fails across duplicates. The name is stable in all of them.
         if ((error as Error)?.name === 'AudioFetchError') {
+          // Never log the raw URL: an audio_url is commonly presigned, so
+          // the signature would land in log files and CloudWatch as a
+          // reusable credential.
           logger.warn('Rejected audio_url for voicememo message', {
-            audio_url,
+            audio_url: audio_url ? redactUrlForLog(audio_url) : undefined,
             reason: (error as Error).message,
           });
           return formatToMCPToolResponse(

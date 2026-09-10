@@ -84,6 +84,10 @@ jest.mock('../../../src/generated', () => {
 jest.mock('../../../src/utils', () => ({
   formatToMCPToolResponse: jest.fn(),
   fetchAudioFile: jest.fn(),
+  // Real implementation: the point of the assertion below is that redaction
+  // actually happens, not that a stub was called.
+  redactUrlForLog: jest.requireActual('../../../src/utils/redact-url.util')
+    .redactUrlForLog,
   logger: {
     error: jest.fn(),
     info: jest.fn(),
@@ -228,6 +232,9 @@ describe('MCP Server', () => {
     jest.doMock('../../../src/utils', () => ({
       formatToMCPToolResponse: mockFormatToMCPToolResponse,
       fetchAudioFile: mockFetchAudioFile,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      redactUrlForLog: require('../../../src/utils/redact-url.util')
+        .redactUrlForLog,
       logger: mockLogger,
     }));
 
@@ -2629,6 +2636,9 @@ describe('MCP Server', () => {
           },
           { isError: true, tool: 'create_voicememo_message' },
         );
+        // The URL is redacted before logging: an audio_url is commonly
+        // presigned, so the raw value would put a reusable credential into
+        // log files and CloudWatch.
         expect(mockLogger.warn).toHaveBeenCalledWith(
           'Rejected audio_url for voicememo message',
           {

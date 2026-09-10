@@ -384,13 +384,15 @@ export const TOOL_DOCS: ToolDocRegistry = {
 
   suggest_action_items_from_messages: {
     purpose:
-      'Have Carbon Voice extract candidate action items from the content of specific messages.',
+      'Queue AI extraction of candidate action items from specific messages. Runs in the background.',
     whenToUse:
       'Turning a conversation into tasks — "what did we agree to?". Pass the ' +
-      '`message_ids` to analyse. Results come back at status `suggested`; promote the ' +
-      'ones you want with `set_action_item_status`.',
+      '`message_ids` to analyse, then POLL `list_my_action_items` or ' +
+      '`list_action_items` with `status: "suggested"` for the results, and ' +
+      'promote the ones you want with `set_action_item_status`.',
     whenNotToUse:
-      '`create_action_item` when you already know the task and do not need it inferred.',
+      '`create_action_item` when you already know the task and do not need it ' +
+      'inferred — that returns the item synchronously, with an id.',
     prerequisites: [
       {
         field: 'message_ids',
@@ -399,8 +401,14 @@ export const TOOL_DOCS: ToolDocRegistry = {
       },
     ],
     example: { message_ids: ['msg-1', 'msg-2'] },
+    // The endpoint is 202 ACCEPTED with an empty body (`mutator<void>`), and
+    // cv-api documents it as "enqueued and processed in the background. No
+    // response will be returned." Promising records here sent agents looking
+    // for ids that never arrive.
     responseShape:
-      'The created suggestions, each shaped like `get_action_item`, at status `suggested`.',
+      'ACKNOWLEDGEMENT ONLY — no items are returned. Extraction is queued and ' +
+      'runs in the background, so poll a listing tool with ' +
+      '`status: "suggested"` to see the results.',
   },
 
   /**********************

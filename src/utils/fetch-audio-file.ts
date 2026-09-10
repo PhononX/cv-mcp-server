@@ -33,6 +33,34 @@ import { env } from '../config';
 
 const MAX_REDIRECTS = 3;
 
+/**
+ * Rejects if `work` outlives `ms`.
+ *
+ * `dns.lookup` takes no AbortSignal, so aborting the fetch controller does
+ * nothing to a stalled resolver — a caller-supplied hostname could hold a tool
+ * call well past AUDIO_FETCH_TIMEOUT_MS, and past it again on every redirect
+ * hop. The deadline has to cover resolution too, not just the transfer.
+ */
+const withDeadline = async <T>(
+  work: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new AudioFetchError(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
+
 /** Extensions the upstream endpoint documents as supported. */
 const SUPPORTED_EXTENSIONS = [
   '.mp3',
@@ -194,12 +222,17 @@ const isHostAllowlisted = (hostname: string): boolean => {
   return allowed.some((entry) => host === entry || host.endsWith(`.${entry}`));
 };
 
-const assertUrlIsFetchable = async (raw: string): Promise<URL> => {
+const assertUrlIsFetchable = async (
+  raw: string,
+  deadlineAt: number,
+): Promise<URL> => {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new AudioFetchError(`audio_url is not a valid URL: ${raw}`);
+    // Deliberately does not echo `raw`: it may be a presigned URL, and this
+    // message reaches the logs.
+    throw new AudioFetchError('audio_url is not a valid URL');
   }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
@@ -219,9 +252,19 @@ const assertUrlIsFetchable = async (raw: string): Promise<URL> => {
   // internal infrastructure.
   const host = bareHostname(url.hostname);
   const literal = net.isIP(host);
+  const remaining = deadlineAt - Date.now();
+  if (remaining <= 0) {
+    throw new AudioFetchError('audio_url fetch timed out before resolution');
+  }
   const addresses = literal
     ? [host]
-    : (await dns.lookup(host, { all: true })).map((a) => a.address);
+    : (
+        await withDeadline(
+          dns.lookup(host, { all: true }),
+          remaining,
+          `audio_url host resolution timed out after ${env.AUDIO_FETCH_TIMEOUT_MS}ms`,
+        )
+      ).map((a) => a.address);
 
   if (addresses.length === 0) {
     throw new AudioFetchError(
@@ -298,6 +341,7 @@ const readCapped = async (
  */
 export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
   const maxBytes = env.AUDIO_FETCH_MAX_BYTES;
+  const deadlineAt = Date.now() + env.AUDIO_FETCH_TIMEOUT_MS;
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -305,7 +349,7 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
   );
 
   try {
-    let target = await assertUrlIsFetchable(rawUrl);
+    let target = await assertUrlIsFetchable(rawUrl, deadlineAt);
     let response: Response | undefined;
 
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
@@ -331,7 +375,10 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
         );
       }
       // Re-validate every hop: a public URL is free to redirect inward.
-      target = await assertUrlIsFetchable(new URL(location, target).toString());
+      target = await assertUrlIsFetchable(
+        new URL(location, target).toString(),
+        deadlineAt,
+      );
     }
 
     if (!response || !response.ok) {
