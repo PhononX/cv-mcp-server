@@ -243,6 +243,110 @@ describe('MCP Server', () => {
     require('../../../src/server');
   });
 
+  describe('Response projection (response_fields)', () => {
+    const findCall = (name: string) =>
+      mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+    const PROJECTED_TOOLS = [
+      'list_messages',
+      'get_message',
+      'get_recent_messages',
+      'get_user',
+      'search_users',
+      'get_current_user',
+      'list_conversations',
+      'get_conversation',
+      'get_conversation_users',
+      'summarize_conversation',
+      'get_root_folders',
+      'get_folder',
+      'get_folder_with_messages',
+      'list_ai_actions',
+      'run_ai_action',
+      'run_ai_action_for_shared_link',
+      'get_ai_action_responses',
+      'create_message_share_link',
+      'get_message_share_link',
+      'list_my_action_items',
+      'list_action_items',
+      'get_action_item',
+      'search_message_ids',
+      'search_messages_by_heard_status',
+      'list_inbox_notifications',
+    ];
+
+    it.each(PROJECTED_TOOLS)('%s exposes response_fields', (tool) => {
+      expect(Object.keys(findCall(tool)[1].inputSchema)).toContain(
+        'response_fields',
+      );
+    });
+
+    it('does not add response_fields to tools that return only a confirmation', () => {
+      // Every param costs description weight in tools/list, so projection is
+      // only offered where there is a payload worth narrowing.
+      ['delete_folder', 'delete_action_item', 'move_message_to_folder'].forEach(
+        (tool) => {
+          expect(Object.keys(findCall(tool)[1].inputSchema)).not.toContain(
+            'response_fields',
+          );
+        },
+      );
+    });
+
+    it('never forwards response_fields to the upstream API', async () => {
+      // The whole point of destructuring it out: the API would see an unknown
+      // query param, and existing param assertions would break.
+      await findCall('list_messages')[2](
+        { workspace_id: 'ws-1', response_fields: ['results.id'] },
+        mockContext,
+      );
+
+      expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+        { workspace_id: 'ws-1' },
+        { headers: { Authorization: 'Bearer test-token' } },
+      );
+      expect(
+        simplifiedApiMock.listMessages.mock.calls[0][0],
+      ).not.toHaveProperty('response_fields');
+    });
+
+    it('strips response_fields even when the handler re-destructures args', async () => {
+      // get_message splits `id` off the query params; response_fields must not
+      // survive into the query either.
+      await findCall('get_message')[2](
+        { id: 'm-1', language: 'english', response_fields: ['message.id'] },
+        mockContext,
+      );
+
+      expect(simplifiedApiMock.getMessageById).toHaveBeenCalledWith(
+        'm-1',
+        { language: 'english' },
+        { headers: { Authorization: 'Bearer test-token' } },
+      );
+    });
+
+    it('passes the requested fields to the formatter', async () => {
+      await findCall('get_current_user')[2](
+        { response_fields: ['user.user_guid'] },
+        mockContext,
+      );
+
+      expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+        expect.anything(),
+        { responseFields: ['user.user_guid'] },
+      );
+    });
+
+    it('passes undefined when the caller omits projection', async () => {
+      await findCall('get_current_user')[2]({}, mockContext);
+
+      expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+        expect.anything(),
+        { responseFields: undefined },
+      );
+    });
+  });
+
   describe('Error responses', () => {
     // F2 from the review: success and failure previously returned an identical
     // envelope, so an agent could not tell a failed call from a successful one
@@ -1155,9 +1259,12 @@ describe('MCP Server', () => {
       });
 
       it('should accept user_ids and match query params via inputSchema', () => {
-        expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual(
-          Object.keys(getAllConversationsQueryParams.shape),
-        );
+        // Every upstream query param is still exposed; response_fields is
+        // added on top for projection.
+        expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual([
+          ...Object.keys(getAllConversationsQueryParams.shape),
+          'response_fields',
+        ]);
       });
 
       it('should document user_ids as filtering by ID, not username', () => {
@@ -2299,7 +2406,9 @@ describe('MCP Server', () => {
           headers: { Authorization: 'Bearer test-token' },
         });
 
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser, {
+          responseFields: undefined,
+        });
       });
 
       it('should fall back to first entry when no entry matches id', async () => {
@@ -2310,7 +2419,9 @@ describe('MCP Server', () => {
 
         await toolHandler({ id: 'user-123' }, mockContext);
 
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(firstUser);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(firstUser, {
+          responseFields: undefined,
+        });
       });
 
       it('should throw user not found error when contacts is empty', async () => {

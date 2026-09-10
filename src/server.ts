@@ -106,6 +106,22 @@ const cvApi = getCarbonVoiceAPI();
 const MAX_SUMMARIZE_MESSAGES = 50;
 
 /**
+ * Optional projection param merged into every tool that returns a substantial
+ * payload. Omitting it passes the response through by reference, so existing
+ * integrations are byte-for-byte unaffected — see `projectResponse`.
+ */
+const responseFieldsShape = {
+  response_fields: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Optional dot-path allowlist to shrink the response, e.g. ' +
+        '["results.id","results.transcript"]. Paths traverse arrays ' +
+        'element-wise. Pagination fields are always kept. Omit for the full payload.',
+    ),
+};
+
+/**
  * Registers all Carbon Voice tools on an MCP server instance.
  * Streamable HTTP stateless mode must use a fresh McpServer per request when
  * handling concurrent clients: the SDK binds a single transport on the protocol
@@ -122,16 +138,20 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'list_messages',
     {
       description: renderToolDoc(TOOL_DOCS.list_messages),
-      inputSchema: listMessagesQueryParams.shape,
+      inputSchema: {
+        ...listMessagesQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      params: ListMessagesParams,
+      input: ListMessagesParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...params } = input;
       try {
         // Fallback to regular API
         return formatToMCPToolResponse(
@@ -139,6 +159,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
             params,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing messages:', { params, error });
@@ -154,13 +175,20 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_message',
     {
       description: renderToolDoc(TOOL_DOCS.get_message),
-      inputSchema: getMessageByIdParams.merge(getMessageByIdQueryParams).shape,
+      inputSchema: {
+        ...getMessageByIdParams.merge(getMessageByIdQueryParams).shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetMessageInput, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetMessageInput & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         const { id, ...queryParams } = args;
         return formatToMCPToolResponse(
@@ -169,6 +197,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
             queryParams,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting message by id:', { args, error });
@@ -184,22 +213,29 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_recent_messages',
     {
       description: renderToolDoc(TOOL_DOCS.get_recent_messages),
-      inputSchema: getTenRecentMessagesResponseQueryParams.shape,
+      inputSchema: {
+        ...getTenRecentMessagesResponseQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: GetTenRecentMessagesResponseParams,
+      input: GetTenRecentMessagesResponseParams & {
+        response_fields?: string[];
+      },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getTenRecentMessagesResponse(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting recent messages:', { args, error });
@@ -401,13 +437,20 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_user',
     {
       description: renderToolDoc(TOOL_DOCS.get_user),
-      inputSchema: getUserByIdParams.shape,
+      inputSchema: {
+        ...getUserByIdParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetByIdParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         const contacts = await cvApi.getContacts(
           [args.id],
@@ -417,7 +460,9 @@ function registerCarbonVoiceTools(server: McpServer): void {
           throw new Error('user not found');
         }
         const userInfo = contacts.find((c) => c.id === args.id) ?? contacts[0];
-        return formatToMCPToolResponse(userInfo);
+        return formatToMCPToolResponse(userInfo, {
+          responseFields: response_fields,
+        });
       } catch (error) {
         logger.error('Error getting user by id:', { args, error });
         return formatToMCPToolResponse(error, {
@@ -460,19 +505,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'search_users',
     {
       description: renderToolDoc(TOOL_DOCS.search_users),
-      inputSchema: searchUsersBody.shape,
+      inputSchema: {
+        ...searchUsersBody.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: SearchUsersBody, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: SearchUsersBody & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.searchUsers(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error searching users:', { args, error });
@@ -488,16 +541,23 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_current_user',
     {
       description: renderToolDoc(TOOL_DOCS.get_current_user),
-      inputSchema: z.object({}).shape, // Needed in order to have access to authInfo
+      // An object schema (rather than none) is what gives the handler access
+      // to authInfo; response_fields is the only real param.
+      inputSchema: { ...responseFieldsShape },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (params: unknown, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      params: { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields } = params;
       try {
         return formatToMCPToolResponse(
           await cvApi.getWhoAmI(setCarbonVoiceAuthHeader(authInfo?.token)),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error searching users:', { params, error });
@@ -528,16 +588,20 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'list_conversations',
     {
       description: renderToolDoc(TOOL_DOCS.list_conversations),
-      inputSchema: listConversationsQueryParams.shape,
+      inputSchema: {
+        ...listConversationsQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: GetAllConversationsParams,
+      input: GetAllConversationsParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       const params: GetAllConversationsParams = {};
       if (args.user_ids?.length) {
         params.user_ids = args.user_ids;
@@ -551,6 +615,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
             params,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing conversations:', { params, error });
@@ -566,19 +631,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_conversation',
     {
       description: renderToolDoc(TOOL_DOCS.get_conversation),
-      inputSchema: getConversationByIdParams.shape,
+      inputSchema: {
+        ...getConversationByIdParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetByIdParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getConversationById(
             args.id,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting conversation by id:', { error });
@@ -594,19 +667,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_conversation_users',
     {
       description: renderToolDoc(TOOL_DOCS.get_conversation_users),
-      inputSchema: getConversationByIdParams.shape,
+      inputSchema: {
+        ...getConversationByIdParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetByIdParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getConversationUsers(
             args.id,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting conversation users:', { error });
@@ -622,16 +703,20 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'summarize_conversation',
     {
       description: renderToolDoc(TOOL_DOCS.summarize_conversation),
-      inputSchema: summarizeConversationParams.shape,
+      inputSchema: {
+        ...summarizeConversationParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
       },
     },
     async (
-      args: SummarizeConversationParams,
+      input: SummarizeConversationParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         let message_ids: string[] = args.message_ids || [];
 
@@ -677,7 +762,9 @@ function registerCarbonVoiceTools(server: McpServer): void {
             setCarbonVoiceAuthHeader(authInfo?.token),
           );
 
-        return formatToMCPToolResponse(aiResponse);
+        return formatToMCPToolResponse(aiResponse, {
+          responseFields: response_fields,
+        });
       } catch (error) {
         logger.error('Error summarizing conversation:', { error });
         return formatToMCPToolResponse(error, {
@@ -745,22 +832,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_root_folders',
     {
       description: renderToolDoc(TOOL_DOCS.get_root_folders),
-      inputSchema: getAllRootFoldersQueryParams.shape,
+      inputSchema: {
+        ...getAllRootFoldersQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: GetAllRootFoldersParams,
+      input: GetAllRootFoldersParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getAllRootFolders(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing root folders:', { error });
@@ -807,13 +899,20 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_folder',
     {
       description: renderToolDoc(TOOL_DOCS.get_folder),
-      inputSchema: getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
+      inputSchema: {
+        ...getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetFolderInput, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetFolderInput & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getFolderById(
@@ -821,6 +920,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting folder by id:', { error });
@@ -836,19 +936,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_folder_with_messages',
     {
       description: renderToolDoc(TOOL_DOCS.get_folder_with_messages),
-      inputSchema: getFolderMessagesParams.shape,
+      inputSchema: {
+        ...getFolderMessagesParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetByIdParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.getFolderMessages(
             args.id,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting folder with messages:', { error });
@@ -1013,22 +1121,29 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'list_ai_actions',
     {
       description: renderToolDoc(TOOL_DOCS.list_ai_actions),
-      inputSchema: aIPromptControllerGetPromptsQueryParams.shape,
+      inputSchema: {
+        ...aIPromptControllerGetPromptsQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: AIPromptControllerGetPromptsParams,
+      input: AIPromptControllerGetPromptsParams & {
+        response_fields?: string[];
+      },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.aIPromptControllerGetPrompts(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing ai actions:', { error });
@@ -1044,19 +1159,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'run_ai_action',
     {
       description: renderToolDoc(TOOL_DOCS.run_ai_action),
-      inputSchema: aIResponseControllerCreateResponseBody.shape,
+      inputSchema: {
+        ...aIResponseControllerCreateResponseBody.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
       },
     },
-    async (args: CreateAIResponse, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: CreateAIResponse & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.aIResponseControllerCreateResponse(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error running ai action:', { error });
@@ -1072,22 +1195,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'run_ai_action_for_shared_link',
     {
       description: renderToolDoc(TOOL_DOCS.run_ai_action_for_shared_link),
-      inputSchema: createShareLinkAIResponseBody.shape,
+      inputSchema: {
+        ...createShareLinkAIResponseBody.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
       },
     },
     async (
-      args: CreateShareLinkAIResponse,
+      input: CreateShareLinkAIResponse & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.createShareLinkAIResponse(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error running ai action for shared link:', { error });
@@ -1103,22 +1231,29 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_ai_action_responses',
     {
       description: renderToolDoc(TOOL_DOCS.get_ai_action_responses),
-      inputSchema: aIResponseControllerGetAllResponsesQueryParams.shape,
+      inputSchema: {
+        ...aIResponseControllerGetAllResponsesQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: AIResponseControllerGetAllResponsesParams,
+      input: AIResponseControllerGetAllResponsesParams & {
+        response_fields?: string[];
+      },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.aIResponseControllerGetAllResponses(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting ai action responses:', { error });
@@ -1135,22 +1270,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'create_message_share_link',
     {
       description: renderToolDoc(TOOL_DOCS.create_message_share_link),
-      inputSchema: simplifiedMessageShareLinkControllerCreateBody.shape,
+      inputSchema: {
+        ...simplifiedMessageShareLinkControllerCreateBody.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
       },
     },
     async (
-      args: CreateMessageShareLink,
+      input: CreateMessageShareLink & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.simplifiedMessageShareLinkControllerCreate(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error creating message share link:', { args, error });
@@ -1166,23 +1306,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_message_share_link',
     {
       description: renderToolDoc(TOOL_DOCS.get_message_share_link),
-      inputSchema:
-        simplifiedMessageShareLinkControllerGetMessageShareLinkParams.shape,
+      inputSchema: {
+        ...simplifiedMessageShareLinkControllerGetMessageShareLinkParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: { share_link_id: string },
+      input: { share_link_id: string } & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.simplifiedMessageShareLinkControllerGetMessageShareLink(
             args.share_link_id,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting message share link:', { args, error });
@@ -1199,22 +1343,29 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'list_my_action_items',
     {
       description: renderToolDoc(TOOL_DOCS.list_my_action_items),
-      inputSchema: actionItemControllerListMyActionItemsQueryParams.shape,
+      inputSchema: {
+        ...actionItemControllerListMyActionItemsQueryParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: ActionItemControllerListMyActionItemsParams,
+      input: ActionItemControllerListMyActionItemsParams & {
+        response_fields?: string[];
+      },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.actionItemControllerListMyActionItems(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing my action items:', { args, error });
@@ -1230,21 +1381,25 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'list_action_items',
     {
       description: renderToolDoc(TOOL_DOCS.list_action_items),
-      inputSchema: actionItemControllerListParams.merge(
-        actionItemControllerListQueryParams,
-      ).shape,
+      inputSchema: {
+        ...actionItemControllerListParams.merge(
+          actionItemControllerListQueryParams,
+        ).shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: ActionItemControllerListParams & {
+      input: ActionItemControllerListParams & {
         container_type: string;
         container_id: string;
-      },
+      } & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         const { container_type, container_id, ...queryParams } = args;
         return formatToMCPToolResponse(
@@ -1254,6 +1409,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
             queryParams,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing action items:', { args, error });
@@ -1269,19 +1425,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'get_action_item',
     {
       description: renderToolDoc(TOOL_DOCS.get_action_item),
-      inputSchema: actionItemControllerGetByIdParams.shape,
+      inputSchema: {
+        ...actionItemControllerGetByIdParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
-    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+    async (
+      input: GetByIdParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await simplifiedApi.actionItemControllerGetById(
             args.id,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error getting action item:', { args, error });
@@ -1464,22 +1628,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'search_message_ids',
     {
       description: renderToolDoc(TOOL_DOCS.search_message_ids),
-      inputSchema: searchMessageIdsParams.shape,
+      inputSchema: {
+        ...searchMessageIdsParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: SearchMessageIdsParams,
+      input: SearchMessageIdsParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await cvApi.searchMessageIds(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error searching message ids:', { args, error });
@@ -1495,22 +1664,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'search_messages_by_heard_status',
     {
       description: renderToolDoc(TOOL_DOCS.search_messages_by_heard_status),
-      inputSchema: searchMessagesByHeardStatusParams.shape,
+      inputSchema: {
+        ...searchMessagesByHeardStatusParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: SearchMessagesByHeardStatusParams,
+      input: SearchMessagesByHeardStatusParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await cvApi.searchMessagesByHeardStatus(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error searching messages by heard status:', {
@@ -1529,22 +1703,27 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'list_inbox_notifications',
     {
       description: renderToolDoc(TOOL_DOCS.list_inbox_notifications),
-      inputSchema: listInboxNotificationsParams.shape,
+      inputSchema: {
+        ...listInboxNotificationsParams.shape,
+        ...responseFieldsShape,
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
     },
     async (
-      args: ListInboxNotificationsParams,
+      input: ListInboxNotificationsParams & { response_fields?: string[] },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
       try {
         return formatToMCPToolResponse(
           await cvApi.listInboxNotifications(
             args,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
+          { responseFields: response_fields },
         );
       } catch (error) {
         logger.error('Error listing inbox notifications:', { args, error });

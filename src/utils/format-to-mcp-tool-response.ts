@@ -1,5 +1,6 @@
 import { formatBytesHuman } from './format-bytes-human';
 import { logger } from './logger';
+import { projectResponse } from './project-response';
 import { withToolErrorHint } from './tool-error-hint';
 
 import { McpToolResponse } from '../interfaces';
@@ -24,6 +25,14 @@ export interface FormatOptions {
    * `TOOL_DOCS`. Only meaningful together with `isError`.
    */
   tool?: string;
+  /**
+   * Caller-supplied dot-path allowlist narrowing the payload. Omitted or empty
+   * means the payload is passed through by reference, so behaviour is
+   * identical to not having projection at all. Ignored for error responses:
+   * an agent that mis-projects an error would lose the very message telling it
+   * what went wrong.
+   */
+  responseFields?: string[];
 }
 
 export const formatToMCPToolResponse = (
@@ -34,7 +43,7 @@ export const formatToMCPToolResponse = (
   const stringifyStart = Date.now();
   const payload = options.isError
     ? withToolErrorHint(data, options.tool)
-    : data;
+    : projectResponse(data, options.responseFields);
   try {
     logger.info('MCP_RESPONSE_STRINGIFY_START', {
       event: 'MCP_RESPONSE_STRINGIFY_START',

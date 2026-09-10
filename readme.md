@@ -337,6 +337,27 @@ The server will create two log files in this directory:
 - **`create_message_share_link`** - Create a shareable link to a message (returns the URL)
 - **`get_message_share_link`** - Look up an existing share link, including its access settings
 
+## Narrowing Responses (`response_fields`)
+
+Most read tools accept an optional `response_fields` array — a dot-path allowlist
+that shrinks the response before it reaches the agent's context. Paths traverse
+arrays element-wise, and pagination fields (`total`, `has_next_page`, `has_more`,
+`next_cursor`, …) are always kept so the "is there more?" signal survives.
+
+```json
+{ "response_fields": ["total", "has_next_page", "results.id", "results.transcript"] }
+```
+
+Omitting it returns the full payload unchanged, so existing integrations are
+unaffected. Measured on recorded fixtures (`npm run measure:payloads`):
+
+| Tool | Full | Narrowed |
+| --- | --- | --- |
+| `get_current_user` | 8,447 bytes | 2,050 bytes (75.7% smaller) |
+| `list_messages` (20 results) | 21,947 bytes | 4,629 bytes (78.9% smaller) |
+
+Each tool's description suggests a sensible starting set for the common case.
+
 ## Usage Examples
 
 ### Getting Started
