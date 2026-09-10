@@ -400,7 +400,7 @@ The server includes comprehensive error handling and logging. Errors are returne
 ## Local Testing
 
 ```bash
-cp .env.sample .env      # CARBON_VOICE_API_KEY only needed for real tool calls
+cp .env.sample .env      # credentials only needed for real tool calls
 npm run build
 ```
 
@@ -419,7 +419,7 @@ pwd                    # note the absolute path
 
 ```bash
 claude mcp add carbon-voice-dev \
-  --env CARBON_VOICE_API_KEY=your_key_here \
+  --env CARBON_VOICE_PAT=cv_pat_your_token_here \
   -- node /absolute/path/to/cv-mcp-server/dist/transports/stdio/stdio.js
 ```
 
@@ -434,7 +434,7 @@ claude mcp add carbon-voice-dev \
       "command": "node",
       "args": ["/absolute/path/to/cv-mcp-server/dist/transports/stdio/stdio.js"],
       "env": {
-        "CARBON_VOICE_API_KEY": "your_key_here"
+        "CARBON_VOICE_PAT": "cv_pat_your_token_here"
       }
     }
   }
@@ -444,13 +444,18 @@ claude mcp add carbon-voice-dev \
 Restart the client after editing. Name it `carbon-voice-dev` so it can sit
 alongside the published `Carbon Voice` entry and you can compare the two.
 
+> Either credential works in the `env` block — `CARBON_VOICE_PAT` is shown
+> because it is scoped and self-service; `CARBON_VOICE_API_KEY` behaves the
+> same way. See the credential comparison further down.
+
 > **The `env` block is mandatory — `.env` is NOT read here.** `env-cmd` only
 > wraps the npm scripts, and `scripts/mcp-client.mjs` parses `.env` itself; the
 > server reads plain `process.env`. An MCP client spawns the process with a
 > minimal environment, so a key that only exists in `.env` will not be seen.
 
-> **A missing key looks like success.** `CARBON_VOICE_API_KEY` is optional in
-> the config schema and `tools/list` never calls the API, so the server
+> **A missing credential looks like success.** Both `CARBON_VOICE_PAT` and
+> `CARBON_VOICE_API_KEY` are optional in the config schema and `tools/list`
+> never calls the API, so the server
 > connects and shows all 41 tools with no key at all. The failure surfaces
 > only on the first tool call. "It connected" does not mean auth works — make
 > a real call to confirm.
@@ -495,12 +500,13 @@ npm run mcp:call -- create_voicememo_message '{"audio_url":"http://169.254.169.2
 # -> isError: true, INVALID_AUDIO_URL, with a next_action hint
 ```
 
-Calls that reach the API need a valid `CARBON_VOICE_API_KEY`.
+Calls that reach the API need stdio credentials: `CARBON_VOICE_PAT`
+(preferred) or `CARBON_VOICE_API_KEY`.
 
 ### Smoke-testing against a real account
 
 ```bash
-cp .env.sample .env      # put a real CARBON_VOICE_API_KEY in it
+cp .env.sample .env      # set CARBON_VOICE_PAT (preferred) or CARBON_VOICE_API_KEY
 npm run build
 npm run mcp:smoke
 ```
@@ -524,7 +530,7 @@ code:
 
 | Note | Cause |
 | --- | --- |
-| `401 UNAUTHORIZED` | `CARBON_VOICE_API_KEY` missing or invalid (see the note below — it is not an OAuth token) |
+| `401 UNAUTHORIZED` | no valid `CARBON_VOICE_PAT` or `CARBON_VOICE_API_KEY` (see the note below — neither may be an OAuth token) |
 | `403 FORBIDDEN` | key is valid, but workspace access is refused on SSO grounds |
 | `NETWORK_ERROR` | no route to the API from this machine |
 | `405 UNKNOWN_ERROR` | an HTTP proxy is intercepting — axios needs a CONNECT tunnel, check `HTTPS_PROXY` |

@@ -11,8 +11,9 @@
  *   npm run mcp:size                      # tools/list payload budget
  *
  * Reads .env if present (cp .env.sample .env). Tool CALLS hit the real Carbon
- * Voice API and need a valid CARBON_VOICE_API_KEY; tools/list, schema and size
- * need nothing, because the server builds its tool list without calling out.
+ * Voice API and need stdio credentials — CARBON_VOICE_PAT (preferred) or
+ * CARBON_VOICE_API_KEY. tools/list, schema and size need nothing, because the
+ * server builds its tool list without calling out.
  */
 import { bytes, connect } from './lib/mcp-stdio.mjs';
 import { connectHttp } from './lib/mcp-http.mjs';

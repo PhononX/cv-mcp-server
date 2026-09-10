@@ -19,8 +19,10 @@
  * Write paths are listed at the end with copy-paste commands, for you to run
  * deliberately.
  *
- * Needs CARBON_VOICE_API_KEY (from .env or the environment) and real network
- * access.
+ * Needs stdio credentials — either CARBON_VOICE_PAT (preferred: scoped,
+ * expiring, self-service) or CARBON_VOICE_API_KEY, from .env or the
+ * environment — plus real network access. A read-scoped PAT is enough, since
+ * every step here is read-only.
  */
 import { bytes, connect, resultJson, resultText } from './lib/mcp-stdio.mjs';
 
@@ -269,11 +271,13 @@ if (ok.length === 0 && failed.length > 0) {
     [
       '',
       'Every call failed — this is almost certainly configuration, not code:',
-      '  401 / UNAUTHORIZED  -> CARBON_VOICE_API_KEY is missing or invalid.',
-      '                         It must be a personal API key (sent as',
-      '                         x-api-key), NOT an OAuth access token — those',
-      '                         are separate credentials and the key lookup',
-      '                         will not find a bearer token.',
+      '  401 / UNAUTHORIZED  -> no valid stdio credential. Set CARBON_VOICE_PAT',
+      '                         (cv_pat_...) or CARBON_VOICE_API_KEY. Neither',
+      '                         may be an OAuth access token — that is a',
+      '                         separate credential type and the lookup will',
+      '                         not find it.',
+      '                         A PAT whose scopes lack cv:read also lands',
+      '                         here; these steps are all reads.',
       '  403 / FORBIDDEN     -> the key is valid but workspace access is not.',
       '                         cv-api ApiKeyStrategy resolves the user, then',
       '                         isAuthorizedForWorkspaceAccess refuses on SSO',
