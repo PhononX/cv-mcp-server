@@ -62,6 +62,25 @@ const NOT_LOG_ROUTES = ['/health'];
  * instead of axios's default bracket notation (`user_ids[]=a&user_ids[]=b`).
  * The Carbon Voice API's array query params (e.g. `user_ids`) are dropped when
  * sent with unencoded brackets, so this matches the format confirmed to work.
+ *
+ * A SINGLE-ELEMENT array is emitted twice — `user_ids=a&user_ids=a`.
+ *
+ * Why: repeated keys only parse back as an array when the key repeats. Express
+ * turns `?user_ids=a` into the STRING `'a'` (verified under both the `simple`
+ * and `extended` query parsers), and the upstream DTOs validate these fields
+ * with `@IsArray()` and no coercing `@Transform` — so filtering by exactly one
+ * id returned `400 BAD_REQUEST` naming that property, while two or more ids
+ * worked. That made "messages from one person", the most natural form of the
+ * query, always fail. Bracket and indexed notations are not an option here:
+ * they are the encoding the API drops.
+ *
+ * This is safe because every array query param the API takes is a filter SET
+ * (`user_ids`, `creator_ids`, `tagged_user_ids`, `conversation_ids`,
+ * `workspace_ids`, `label_ids`), where a duplicate is a no-op. A future array
+ * param whose meaning depends on length or order would need excluding here.
+ *
+ * The durable fix belongs upstream: a `@Transform` that wraps a scalar into an
+ * array, which `MessageIdSearchParameters` already does and these DTOs do not.
  */
 export const serializeParams = (params: Record<string, unknown>): string => {
   const searchParams = new URLSearchParams();
@@ -70,6 +89,14 @@ export const serializeParams = (params: Record<string, unknown>): string => {
       return;
     }
     if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return;
+      }
+      if (value.length === 1) {
+        searchParams.append(key, String(value[0]));
+        searchParams.append(key, String(value[0]));
+        return;
+      }
       value.forEach((item) => searchParams.append(key, String(item)));
     } else {
       searchParams.append(key, String(value));

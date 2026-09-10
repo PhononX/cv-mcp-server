@@ -30,3 +30,53 @@ describe('serializeParams', () => {
     expect(serializeParams({ q: 'a b&c' })).toBe('q=a+b%26c');
   });
 });
+
+describe('serializeParams single-element arrays', () => {
+  // Live bug seen in MCP server logs: list_messages with one user_id returned
+  //   400 BAD_REQUEST { property: "user_ids", ... }
+  //
+  // Repeated keys only parse back as an array when the key repeats. Express
+  // turns `?user_ids=a` into the STRING 'a' under both the `simple` and
+  // `extended` query parsers, and the upstream DTOs validate these fields with
+  // @IsArray() and no coercing @Transform — so exactly one id failed while two
+  // or more worked. "Messages from one person" is the most natural form of the
+  // query, so this failed constantly.
+  it('emits a single-element array twice so it parses back as an array', () => {
+    expect(serializeParams({ user_ids: ['solo'] })).toBe(
+      'user_ids=solo&user_ids=solo',
+    );
+  });
+
+  it('leaves multi-element arrays alone', () => {
+    expect(serializeParams({ user_ids: ['a', 'b'] })).toBe(
+      'user_ids=a&user_ids=b',
+    );
+    expect(serializeParams({ user_ids: ['a', 'b', 'c'] })).toBe(
+      'user_ids=a&user_ids=b&user_ids=c',
+    );
+  });
+
+  it('omits an empty array rather than emitting a bare key', () => {
+    // `user_ids=` would arrive as an empty string and fail @IsArray too.
+    expect(serializeParams({ user_ids: [], size: 20 })).toBe('size=20');
+  });
+
+  it('applies to every array query param the API takes as a filter set', () => {
+    // All of these are filter SETS upstream, so a duplicate is a no-op.
+    [
+      'creator_ids',
+      'tagged_user_ids',
+      'conversation_ids',
+      'workspace_ids',
+      'label_ids',
+    ].forEach((key) => {
+      expect(serializeParams({ [key]: ['one'] })).toBe(`${key}=one&${key}=one`);
+    });
+  });
+
+  it('does not disturb scalars alongside a single-element array', () => {
+    expect(serializeParams({ size: 20, user_ids: ['solo'] })).toBe(
+      'size=20&user_ids=solo&user_ids=solo',
+    );
+  });
+});
