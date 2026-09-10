@@ -520,9 +520,10 @@ export const TOOL_DOCS: ToolDocRegistry = {
     purpose:
       'List messages with filtering by date, conversation, folder, workspace, creator or language.',
     whenToUse:
-      'The general-purpose message reader. Returns full message bodies including ' +
-      'transcript and AI summary. Max date span is 183 days. Presigned URLs in ' +
-      'the response are ready to use as-is — never re-encode them.',
+      'The general-purpose message reader; full bodies incl. transcript and AI ' +
+      'summary. Max date span 183 days. `user_ids` filters by SENDER — for ' +
+      'messages exchanged WITH someone, pass `conversation_id` from ' +
+      '`list_conversations`. Use presigned URLs as-is.',
     whenNotToUse:
       '`get_recent_messages` for a quick look at the latest few (hard-capped at ' +
       '10, no paging). `search_message_ids` for filters this cannot express — ' +
@@ -542,8 +543,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape:
       '`{page, size, sort_direction, total, results_count, has_next_page, ' +
       'filters, results: [{id, transcript?, ai_summary?, audio_url?, creator_id, ' +
-      'conversation_id?, duration_ms, reply_count, status, type, created_at, ...}]}`. ' +
-      'Use `has_next_page` and `total` to decide whether to page — do not guess.',
+      'conversation_id?, duration_ms, reply_count, status, type, created_at, ' +
+      '...}]}`. Page on `has_next_page`/`total` — do not guess.',
     recommendedFields: [
       'total',
       'has_next_page',

@@ -138,6 +138,17 @@ export const listMessagesInputShape = {
   page: listMessagesQueryParams.shape.page.describe(
     '1-based page number. Use with `size`; check `has_next_page` in the response.',
   ),
+  // Upstream reads "List of user IDs to filter messages by", which does not
+  // say WHICH side. It is the sender: message.repository.ts applies it as
+  // `creator_id: { $in: user_ids }`. An agent asked "what did X send me" needs
+  // that; an agent asked "messages in my conversation with X" needs
+  // list_conversations first, and this param will not do it.
+  user_ids: listMessagesQueryParams.shape.user_ids.describe(
+    'Filter by message CREATOR (sender) — matched against `creator_id`, not ' +
+      'participants. Requires user IDs from `search_users`, not names. To find ' +
+      'messages exchanged WITH someone, resolve the conversation via ' +
+      '`list_conversations` and pass `conversation_id` instead.',
+  ),
 };
 
 export const sendDirectMessageBodyShape = {

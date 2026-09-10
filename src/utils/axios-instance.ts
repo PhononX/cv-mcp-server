@@ -105,13 +105,90 @@ export const serializeParams = (params: Record<string, unknown>): string => {
   return searchParams.toString();
 };
 
+/**
+ * cv-api returns class-validator failures as an ARRAY of error objects, each
+ * carrying a `target` that is a full dump of the request DTO. Passing that
+ * through means a single "must be an array" becomes a deeply nested blob an
+ * agent has to mine for the one useful sentence — and it is repeated inside
+ * `details.data` as well.
+ *
+ * This flattens it to `["user_ids: user_ids must be an array"]`, walking
+ * `children` so nested DTO failures survive.
+ */
+export const compactValidationErrors = (
+  message: unknown,
+): string[] | undefined => {
+  if (!Array.isArray(message)) {
+    return undefined;
+  }
+
+  const out: string[] = [];
+  const walk = (entries: unknown[], path: string[]): void => {
+    entries.forEach((entry) => {
+      if (typeof entry === 'string') {
+        out.push(entry);
+        return;
+      }
+      if (typeof entry !== 'object' || entry === null) {
+        return;
+      }
+      const node = entry as {
+        property?: string;
+        constraints?: Record<string, string>;
+        children?: unknown[];
+      };
+      const here = node.property ? [...path, node.property] : path;
+      const constraints = node.constraints
+        ? Object.values(node.constraints)
+        : [];
+      constraints.forEach((text) =>
+        out.push(here.length ? `${here.join('.')}: ${text}` : text),
+      );
+      if (Array.isArray(node.children) && node.children.length) {
+        walk(node.children, here);
+      }
+    });
+  };
+
+  walk(message, []);
+  return out.length ? out : undefined;
+};
+
+/** Strips the request dumps class-validator attaches to each error. */
+const withoutValidationTargets = (data: unknown): unknown => {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  const body = data as { message?: unknown };
+  if (!Array.isArray(body.message)) {
+    return data;
+  }
+  return {
+    ...body,
+    message: body.message.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+      // Drop `target` — class-validator attaches the whole request DTO to
+      // every error, which is what made these payloads unreadable.
+      const rest: Record<string, unknown> = {};
+      Object.entries(entry as Record<string, unknown>).forEach(([k, v]) => {
+        if (k !== 'target') {
+          rest[k] = v;
+        }
+      });
+      return rest;
+    }),
+  };
+};
+
 const serializeAxiosError = (error: AxiosError): Record<string, unknown> => {
   return {
     message: error.message,
     code: error.code,
     status: error.response?.status,
     statusText: error.response?.statusText,
-    data: error.response?.data,
+    data: withoutValidationTargets(error.response?.data),
     url: error.config?.url,
     method: error.config?.method?.toUpperCase(),
     timeout: error.config?.timeout,
@@ -283,18 +360,27 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
     const errorData = error.response.data as ErrorResponseData;
     // Handle different HTTP status codes
     switch (statusCode) {
-      case 400:
+      case 400: {
+        const validation = compactValidationErrors(errorData?.message);
         return {
           statusCode,
           body: {
             error: {
               code: 'BAD_REQUEST',
-              message: errorData?.message || 'Invalid request parameters',
+              // A readable one-liner per failed constraint beats the raw
+              // class-validator array, which buries it under request dumps.
+              message:
+                validation?.join('; ') ||
+                (typeof errorData?.message === 'string'
+                  ? errorData.message
+                  : 'Invalid request parameters'),
+              ...(validation ? { validation } : {}),
               details: serializedError,
             },
             traceId,
           },
         };
+      }
       case 401:
         return {
           statusCode,

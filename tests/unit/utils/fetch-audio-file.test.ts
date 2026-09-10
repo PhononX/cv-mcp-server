@@ -1,8 +1,26 @@
 import {
   AudioFetchError,
   fetchAudioFile,
+  ipv6ToBytes,
   isBlockedAddress,
 } from '../../../src/utils/fetch-audio-file';
+
+/**
+ * Judges an address the way production does: through WHATWG URL parsing.
+ *
+ * Feeding hand-written strings straight to isBlockedAddress let two real bugs
+ * ship. Brackets (URL.hostname keeps them) and canonicalization
+ * (`[::ffff:127.0.0.1]` becomes `::ffff:7f00:1`) both happen in the caller, so
+ * a test that skips the caller tests a form that cannot occur.
+ */
+const blockedViaUrl = (url: string): boolean => {
+  const hostname = new URL(url).hostname;
+  const bare =
+    hostname.startsWith('[') && hostname.endsWith(']')
+      ? hostname.slice(1, -1)
+      : hostname;
+  return isBlockedAddress(bare);
+};
 
 jest.mock('../../../src/utils/logger', () => ({
   logger: {
@@ -45,6 +63,89 @@ describe('isBlockedAddress', () => {
     ['2606:4700::1111', 'public IPv6'],
   ])('allows %s (%s)', (ip) => {
     expect(isBlockedAddress(ip)).toBe(false);
+  });
+});
+
+describe('SSRF guard through real URL parsing', () => {
+  // The forms an attacker would actually use. Each of these bypassed the guard
+  // before the byte-level rewrite, because WHATWG URL canonicalizes an
+  // IPv4-mapped literal to hex and the old dotted-decimal regex never matched.
+  it.each([
+    ['http://[::ffff:127.0.0.1]/a.mp3', 'IPv4-mapped loopback'],
+    ['http://[::ffff:169.254.169.254]/a.mp3', 'IPv4-mapped cloud metadata'],
+    ['http://[::ffff:10.0.0.1]/a.mp3', 'IPv4-mapped private 10/8'],
+    ['http://[::ffff:172.16.0.1]/a.mp3', 'IPv4-mapped private 172.16/12'],
+    ['http://[::ffff:192.168.1.1]/a.mp3', 'IPv4-mapped private 192.168/16'],
+    ['http://[::127.0.0.1]/a.mp3', 'IPv4-compatible loopback (deprecated)'],
+    ['http://[::1]/a.mp3', 'IPv6 loopback'],
+    ['http://[fe80::1]/a.mp3', 'IPv6 link-local'],
+    ['http://[fd00::1]/a.mp3', 'IPv6 unique-local'],
+    ['http://[ff02::1]/a.mp3', 'IPv6 multicast'],
+    ['http://127.0.0.1/a.mp3', 'IPv4 loopback'],
+    ['http://169.254.169.254/a.mp3', 'IPv4 cloud metadata'],
+  ])('blocks %s (%s)', (url) => {
+    expect(blockedViaUrl(url)).toBe(true);
+  });
+
+  it.each([
+    ['https://[2606:4700::1111]/a.mp3', 'public IPv6'],
+    ['https://[2001:4860:4860::8888]/a.mp3', 'public IPv6 DNS'],
+    ['https://[::ffff:8.8.8.8]/a.mp3', 'IPv4-mapped PUBLIC address'],
+    ['https://8.8.8.8/a.mp3', 'public IPv4'],
+  ])('allows %s (%s)', (url) => {
+    expect(blockedViaUrl(url)).toBe(false);
+  });
+
+  it('blocks NAT64-embedded private space', () => {
+    // 64:ff9b::/96 translates to IPv4, so it must be judged on the embedded
+    // address rather than treated as ordinary public IPv6.
+    expect(isBlockedAddress('64:ff9b::7f00:1')).toBe(true);
+    expect(isBlockedAddress('64:ff9b::a9fe:a9fe')).toBe(true);
+  });
+
+  it('blocks an IPv6 address it cannot parse rather than guessing', () => {
+    expect(isBlockedAddress('not-an-address')).toBe(true);
+  });
+});
+
+describe('ipv6ToBytes', () => {
+  it('expands a compressed address to 16 bytes', () => {
+    expect(ipv6ToBytes('::1')).toEqual([
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    ]);
+  });
+
+  it('expands the canonical hex form of an IPv4-mapped address', () => {
+    // What URL parsing actually hands us for [::ffff:127.0.0.1].
+    expect(ipv6ToBytes('::ffff:7f00:1')?.slice(10)).toEqual([
+      0xff, 0xff, 127, 0, 0, 1,
+    ]);
+  });
+
+  it('expands the dotted-quad form to the same bytes', () => {
+    expect(ipv6ToBytes('::ffff:127.0.0.1')).toEqual(
+      ipv6ToBytes('::ffff:7f00:1'),
+    );
+  });
+
+  it('expands a full uncompressed address', () => {
+    expect(ipv6ToBytes('2001:0db8:0000:0000:0000:0000:0000:0001')).toEqual(
+      ipv6ToBytes('2001:db8::1'),
+    );
+  });
+
+  it('strips a zone identifier', () => {
+    expect(ipv6ToBytes('fe80::1%eth0')).toEqual(ipv6ToBytes('fe80::1'));
+  });
+
+  it.each([
+    ['1::2::3', 'two compression markers'],
+    ['gggg::1', 'non-hex group'],
+    ['1:2:3:4:5:6:7', 'too few groups without ::'],
+    ['1:2:3:4:5:6:7:8:9', 'too many groups'],
+    ['::ffff:999.0.0.1', 'octet out of range'],
+  ])('rejects %s (%s)', (addr) => {
+    expect(ipv6ToBytes(addr)).toBeNull();
   });
 });
 

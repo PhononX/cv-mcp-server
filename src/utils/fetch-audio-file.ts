@@ -54,9 +54,73 @@ export class AudioFetchError extends Error {
 }
 
 /**
+ * Expands an IPv6 address to its 16 bytes, or null if it does not parse.
+ *
+ * Needed because string prefix matching is not sound against the forms WHATWG
+ * URL actually produces: `http://[::ffff:127.0.0.1]/` canonicalizes to
+ * `::ffff:7f00:1`, so a regex looking for dotted-decimal never fires and the
+ * address reads as ordinary public space. Byte comparison has no such blind
+ * spot.
+ */
+export const ipv6ToBytes = (input: string): number[] | null => {
+  let addr = input.split('%')[0].toLowerCase();
+
+  // A trailing dotted quad (`::ffff:127.0.0.1`) is legal syntax; fold it into
+  // two hex groups so the rest of the parse is uniform.
+  const dotted = addr.match(/^(.*:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (dotted) {
+    const octets = dotted[2].split('.').map(Number);
+    if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+      return null;
+    }
+    const hi = ((octets[0] << 8) | octets[1]).toString(16);
+    const lo = ((octets[2] << 8) | octets[3]).toString(16);
+    addr = `${dotted[1]}${hi}:${lo}`;
+  }
+
+  const halves = addr.split('::');
+  if (halves.length > 2) {
+    return null;
+  }
+
+  const head = halves[0] ? halves[0].split(':').filter(Boolean) : [];
+  let groups: string[];
+  if (halves.length === 1) {
+    groups = head;
+  } else {
+    const tail = halves[1] ? halves[1].split(':').filter(Boolean) : [];
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) {
+      return null;
+    }
+    groups = [...head, ...Array(missing).fill('0'), ...tail];
+  }
+
+  if (groups.length !== 8) {
+    return null;
+  }
+
+  const bytes: number[] = [];
+  for (const group of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(group)) {
+      return null;
+    }
+    const value = parseInt(group, 16);
+    bytes.push(value >> 8, value & 0xff);
+  }
+  return bytes;
+};
+
+/**
  * True when an IP sits in address space that should never be reachable from a
  * user-supplied URL — loopback, private ranges, link-local (which covers cloud
  * metadata endpoints such as 169.254.169.254), and unspecified/reserved blocks.
+ *
+ * IPv6 is judged on bytes rather than string prefixes, and any address that
+ * embeds an IPv4 address — IPv4-mapped (`::ffff:0:0/96`), the deprecated
+ * IPv4-compatible (`::/96`), or NAT64 (`64:ff9b::/96`) — is re-judged on the
+ * embedded IPv4. Without that, `[::ffff:169.254.169.254]` reaches the metadata
+ * service through a guard that believes it is public.
  */
 export const isBlockedAddress = (ip: string): boolean => {
   const version = net.isIP(ip);
@@ -78,15 +142,34 @@ export const isBlockedAddress = (ip: string): boolean => {
     return false;
   }
 
-  const normalized = ip.toLowerCase().split('%')[0];
-  if (normalized === '::' || normalized === '::1') return true;
-  if (normalized.startsWith('fe8') || normalized.startsWith('fe9')) return true;
-  if (normalized.startsWith('fea') || normalized.startsWith('feb')) return true;
-  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // unique-local
-  if (normalized.startsWith('ff')) return true; // multicast
-  // IPv4-mapped (::ffff:a.b.c.d) must be judged on the embedded IPv4 address.
-  const mapped = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isBlockedAddress(mapped[1]);
+  const bytes = ipv6ToBytes(ip);
+  if (!bytes) {
+    // Validated as IPv6 by net.isIP but unparseable here: refuse rather than
+    // guess.
+    return true;
+  }
+
+  const zeros = (from: number, to: number) =>
+    bytes.slice(from, to).every((byte) => byte === 0);
+
+  // Any address embedding an IPv4 address is decided by that address.
+  const isIpv4Mapped = zeros(0, 10) && bytes[10] === 0xff && bytes[11] === 0xff;
+  const isIpv4Compatible = zeros(0, 12);
+  const isNat64 =
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    zeros(4, 12);
+
+  if (isIpv4Mapped || isIpv4Compatible || isNat64) {
+    return isBlockedAddress(bytes.slice(12).join('.'));
+  }
+
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
+  if (bytes[0] === 0xff) return true; // ff00::/8 multicast
+
   return false;
 };
 

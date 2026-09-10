@@ -1,4 +1,7 @@
-import { serializeParams } from '../../../src/utils/axios-instance';
+import {
+  compactValidationErrors,
+  serializeParams,
+} from '../../../src/utils/axios-instance';
 
 describe('serializeParams', () => {
   it('serializes array values as repeated keys without brackets', () => {
@@ -78,5 +81,73 @@ describe('serializeParams single-element arrays', () => {
     expect(serializeParams({ size: 20, user_ids: ['solo'] })).toBe(
       'size=20&user_ids=solo&user_ids=solo',
     );
+  });
+});
+
+describe('compactValidationErrors', () => {
+  // From a live report: list_messages with one user_id returned a deeply
+  // nested blob — the whole request DTO dumped under each error's `target`,
+  // with the one useful sentence buried inside. An agent has to mine that.
+  it('flattens class-validator errors to readable one-liners', () => {
+    expect(
+      compactValidationErrors([
+        {
+          property: 'user_ids',
+          value: 'travis',
+          constraints: { isArray: 'user_ids must be an array' },
+          target: { size: 20, page: 1, sort_direction: 'DESC' },
+        },
+      ]),
+    ).toEqual(['user_ids: user_ids must be an array']);
+  });
+
+  it('reports every failed constraint on a property', () => {
+    expect(
+      compactValidationErrors([
+        {
+          property: 'limit',
+          constraints: {
+            isInt: 'limit must be an integer',
+            min: 'limit must not be less than 1',
+          },
+        },
+      ]),
+    ).toEqual([
+      'limit: limit must be an integer',
+      'limit: limit must not be less than 1',
+    ]);
+  });
+
+  it('walks nested children so sub-DTO failures survive', () => {
+    expect(
+      compactValidationErrors([
+        {
+          property: 'to',
+          children: [
+            {
+              property: 'user_ids',
+              constraints: { isArray: 'user_ids must be an array' },
+            },
+          ],
+        },
+      ]),
+    ).toEqual(['to.user_ids: user_ids must be an array']);
+  });
+
+  it('passes through plain string messages', () => {
+    expect(compactValidationErrors(['something went wrong'])).toEqual([
+      'something went wrong',
+    ]);
+  });
+
+  it('returns undefined for a non-array message, leaving it untouched', () => {
+    expect(
+      compactValidationErrors('Invalid request parameters'),
+    ).toBeUndefined();
+    expect(compactValidationErrors(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined when an array carries no constraints', () => {
+    expect(compactValidationErrors([{ property: 'x' }])).toBeUndefined();
   });
 });
