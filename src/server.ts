@@ -109,15 +109,24 @@ const MAX_SUMMARIZE_MESSAGES = 50;
  * Optional projection param merged into every tool that returns a substantial
  * payload. Omitting it passes the response through by reference, so existing
  * integrations are byte-for-byte unaffected — see `projectResponse`.
+ *
+ * The text is deliberately terse: this one string is repeated on 25 tools, so
+ * every character costs 25x in the `tools/list` payload that every session
+ * pays before making a single call. The earlier, chattier version accounted for
+ * 10.6% of the entire payload on its own.
+ *
+ * Two semantics are left out on purpose. That paths traverse arrays
+ * element-wise is shown by the `results.id` example rather than stated, and
+ * that pagination fields are always kept is omitted because the worst case if
+ * an agent does not know is that it redundantly asks for `total` — about 30
+ * characters on one call, against 25 copies of a sentence on every session.
  */
 const responseFieldsShape = {
   response_fields: z
     .array(z.string())
     .optional()
     .describe(
-      'Optional dot-path allowlist to shrink the response, e.g. ' +
-        '["results.id","results.transcript"]. Paths traverse arrays ' +
-        'element-wise. Pagination fields are always kept. Omit for the full payload.',
+      'Dot-path allowlist to shrink the response, e.g. ["results.id","total"]. Omit for the full payload.',
     ),
 };
 

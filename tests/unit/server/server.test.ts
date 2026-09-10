@@ -452,23 +452,45 @@ describe('MCP Server', () => {
   });
 
   describe('Tool inventory', () => {
+    const registeredNames = () =>
+      mockRegisterTool.mock.calls.map((call: any) => call[0]);
+
     // Guards the documentation contract: TOOL_NAMES is the single source of
     // truth used by tests/unit/docs/tool-docs.test.ts to validate that every
     // declared prerequisite points at a tool that exists. A tool registered
     // without being added there — or removed without being taken out — fails
     // here rather than silently breaking those cross-references.
     it('registers exactly the tools listed in TOOL_NAMES', () => {
-      const registered = mockRegisterTool.mock.calls.map(
-        (call: any) => call[0],
-      );
-      expect([...registered].sort()).toEqual([...TOOL_NAMES].sort());
+      expect([...registeredNames()].sort()).toEqual([...TOOL_NAMES].sort());
+    });
+
+    // Prompt-cache stability. Tool definitions render at position 0 of the
+    // prompt — ahead of the system prompt and the conversation — so the
+    // `tools/list` payload is the most valuable cacheable prefix we have. Any
+    // change to it, INCLUDING REORDERING, invalidates the whole cache for
+    // every downstream turn. Registration order is currently just the order of
+    // the calls in server.ts, which nothing else enforces; this pins it so a
+    // reordering during a refactor fails here instead of silently costing
+    // every session its cache hits.
+    it('registers tools in exactly the TOOL_NAMES order, for cache stability', () => {
+      expect(registeredNames()).toEqual([...TOOL_NAMES]);
     });
 
     it('registers no tool twice', () => {
-      const registered = mockRegisterTool.mock.calls.map(
-        (call: any) => call[0],
-      );
+      const registered = registeredNames();
       expect(new Set(registered).size).toBe(registered.length);
+    });
+
+    it('exposes a deterministic tool order across repeated registrations', () => {
+      // A second server built in the same process must produce the identical
+      // order — catches anything order-dependent creeping into registration
+      // (a Set/Map iteration, a conditional, a date-seeded branch).
+      const first = registeredNames();
+      mockRegisterTool.mockClear();
+      jest.isolateModules(() => {
+        require('../../../src/server');
+      });
+      expect(registeredNames()).toEqual(first);
     });
   });
 
