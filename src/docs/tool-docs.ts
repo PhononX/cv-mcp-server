@@ -527,6 +527,13 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`get_recent_messages` for a quick look at the latest few (hard-capped at ' +
       '10, no paging). `search_message_ids` for filters this cannot express — ' +
       'notified state, mentions or labels.',
+    prerequisites: [
+      {
+        field: 'workspace_id',
+        fromTool: 'get_workspaces_basic_info',
+        fromField: 'id',
+      },
+    ],
     example: {
       workspace_id: 'ws-abc',
       start_date: '2026-09-01T00:00:00Z',
