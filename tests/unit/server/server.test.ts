@@ -25,6 +25,9 @@ jest.mock('../../../src/auth', () => ({
 jest.mock('../../../src/cv-api', () => {
   const cvApiMock = {
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
+    searchMessageIds: jest.fn(),
+    searchMessagesByHeardStatus: jest.fn(),
+    listInboxNotifications: jest.fn(),
   };
   return {
     getCarbonVoiceAPI: jest.fn(() => cvApiMock),
@@ -106,6 +109,15 @@ describe('MCP Server', () => {
   const cvApiMock = {
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
     getContacts: jest.fn(),
+    searchMessageIds: jest
+      .fn()
+      .mockResolvedValue({ ids: [], has_more: false }),
+    searchMessagesByHeardStatus: jest
+      .fn()
+      .mockResolvedValue({ messages: [], unheard_counts_by_channel: {} }),
+    listInboxNotifications: jest
+      .fn()
+      .mockResolvedValue({ results: [], total_results: 0, total_unread: 0 }),
   };
 
   const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
@@ -2195,6 +2207,105 @@ describe('MCP Server', () => {
         const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
         expect(Array.isArray(callArg)).toBe(false);
         expect(callArg).toEqual(user);
+      });
+    });
+
+    describe('search and notification tools', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+      it('should register all three as read-only', () => {
+        [
+          'search_message_ids',
+          'search_messages_by_heard_status',
+          'list_inbox_notifications',
+        ].forEach((name) => {
+          const call = findCall(name);
+          expect(call).toBeDefined();
+          expect(call[1].annotations.readOnlyHint).toBe(true);
+          expect(call[1].annotations.destructiveHint).toBe(false);
+          expect(call[1].description).toBeDefined();
+        });
+      });
+
+      it('should route through cvApi, not the generated simplified client', async () => {
+        // These endpoints are on the full API and have no generated client.
+        await findCall('search_message_ids')[2](
+          { notified_status: 'notified', limit: 10 },
+          mockContext,
+        );
+
+        expect(cvApiMock.searchMessageIds).toHaveBeenCalledWith(
+          { notified_status: 'notified', limit: 10 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should expose notified_status so notified messages are findable', () => {
+        const schema = findCall('search_message_ids')[1].inputSchema;
+        expect(Object.keys(schema)).toEqual(
+          expect.arrayContaining([
+            'notified_status',
+            'tagged_user_ids',
+            'has_notes',
+            'next_cursor',
+          ]),
+        );
+      });
+
+      it('should expose heardStatus as the unread filter', () => {
+        const schema = findCall('search_messages_by_heard_status')[1]
+          .inputSchema;
+        expect(Object.keys(schema)).toContain('heardStatus');
+        // begin_date/end_date are deliberately absent: the upstream DTO
+        // validates them with @IsDate() and no @Type(() => Date), so an ISO
+        // string fails and a Date cannot cross JSON-RPC.
+        expect(Object.keys(schema)).not.toContain('begin_date');
+        expect(Object.keys(schema)).not.toContain('end_date');
+      });
+
+      it('should expose the mentions category on inbox notifications', () => {
+        const schema = findCall('list_inbox_notifications')[1].inputSchema;
+        expect(Object.keys(schema)).toEqual(
+          expect.arrayContaining(['category', 'skip', 'limit']),
+        );
+      });
+
+      it('should surface errors from each tool', async () => {
+        const cases: Array<[string, keyof typeof cvApiMock, string, any]> = [
+          [
+            'search_message_ids',
+            'searchMessageIds',
+            'Error searching message ids:',
+            { limit: 5 },
+          ],
+          [
+            'search_messages_by_heard_status',
+            'searchMessagesByHeardStatus',
+            'Error searching messages by heard status:',
+            { heardStatus: 'unheard' },
+          ],
+          [
+            'list_inbox_notifications',
+            'listInboxNotifications',
+            'Error listing inbox notifications:',
+            { category: 'mentions' },
+          ],
+        ];
+
+        for (const [tool, apiMethod, logMessage, args] of cases) {
+          const apiError = new Error(`boom-${tool}`);
+          (cvApiMock[apiMethod] as jest.Mock).mockRejectedValueOnce(apiError);
+
+          const result = await findCall(tool)[2](args, mockContext);
+
+          expect(mockLogger.error).toHaveBeenCalledWith(logMessage, {
+            args,
+            error: apiError,
+          });
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+          expect(result).toBeDefined();
+        }
       });
     });
 

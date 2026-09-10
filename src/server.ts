@@ -83,7 +83,15 @@ import {
   UpdateFolderNameInput,
 } from './interfaces';
 import { SummarizeConversationParams } from './interfaces/conversation.interface';
-import { summarizeConversationParams } from './schemas';
+import {
+  ListInboxNotificationsParams,
+  listInboxNotificationsParams,
+  SearchMessageIdsParams,
+  searchMessageIdsParams,
+  SearchMessagesByHeardStatusParams,
+  searchMessagesByHeardStatusParams,
+  summarizeConversationParams,
+} from './schemas';
 import { formatToMCPToolResponse, logger } from './utils';
 
 const simplifiedApi = getCarbonVoiceSimplifiedAPI();
@@ -1311,6 +1319,100 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error suggesting action items:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  // Search & Notifications
+  //
+  // These three hit the FULL Carbon Voice API, not the simplified surface, so
+  // they go through hand-rolled `cvApi` methods rather than the generated
+  // client — the same approach already used for `/whoami` and `/contacts`.
+  // The capabilities they expose (notified state, mentions, listened/unheard
+  // state, notification records) have no simplified-API equivalent.
+  server.registerTool(
+    'search_message_ids',
+    {
+      description: renderToolDoc(TOOL_DOCS.search_message_ids),
+      inputSchema: searchMessageIdsParams.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: SearchMessageIdsParams,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await cvApi.searchMessageIds(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error searching message ids:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'search_messages_by_heard_status',
+    {
+      description: renderToolDoc(TOOL_DOCS.search_messages_by_heard_status),
+      inputSchema: searchMessagesByHeardStatusParams.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: SearchMessagesByHeardStatusParams,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await cvApi.searchMessagesByHeardStatus(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error searching messages by heard status:', {
+          args,
+          error,
+        });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_inbox_notifications',
+    {
+      description: renderToolDoc(TOOL_DOCS.list_inbox_notifications),
+      inputSchema: listInboxNotificationsParams.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: ListInboxNotificationsParams,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await cvApi.listInboxNotifications(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error listing inbox notifications:', { args, error });
         return formatToMCPToolResponse(error);
       }
     },

@@ -283,6 +283,16 @@ The server will create two log files in this directory:
 - **`run_ai_action_for_shared_link`** - Run AI actions on shared content
 - **`get_ai_action_responses`** - Retrieve AI-generated responses
 
+### Search & Notifications
+
+- **`search_message_ids`** - Find message IDs by notified state, mentions, labels, creator, conversation, or workspace (cursor-paginated, IDs only)
+- **`search_messages_by_heard_status`** - Find unheard/heard messages, with per-conversation unheard counts
+- **`list_inbox_notifications`** - List inbox notifications (including the `mentions` category) with a total unread count
+
+> These three call the full Carbon Voice API rather than the simplified surface,
+> since notified state, listened state, and notification records have no
+> simplified-API equivalent.
+
 ### Action Items
 
 - **`list_my_action_items`** - List action items assigned to you across all conversations

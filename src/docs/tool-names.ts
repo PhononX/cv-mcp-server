@@ -54,6 +54,10 @@ export const TOOL_NAMES = [
   'set_action_item_status',
   'delete_action_item',
   'suggest_action_items_from_messages',
+  // Search & Notifications (full API, not the simplified surface)
+  'search_message_ids',
+  'search_messages_by_heard_status',
+  'list_inbox_notifications',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

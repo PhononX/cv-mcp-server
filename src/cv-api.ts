@@ -2,6 +2,11 @@ import { AxiosRequestConfig } from 'axios';
 
 import { env } from './config';
 import { UserInfo, WorkspaceRole } from './interfaces';
+import {
+  ListInboxNotificationsParams,
+  SearchMessageIdsParams,
+  SearchMessagesByHeardStatusParams,
+} from './schemas';
 import { logger } from './utils';
 import { mutator } from './utils/axios-instance';
 
@@ -48,6 +53,57 @@ export const getCarbonVoiceAPI = () => {
         options,
       );
       return contacts.map(mapContactToUserInfo);
+    },
+
+    /**
+     * `GET /search/message-ids` — the only endpoint that can filter messages by
+     * notified state or by tagged user. Returns IDs plus cursor metadata, so it
+     * is cheap in tokens; hydrate the ones you need with `get_message`.
+     *
+     * Not part of the simplified API, so there is no generated client for it.
+     */
+    searchMessageIds: async (
+      params: SearchMessageIdsParams,
+      options?: AxiosRequestConfig,
+    ): Promise<unknown> => {
+      return mutator(
+        { url: '/search/message-ids', method: 'GET', params },
+        options,
+      );
+    },
+
+    /**
+     * `POST /v3/search` — the only endpoint exposing listened/unheard state,
+     * and the only one returning `unheard_counts_by_channel`.
+     *
+     * Deliberately omits the upstream `begin_date` / `end_date` params: their
+     * DTO declares `@IsDate()` without `@Type(() => Date)`, so an ISO string
+     * fails validation and there is no way to express a Date over JSON-RPC.
+     * Date-filtered search goes through `searchMessageIds`, whose equivalent
+     * field does carry `@Type`.
+     */
+    searchMessagesByHeardStatus: async (
+      params: SearchMessagesByHeardStatusParams,
+      options?: AxiosRequestConfig,
+    ): Promise<unknown> => {
+      return mutator(
+        { url: '/v3/search', method: 'POST', data: params },
+        options,
+      );
+    },
+
+    /**
+     * `GET /inbox-notifications` — the notification centre, including the
+     * `mentions` category and a `total_unread` count.
+     */
+    listInboxNotifications: async (
+      params: ListInboxNotificationsParams,
+      options?: AxiosRequestConfig,
+    ): Promise<unknown> => {
+      return mutator(
+        { url: '/inbox-notifications', method: 'GET', params },
+        options,
+      );
     },
   };
 };

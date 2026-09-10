@@ -402,4 +402,74 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape:
       'The created suggestions, each shaped like `get_action_item`, at status `suggested`.',
   },
+
+  /**********************
+   * Search & Notifications
+   *********************/
+
+  search_message_ids: {
+    purpose:
+      'Find message IDs by notified state, mentions, labels, creator, ' +
+      'conversation or workspace — returning IDs plus cursor metadata.',
+    whenToUse:
+      'Any filter `list_messages` cannot express: whether you were notified ' +
+      '(`notified_status`), whether you were tagged (`tagged_user_ids`), or by ' +
+      '`label_ids`. Cheap in tokens because it returns IDs only — hydrate the ' +
+      'ones you need with `get_message`.',
+    whenNotToUse:
+      '`list_messages` when a date range, conversation or workspace filter is ' +
+      'all you need and you want full message bodies in one call. ' +
+      '`search_messages_by_heard_status` for unread/listened state, which this ' +
+      'tool cannot filter on.',
+    example: { notified_status: 'notified', limit: 50 },
+    responseShape:
+      '`{ids: [{...}], has_more, next_cursor?}`. Keep paging while `has_more` ' +
+      'is true, passing `next_cursor` back as `next_cursor`.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning:
+          'An ID list contains names rather than IDs, or exceeds 50 entries.',
+        nextAction:
+          'Resolve people to IDs with `search_users` and conversations with ' +
+          '`list_conversations`; split lists longer than 50.',
+      },
+    ],
+  },
+
+  search_messages_by_heard_status: {
+    purpose:
+      'Find messages by whether you have listened to them, and get per-conversation unheard counts.',
+    whenToUse:
+      '"What have I not listened to yet" / "catch me up". `heardStatus: ' +
+      '"unheard"` is the unread filter. The response also carries ' +
+      '`unheard_counts_by_channel`, so you can prioritise conversations without ' +
+      'fetching their messages.',
+    whenNotToUse:
+      '`search_message_ids` for notified state, mentions or date anchors — this ' +
+      'tool accepts no date filter (see note below). `list_messages` for plain ' +
+      'recent history.',
+    example: { heardStatus: 'unheard', limit: 25 },
+    responseShape:
+      '`{messages: [...], unheard_counts_by_channel: {conversation_id: count}, ' +
+      'success}`. Use `unheard_counts_by_channel` to decide where to look first.',
+    recommendedFields: ['unheard_counts_by_channel'],
+  },
+
+  list_inbox_notifications: {
+    purpose: 'List your inbox notifications, with a total unread count.',
+    whenToUse:
+      'Answering "what did I miss" or "where was I mentioned" — pass ' +
+      '`category: "mentions"` for mentions. The response includes ' +
+      '`total_unread`, so you can report a count without paging.',
+    whenNotToUse:
+      '`search_message_ids` with `notified_status` if you want the messages ' +
+      'themselves rather than notification records. ' +
+      '`search_messages_by_heard_status` for unlistened messages.',
+    example: { category: 'mentions', limit: 25 },
+    responseShape:
+      '`{results: [...], total_results, total_unread, filters}`. Pages with ' +
+      '`skip`/`limit`, not cursors.',
+    recommendedFields: ['results', 'total_unread', 'total_results'],
+  },
 };

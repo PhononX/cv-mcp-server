@@ -34,8 +34,12 @@ describe('Auth Service', () => {
 
     describe('verifyAccessToken', () => {
       it('should successfully verify a valid token', async () => {
-        const token = createMockToken();
+        // Derive the token FROM the expected payload rather than building each
+        // independently: both helpers compute `exp` from Date.now(), so two
+        // separate calls straddling a second boundary produce `exp` values one
+        // apart and this assertion fails intermittently.
         const tokenIntrospectionResponse = createMockIntrospectionResponse();
+        const token = createMockToken(tokenIntrospectionResponse);
         const result = await verifier.verifyAccessToken(token);
 
         expect(result).toEqual({
