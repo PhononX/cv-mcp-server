@@ -395,6 +395,74 @@ describe('fetchAudioFile', () => {
     );
   });
 
+  // Node's own rejection reads "Request cannot be constructed from a URL that
+  // includes credentials: <the whole URL>", and that message is interpolated
+  // into AudioFetchError and logged as `reason` by server.ts. Rejecting during
+  // validation keeps the password out of the logs entirely.
+  it('rejects a URL with embedded credentials without making a request', async () => {
+    const spy = jest.fn();
+    global.fetch = spy as any;
+
+    const error = await fetchAudioFile(
+      'https://alice-keyid:sup3rs3cret@8.8.8.8/audio.mp3',
+    ).catch((e) => e);
+
+    expect(error).toBeInstanceOf(AudioFetchError);
+    expect(error.message).toMatch(/must not embed credentials/);
+    expect(error.message).not.toContain('sup3rs3cret');
+    expect(error.message).not.toContain('alice-keyid');
+    expect(error.message).not.toContain('8.8.8.8');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('strips credentials out of an interpolated upstream message', async () => {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          'Request cannot be constructed from a URL that includes credentials: https://user:sup3rs3cret@8.8.8.8/a.mp3',
+        ),
+      ) as any;
+
+    const error = await fetchAudioFile('https://8.8.8.8/a.mp3').catch((e) => e);
+
+    expect(error.message).not.toContain('sup3rs3cret');
+    expect(error.message).toContain('<credentials redacted>@');
+  });
+
+  // Throwing without consuming or cancelling leaves undici holding the
+  // connection, and the abort timer is cleared in `finally` — so nothing else
+  // closes it.
+  it('cancels the body when the declared length is over the cap', async () => {
+    const cancel = jest.fn().mockResolvedValue(undefined);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-length': String(999_999_999) }),
+      body: { cancel, getReader: () => ({ read: jest.fn() }) },
+    }) as any;
+
+    await expect(fetchAudioFile('https://8.8.8.8/big.mp3')).rejects.toThrow(
+      /above the .*-byte limit/,
+    );
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('cancels the body on an upstream failure status', async () => {
+    const cancel = jest.fn().mockResolvedValue(undefined);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: new Headers(),
+      body: { cancel, getReader: () => ({ read: jest.fn() }) },
+    }) as any;
+
+    await expect(fetchAudioFile('https://8.8.8.8/missing.mp3')).rejects.toThrow(
+      /HTTP 404/,
+    );
+    expect(cancel).toHaveBeenCalled();
+  });
+
   it('throws AudioFetchError, whose name server.ts narrows on', async () => {
     const error = await fetchAudioFile('not a url').catch((e) => e);
     expect(error).toBeInstanceOf(AudioFetchError);

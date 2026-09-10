@@ -222,6 +222,20 @@ const isHostAllowlisted = (hostname: string): boolean => {
   return allowed.some((entry) => host === entry || host.endsWith(`.${entry}`));
 };
 
+/**
+ * Strips `user:password@` out of any URL embedded in an upstream error message.
+ *
+ * `assertUrlIsFetchable` rejects credential-bearing URLs before fetch sees
+ * them, so the known leak is already closed; this is the backstop for any other
+ * upstream message that quotes the URL, because these messages are interpolated
+ * into `AudioFetchError` and logged.
+ */
+const stripUrlCredentials = (message: string): string =>
+  message.replace(
+    /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/\s:@]+(?::[^/\s@]*)?@/g,
+    '$1<credentials redacted>@',
+  );
+
 const assertUrlIsFetchable = async (
   raw: string,
   deadlineAt: number,
@@ -238,6 +252,17 @@ const assertUrlIsFetchable = async (
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new AudioFetchError(
       `audio_url must use http or https, got "${url.protocol}"`,
+    );
+  }
+
+  // Reject userinfo HERE rather than letting fetch do it. Node's own rejection
+  // reads "Request cannot be constructed from a URL that includes credentials:
+  // <the whole URL>", and that message is interpolated into AudioFetchError and
+  // logged as `reason` — so deferring to fetch would put the password in the
+  // logs, defeating the URL redaction. The message below names neither.
+  if (url.username || url.password) {
+    throw new AudioFetchError(
+      'audio_url must not embed credentials (user:password@); use a presigned URL or a plain link',
     );
   }
 
@@ -335,6 +360,18 @@ const readCapped = async (
 };
 
 /**
+ * Releases a response body we have decided not to read.
+ *
+ * Throwing without consuming or cancelling leaves undici holding the
+ * connection open until GC, and the abort timer is cleared in `finally`, so
+ * nothing else will close it. Repeated oversized or error responses would
+ * accumulate sockets and stall later fetches.
+ */
+const discardBody = async (response?: Response): Promise<void> => {
+  await response?.body?.cancel().catch(() => undefined);
+};
+
+/**
  * Fetches `audio_url` and returns it as a `File` suitable for the generated
  * client's multipart upload. Throws `AudioFetchError` with an agent-actionable
  * message on any rejection.
@@ -365,15 +402,20 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
 
       const location = response.headers.get('location');
       if (!location) {
+        await discardBody(response);
         throw new AudioFetchError(
           `audio_url returned ${response.status} with no redirect target`,
         );
       }
       if (hop === MAX_REDIRECTS) {
+        await discardBody(response);
         throw new AudioFetchError(
           `audio_url exceeded ${MAX_REDIRECTS} redirects`,
         );
       }
+      // The redirect response itself is finished with; the next hop opens its
+      // own.
+      await discardBody(response);
       // Re-validate every hop: a public URL is free to redirect inward.
       target = await assertUrlIsFetchable(
         new URL(location, target).toString(),
@@ -382,6 +424,7 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
     }
 
     if (!response || !response.ok) {
+      await discardBody(response);
       throw new AudioFetchError(
         `audio_url could not be fetched (HTTP ${response?.status ?? 'unknown'})`,
       );
@@ -389,6 +432,7 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
 
     const declaredLength = Number(response.headers.get('content-length'));
     if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      await discardBody(response);
       throw new AudioFetchError(
         `audio_url is ${declaredLength} bytes, above the ${maxBytes}-byte limit`,
       );
@@ -426,7 +470,9 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
       );
     }
     throw new AudioFetchError(
-      `audio_url could not be fetched: ${(error as Error)?.message ?? 'unknown error'}`,
+      `audio_url could not be fetched: ${stripUrlCredentials(
+        (error as Error)?.message ?? 'unknown error',
+      )}`,
     );
   } finally {
     clearTimeout(timeout);
