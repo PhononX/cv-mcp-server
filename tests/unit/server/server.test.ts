@@ -243,6 +243,56 @@ describe('MCP Server', () => {
     require('../../../src/server');
   });
 
+  describe('Constraint descriptions', () => {
+    // Phase 3: rules that previously cost a failed call to discover, or that
+    // upstream documented incorrectly. Each was read out of the cv-api handler,
+    // so these assertions pin behaviour, not guesses.
+    const findCall = (name: string) =>
+      mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+    it('get_folder documents the include_first_level_tree gate on BOTH date and direction', () => {
+      // Upstream only ever documented it on `date`, so `direction` silently
+      // no-op'd with nothing to warn the agent.
+      const schema = findCall('get_folder')[1].inputSchema;
+      expect(schema.direction.description).toContain(
+        'include_first_level_tree',
+      );
+      expect(schema.date.description).toContain('include_first_level_tree');
+    });
+
+    it('create_voicememo_message no longer carries the incoherent workspace_id text', () => {
+      // Upstream reads: "not allowed when folder_id specified is different
+      // from the folder_id" — a copy-paste of the folder_id text describing a
+      // rule the handler does not enforce.
+      const schema = findCall('create_voicememo_message')[1].inputSchema;
+      expect(schema.workspace_id.description).not.toContain(
+        'different from the folder_id',
+      );
+      expect(schema.transcript.description).toContain('2-5000');
+      expect(schema.links.description).toContain('100');
+    });
+
+    it('move_message_to_folder states that exactly one destination is required', () => {
+      const schema = findCall('move_message_to_folder')[1].inputSchema;
+      expect(schema.folder_id.description).toContain('exactly one');
+      expect(schema.workspace_id.description).toContain('exactly one');
+    });
+
+    it('move_message_to_folder states the message/folder type-match rule', () => {
+      // Enforced by FolderService.validateMessageToBeAddedToFolder and
+      // documented nowhere upstream.
+      const schema = findCall('move_message_to_folder')[1].inputSchema;
+      expect(schema.message_id.description).toContain('must match');
+      expect(schema.message_id.description).toContain('creator');
+    });
+
+    it('create_conversation_message puts the transcript-or-links rule on the params', () => {
+      const schema = findCall('create_conversation_message')[1].inputSchema;
+      expect(schema.transcript.description).toContain('required');
+      expect(schema.links.description).toContain('required');
+    });
+  });
+
   describe('Response projection (response_fields)', () => {
     const findCall = (name: string) =>
       mockRegisterTool.mock.calls.find((c: any) => c[0] === name);

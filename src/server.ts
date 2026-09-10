@@ -18,21 +18,17 @@ import {
   actionItemControllerUpdateBody,
   addLinkAttachmentsToMessageBody,
   addLinkAttachmentsToMessageParams,
-  addMessageToFolderOrWorkspaceBody,
   aIPromptControllerGetPromptsQueryParams,
   aIResponseControllerCreateResponseBody,
   aIResponseControllerGetAllResponsesQueryParams,
-  createConversationMessageBody,
   createConversationMessageParams,
   createFolderBody,
   createShareLinkAIResponseBody,
-  createVoiceMemoMessageBody,
   deleteFolderParams,
   getAllConversationsQueryParams,
   getAllRootFoldersQueryParams,
   getConversationByIdParams,
   getFolderByIdParams,
-  getFolderByIdQueryParams,
   getFolderMessagesParams,
   getMessageByIdParams,
   getMessageByIdQueryParams,
@@ -84,8 +80,12 @@ import {
 } from './interfaces';
 import { SummarizeConversationParams } from './interfaces/conversation.interface';
 import {
+  createConversationMessageBodyShape,
+  createVoicememoBodyShape,
+  getFolderInputShape,
   ListInboxNotificationsParams,
   listInboxNotificationsParams,
+  moveMessageToFolderBodyShape,
   SearchMessageIdsParams,
   searchMessageIdsParams,
   SearchMessagesByHeardStatusParams,
@@ -251,9 +251,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'create_conversation_message',
     {
       description: renderToolDoc(TOOL_DOCS.create_conversation_message),
-      inputSchema: createConversationMessageParams.merge(
-        createConversationMessageBody,
-      ).shape,
+      inputSchema: {
+        ...createConversationMessageParams.shape,
+        ...createConversationMessageBodyShape,
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -316,7 +317,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
   // type to aim at, and then rejected every value a JSON-RPC client can express
   // ("Input not instance of File"). A URL is something an agent can actually
   // produce; the server fetches it and forwards the bytes as multipart.
-  const createVoicememoMessageInput = createVoiceMemoMessageBody
+  const createVoicememoMessageInput = z
+    .object(createVoicememoBodyShape)
     .omit({ audio_file: true })
     .extend({
       audio_url: z
@@ -900,7 +902,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.get_folder),
       inputSchema: {
-        ...getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
+        ...getFolderByIdParams.shape,
+        ...getFolderInputShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -1061,7 +1064,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'move_message_to_folder',
     {
       description: renderToolDoc(TOOL_DOCS.move_message_to_folder),
-      inputSchema: addMessageToFolderOrWorkspaceBody.shape,
+      inputSchema: { ...moveMessageToFolderBodyShape },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,

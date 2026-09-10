@@ -481,9 +481,10 @@ export const TOOL_DOCS: ToolDocRegistry = {
     purpose:
       'Create a voice memo, either from text (spoken via text-to-speech) or from an audio file at a URL.',
     whenToUse:
-      'Pass `transcript` to have Carbon Voice speak the text, or `audio_url` ' +
-      'to upload existing audio (which overrides `transcript`). Place it with ' +
-      '`folder_id` or `workspace_id`, not both.',
+      'Pass `transcript` (2-5000 chars) to have Carbon Voice speak the text, ' +
+      'or `audio_url` to upload existing audio, which overrides `transcript`. ' +
+      'File it with `folder_id`, whose folder type must match, or place it in a ' +
+      'workspace with `workspace_id`.',
     whenNotToUse:
       '`create_conversation_message` to post into an existing conversation, or ' +
       '`create_direct_message` to send to specific people. A voice memo is ' +
@@ -508,8 +509,9 @@ export const TOOL_DOCS: ToolDocRegistry = {
         code: 'BAD_REQUEST',
         meaning:
           'None of `transcript`, `audio_url` or `links` was provided, or ' +
-          '`folder_id` and `workspace_id` disagree.',
-        nextAction: 'Provide one of those, and only one placement target.',
+          'the transcript is outside 2-5000 characters.',
+        nextAction:
+          'Provide one of the three, and keep the transcript within the length limits.',
       },
     ],
   },
@@ -581,9 +583,9 @@ export const TOOL_DOCS: ToolDocRegistry = {
     purpose:
       'Post a message into an existing conversation, or reply in a thread.',
     whenToUse:
-      'You have a `conversation_id`. Pass `parent_id` (a message ID) to reply as ' +
-      'a thread. You must supply `transcript` or `links` — neither is marked ' +
-      'required individually, but the call fails without at least one.',
+      'You have a `conversation_id`. Pass `parent_id` (a message ID) to reply ' +
+      'as a thread. Either `transcript` or `links` is required — the schema ' +
+      'marks neither individually, so both param descriptions say so.',
     whenNotToUse:
       '`create_direct_message` to reach people who are not already in a ' +
       'conversation. `create_voicememo_message` for a standalone memo.',
@@ -823,8 +825,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
       "Get one folder's metadata and, optionally, its immediate subfolders.",
     whenToUse:
       'Inspecting a folder. Set `include_first_level_tree: true` to get ' +
-      'subfolders — and note that `date` and `direction` only take effect when ' +
-      'you do; otherwise they are silently ignored.',
+      'subfolders. Both `date` AND `direction` are silently ignored unless you ' +
+      'do — upstream only documented that caveat on `date`.',
     whenNotToUse:
       '`get_folder_with_messages` when you want the messages inside the folder — ' +
       'this returns structure and counts only.',
@@ -931,8 +933,9 @@ export const TOOL_DOCS: ToolDocRegistry = {
   move_message_to_folder: {
     purpose: 'Move a message into a folder, or out to a workspace.',
     whenToUse:
-      'Filing a memo. Only `voicememo` and `prerecorded` message types can be ' +
-      'moved. Pass `folder_id` or `workspace_id` — one or the other, not both.',
+      'Filing a memo. Only `voicememo`/`prerecorded` messages you created can ' +
+      "be moved, and the message type must match the folder's type. Pass " +
+      'exactly one of `folder_id` or `workspace_id`.',
     whenNotToUse:
       '`move_folder` to relocate a whole folder. `create_voicememo_message` with ' +
       '`folder_id` to file a memo at creation time instead of moving it after.',
@@ -944,15 +947,16 @@ export const TOOL_DOCS: ToolDocRegistry = {
       },
     ],
     example: { message_id: 'msg-abc', folder_id: 'folder-abc' },
-    responseShape: 'Confirmation with the message’s new placement.',
+    responseShape: 'The updated message with its new placement.',
     commonErrors: [
       {
         code: 'BAD_REQUEST',
         meaning:
-          'The message is not a `voicememo` or `prerecorded` type, or both/neither ' +
-          'destination was given.',
+          'The message type is not `voicememo`/`prerecorded`, it does not match ' +
+          "the destination folder's type, or both/neither destination was given.",
         nextAction:
-          'Check `type` via `get_message` first, and pass exactly one destination.',
+          'Check `type` via `get_message` and the folder type via `get_folder`; ' +
+          'they must match. Pass exactly one destination.',
       },
     ],
   },
