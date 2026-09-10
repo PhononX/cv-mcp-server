@@ -83,6 +83,10 @@ const WHOAMI_FIXTURE = {
 const listMessages = jest.fn();
 const getWhoAmI = jest.fn();
 const aIResponseControllerCreateResponse = jest.fn();
+// The void endpoints (202/204, empty body) resolve to undefined, which is what
+// the wire-format test below exercises.
+const actionItemControllerCreateSuggestionsFromMessages = jest.fn();
+const createActionItemSuggestionsFromMessage = jest.fn();
 
 jest.mock('../../src/generated', () => {
   const explicit: Record<string, unknown> = {};
@@ -95,6 +99,9 @@ jest.mock('../../src/generated', () => {
           if (prop === 'listMessages') return listMessages;
           if (prop === 'aIResponseControllerCreateResponse') {
             return aIResponseControllerCreateResponse;
+          }
+          if (prop === 'actionItemControllerCreateSuggestionsFromMessages') {
+            return actionItemControllerCreateSuggestionsFromMessages;
           }
           return jest.fn().mockResolvedValue({});
         },
@@ -111,6 +118,7 @@ jest.mock('../../src/cv-api', () => ({
     listInboxNotifications: jest
       .fn()
       .mockResolvedValue({ results: [], total_results: 0, total_unread: 0 }),
+    createActionItemSuggestionsFromMessage,
   }),
   getCarbonVoiceApiStatus: jest.fn(),
 }));
@@ -143,6 +151,12 @@ const jsonOf = (result: Parameters<typeof textOf>[0]) =>
 beforeAll(async () => {
   listMessages.mockResolvedValue(LIST_MESSAGES_FIXTURE);
   getWhoAmI.mockResolvedValue(WHOAMI_FIXTURE);
+  actionItemControllerCreateSuggestionsFromMessages.mockResolvedValue(
+    undefined,
+  );
+  createActionItemSuggestionsFromMessage.mockResolvedValue([
+    { id: 'ai_1', title: 'Send the deck', status: 'suggested' },
+  ]);
 
   // Required (not dynamically imported) after the mocks are registered:
   // this Jest config runs without --experimental-vm-modules, so `await
@@ -469,5 +483,39 @@ describe('error responses over the protocol', () => {
     const body = jsonOf(result as never);
     expect(body.body.error.code).toBe('INVALID_AUDIO_URL');
     expect(body.body.error.message).toMatch(/non-public address/);
+  });
+});
+
+// The MCP text content block requires `text` to be a string. A void endpoint
+// resolves to undefined and JSON.stringify(undefined) is undefined, not a
+// string — so without a substitution the block is invalid and the SDK client
+// rejects the response before a handler ever sees it. That makes this a
+// protocol-level test rather than a formatter unit test.
+describe('void endpoints over the protocol', () => {
+  it('returns a valid text block for an empty 202 response', async () => {
+    const result = await client.callTool({
+      name: 'suggest_action_items_from_messages',
+      arguments: { message_ids: ['msg_1', 'msg_2'] },
+    });
+
+    expect((result as { isError?: boolean }).isError).toBeUndefined();
+    expect(typeof textOf(result as never)).toBe('string');
+    expect(jsonOf(result as never)).toEqual({ success: true });
+  });
+
+  it('returns the items directly from the synchronous single-message tool', async () => {
+    const result = await client.callTool({
+      name: 'suggest_action_items_from_message',
+      arguments: { message_id: 'msg_1' },
+    });
+
+    expect((result as { isError?: boolean }).isError).toBeUndefined();
+    expect(createActionItemSuggestionsFromMessage).toHaveBeenCalledWith(
+      'msg_1',
+      expect.anything(),
+    );
+    expect(jsonOf(result as never)).toEqual([
+      { id: 'ai_1', title: 'Send the deck', status: 'suggested' },
+    ]);
   });
 });

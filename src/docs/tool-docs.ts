@@ -382,6 +382,38 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape: 'Deletion confirmation for the removed item.',
   },
 
+  suggest_action_items_from_message: {
+    purpose:
+      'Extract action items from ONE message and return them immediately.',
+    whenToUse:
+      'Turning a single message into tasks — "what did she ask me to do?". ' +
+      'The items come back in this call, already saved with ' +
+      '`status: "suggested"`; promote the ones you want with ' +
+      '`set_action_item_status`. Prefer this over ' +
+      '`suggest_action_items_from_messages` whenever there is exactly one ' +
+      'message, since it needs no polling.',
+    whenNotToUse:
+      '`suggest_action_items_from_messages` for two or more messages — it ' +
+      'reasons over the whole set at once and can catch commitments that span ' +
+      'messages, which calling this tool repeatedly cannot. ' +
+      '`create_action_item` when you already know the task.',
+    prerequisites: [
+      {
+        field: 'message_id',
+        fromTool: 'list_messages',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { message_id: 'msg-1' },
+    // Runs the model inline, so it is slower than most tools but saves the
+    // poll loop the plural endpoint forces.
+    responseShape:
+      'Array of the created action items, each with `id`, `title`, ' +
+      '`assigned_to`, `due_date`, `notes_text` and `status: "suggested"`. An ' +
+      'empty array means the model found nothing actionable. Runs the ' +
+      'extraction inline, so expect this call to take a few seconds.',
+  },
+
   suggest_action_items_from_messages: {
     purpose:
       'Queue AI extraction of candidate action items from specific messages. Runs in the background.',
@@ -391,6 +423,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`list_action_items` with `status: "suggested"` for the results, and ' +
       'promote the ones you want with `set_action_item_status`.',
     whenNotToUse:
+      '`suggest_action_items_from_message` (singular) for a SINGLE message — ' +
+      'it returns the items directly, with no polling. ' +
       '`create_action_item` when you already know the task and do not need it ' +
       'inferred — that returns the item synchronously, with an id.',
     prerequisites: [

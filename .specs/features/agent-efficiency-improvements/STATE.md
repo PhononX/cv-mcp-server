@@ -78,7 +78,14 @@ Capability additions from the sibling spec, delivered alongside:
 | Search / unread / inbox notifications (3 tools) | `3a52f6f` |
 | Voice memo `audio_url` (replaces unusable `audio_file`) | `1dda9e7` |
 
-**28 tools → 41 tools.** Tests: **214 → 598** unit, 56 e2e.
+**28 tools → 42 tools.** Tests: **214 → 598** unit, 56 e2e.
+
+The 42nd is `suggest_action_items_from_message` (singular), added after review:
+cv-api has a SYNCHRONOUS single-message variant of the suggestion endpoint
+(`POST /action-items/suggestions/{message_id}`, hidden from the OpenAPI doc by
+`@ApiExcludeEndpoint()`) that returns the created items directly. The plural
+tool stays because its endpoint runs one prompt over the whole message set and
+can catch commitments spanning messages.
 
 ## Measured results
 

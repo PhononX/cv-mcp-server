@@ -93,6 +93,35 @@ export const getCarbonVoiceAPI = () => {
     },
 
     /**
+     * `POST /action-items/suggestions/{message_id}` — the SYNCHRONOUS
+     * single-message variant of action-item extraction. It awaits the model,
+     * persists the suggestions and returns them, so an agent gets the items in
+     * the same turn instead of polling.
+     *
+     * The generated client only has the plural
+     * `actionItemControllerCreateSuggestionsFromMessages`, which enqueues a
+     * background job and answers 202 with an empty body. This one is marked
+     * `@ApiExcludeEndpoint()` upstream, so it is absent from the OpenAPI
+     * document Orval reads and has to be hand-rolled.
+     *
+     * Not a replacement for the plural endpoint: that one runs a different
+     * prompt over the whole message set at once, so it can spot commitments
+     * that span messages. Use this when there is exactly one message.
+     */
+    createActionItemSuggestionsFromMessage: async (
+      messageId: string,
+      options?: AxiosRequestConfig,
+    ): Promise<unknown> => {
+      return mutator(
+        {
+          url: `/action-items/suggestions/${encodeURIComponent(messageId)}`,
+          method: 'POST',
+        },
+        options,
+      );
+    },
+
+    /**
      * `GET /inbox-notifications` — the notification centre, including the
      * `mentions` category and a `total_unread` count.
      */

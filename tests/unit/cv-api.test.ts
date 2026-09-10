@@ -129,3 +129,54 @@ describe('getCarbonVoiceAPI().getContacts', () => {
     await expect(api.getContacts(['user-123'])).rejects.toThrow('API failure');
   });
 });
+
+describe('getCarbonVoiceAPI().createActionItemSuggestionsFromMessage', () => {
+  const api = getCarbonVoiceAPI();
+
+  it('should issue POST to the synchronous single-message suggestions route', async () => {
+    mockMutator.mockResolvedValueOnce([{ id: 'ai-1' }]);
+
+    const result = await api.createActionItemSuggestionsFromMessage('msg-1');
+
+    expect(mockMutator).toHaveBeenCalledWith(
+      { url: '/action-items/suggestions/msg-1', method: 'POST' },
+      undefined,
+    );
+    expect(result).toEqual([{ id: 'ai-1' }]);
+  });
+
+  // The id goes into the path, so anything path-significant in it has to be
+  // encoded rather than allowed to change which route is hit.
+  it('should encode the message id into the path', async () => {
+    mockMutator.mockResolvedValueOnce([]);
+
+    await api.createActionItemSuggestionsFromMessage('msg/../../whoami');
+
+    expect(mockMutator).toHaveBeenCalledWith(
+      {
+        url: '/action-items/suggestions/msg%2F..%2F..%2Fwhoami',
+        method: 'POST',
+      },
+      undefined,
+    );
+  });
+
+  it('should forward auth options to mutator', async () => {
+    mockMutator.mockResolvedValueOnce([]);
+    const options: AxiosRequestConfig = {
+      headers: { Authorization: 'Bearer tok' },
+    };
+
+    await api.createActionItemSuggestionsFromMessage('msg-1', options);
+
+    expect(mockMutator).toHaveBeenCalledWith(expect.anything(), options);
+  });
+
+  it('should propagate API errors', async () => {
+    mockMutator.mockRejectedValueOnce(new Error('API failure'));
+
+    await expect(
+      api.createActionItemSuggestionsFromMessage('msg-1'),
+    ).rejects.toThrow('API failure');
+  });
+});

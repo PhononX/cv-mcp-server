@@ -89,6 +89,8 @@ import {
   SearchMessagesByHeardStatusParams,
   searchMessagesByHeardStatusParams,
   sendDirectMessageBodyShape,
+  SuggestActionItemsFromMessageParams,
+  suggestActionItemsFromMessageParams,
   summarizeConversationParams,
   updateActionItemBodyShape,
 } from './schemas';
@@ -1622,6 +1624,50 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'delete_action_item',
+        });
+      }
+    },
+  );
+
+  // The synchronous single-message variant. Hits the FULL API (see the note on
+  // `cvApi.createActionItemSuggestionsFromMessage`) because the endpoint is
+  // excluded from the OpenAPI document the generated client is built from.
+  server.registerTool(
+    'suggest_action_items_from_message',
+    {
+      description: renderToolDoc(TOOL_DOCS.suggest_action_items_from_message),
+      inputSchema: {
+        ...suggestActionItemsFromMessageParams.shape,
+        ...responseFieldsShape,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+    },
+    async (
+      input: SuggestActionItemsFromMessageParams & {
+        response_fields?: string[];
+      },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
+      try {
+        return formatToMCPToolResponse(
+          await cvApi.createActionItemSuggestionsFromMessage(
+            args.message_id,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+          { responseFields: response_fields },
+        );
+      } catch (error) {
+        logger.error('Error suggesting action items from message:', {
+          args,
+          error,
+        });
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'suggest_action_items_from_message',
         });
       }
     },

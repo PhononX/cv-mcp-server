@@ -53,6 +53,7 @@ export const TOOL_NAMES = [
   'update_action_item',
   'set_action_item_status',
   'delete_action_item',
+  'suggest_action_items_from_message',
   'suggest_action_items_from_messages',
   // Search & Notifications (full API, not the simplified surface)
   'search_message_ids',
