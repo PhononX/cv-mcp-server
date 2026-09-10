@@ -404,6 +404,73 @@ cp .env.sample .env      # CARBON_VOICE_API_KEY only needed for real tool calls
 npm run build
 ```
 
+### Pointing a real client at your local build
+
+To use your branch in Claude Desktop / Cursor / Claude Code instead of the
+published package, build it and point the client at the built entrypoint by
+absolute path.
+
+```bash
+npm run build          # produces dist/transports/stdio/stdio.js
+pwd                    # note the absolute path
+```
+
+**Claude Code (CLI)** — easiest, and scoped to one project:
+
+```bash
+claude mcp add carbon-voice-dev \
+  --env CARBON_VOICE_API_KEY=your_key_here \
+  -- node /absolute/path/to/cv-mcp-server/dist/transports/stdio/stdio.js
+```
+
+**Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`
+(macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
+**Cursor** — Settings → Features → Model Context Protocol. Same JSON:
+
+```json
+{
+  "mcpServers": {
+    "carbon-voice-dev": {
+      "command": "node",
+      "args": ["/absolute/path/to/cv-mcp-server/dist/transports/stdio/stdio.js"],
+      "env": {
+        "CARBON_VOICE_API_KEY": "your_key_here"
+      }
+    }
+  }
+}
+```
+
+Restart the client after editing. Name it `carbon-voice-dev` so it can sit
+alongside the published `Carbon Voice` entry and you can compare the two.
+
+> **The `env` block is mandatory — `.env` is NOT read here.** `env-cmd` only
+> wraps the npm scripts, and `scripts/mcp-client.mjs` parses `.env` itself; the
+> server reads plain `process.env`. An MCP client spawns the process with a
+> minimal environment, so a key that only exists in `.env` will not be seen.
+
+> **A missing key looks like success.** `CARBON_VOICE_API_KEY` is optional in
+> the config schema and `tools/list` never calls the API, so the server
+> connects and shows all 41 tools with no key at all. The failure surfaces
+> only on the first tool call. "It connected" does not mean auth works — make
+> a real call to confirm.
+
+After any code change: `npm run build`, then restart the client. Clients cache
+the tool list per connection, so a reconnect is what picks up new or renamed
+tools.
+
+**Debugging.** Logs default to the `file` transport at
+`/tmp/cv-mcp-server/logs/` (`combined.log`, `error.log`) — the place to look
+when a client reports a server that won't start:
+
+```bash
+tail -f /tmp/cv-mcp-server/logs/combined.log
+```
+
+Add `"LOG_LEVEL": "debug"` to the `env` block for request/response tracing.
+Logs go to stderr and files, never stdout, so they cannot corrupt the JSON-RPC
+stream.
+
 ### Driving the server from the terminal
 
 `scripts/mcp-client.mjs` is a minimal stdio MCP client — the MCP Inspector is a
