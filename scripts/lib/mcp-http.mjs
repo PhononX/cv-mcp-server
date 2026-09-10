@@ -120,7 +120,29 @@ export const connectHttp = async ({ url, token, timeoutMs = 60_000 } = {}) => {
 
   return {
     call,
-    close: () => {},
+    /**
+     * Terminate the server-side session. The stateful transport allocates one
+     * per `initialize` and otherwise holds it until MCP_SESSION_TTL_MS (1h)
+     * expires, so a no-op here left a session behind on every CLI invocation.
+     * Best effort: a failed cleanup should not fail the command, since the
+     * session does eventually expire on its own.
+     */
+    close: async () => {
+      if (!sessionId) return;
+      try {
+        await fetch(url, {
+          method: 'DELETE',
+          headers: {
+            authorization: `Bearer ${bearer}`,
+            'mcp-session-id': sessionId,
+          },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch {
+        /* best effort */
+      }
+      sessionId = undefined;
+    },
     sessionId: () => sessionId,
     usingMintedToken: !token,
   };

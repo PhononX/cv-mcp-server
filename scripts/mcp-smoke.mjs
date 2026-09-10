@@ -229,7 +229,9 @@ try {
     c.userId ? { id: c.userId } : null,
   );
 } finally {
-  close();
+  // await: the HTTP client's close issues a DELETE to terminate the
+  // server-side session, and the process must not exit before it lands.
+  await close();
 }
 
 // --- report ----------------------------------------------------------------
