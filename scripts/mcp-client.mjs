@@ -14,101 +14,55 @@
  * Voice API and need a valid CARBON_VOICE_API_KEY; tools/list, schema and size
  * need nothing, because the server builds its tool list without calling out.
  */
-import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
+import { bytes, connect } from './lib/mcp-stdio.mjs';
+import { connectHttp } from './lib/mcp-http.mjs';
 
-const SERVER = path.resolve('dist/transports/stdio/stdio.js');
+const argv = process.argv.slice(2);
 
-if (!fs.existsSync(SERVER)) {
-  console.error(`Not built: ${SERVER}\nRun: npm run build`);
-  process.exit(1);
+// --http [url] targets a locally running HTTP transport instead of spawning
+// the stdio server; --token uses a real OAuth access token instead of a
+// locally minted one (needed for calls that touch data).
+const httpFlag = argv.indexOf('--http');
+const tokenFlag = argv.indexOf('--token');
+const httpUrl =
+  httpFlag === -1
+    ? undefined
+    : argv[httpFlag + 1]?.startsWith('http')
+      ? argv[httpFlag + 1]
+      : 'http://localhost:3005/';
+const token = tokenFlag === -1 ? undefined : argv[tokenFlag + 1];
+
+// Indices consumed as flag VALUES, so they are not mistaken for positional
+// args. Guarding on the flag being present matters: with --token absent,
+// `tokenFlag + 1` is 0, which would swallow the command itself.
+const consumed = new Set();
+if (httpFlag !== -1) {
+  consumed.add(httpFlag);
+  if (argv[httpFlag + 1]?.startsWith('http')) consumed.add(httpFlag + 1);
 }
+if (tokenFlag !== -1) {
+  consumed.add(tokenFlag);
+  consumed.add(tokenFlag + 1);
+}
+const positional = argv.filter(
+  (a, i) => !consumed.has(i) && !a.startsWith('--'),
+);
+const [command, ...rest] = positional;
 
-// Load .env without adding a dependency — the npm scripts don't wrap this in
-// env-cmd, so a bare `node scripts/mcp-client.mjs` works too.
-const envFile = path.resolve('.env');
-const fileEnv = {};
-if (fs.existsSync(envFile)) {
-  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (m && !m[1].startsWith('#')) fileEnv[m[1]] = m[2].replace(/^["']|["']$/g, '');
+const { call, close, usingMintedToken } = httpUrl
+  ? await connectHttp({ url: httpUrl, token })
+  : await connect();
+
+if (httpUrl) {
+  console.log(`connected over HTTP to ${httpUrl}`);
+  if (usingMintedToken) {
+    console.log(
+      'using a locally minted token: tools/list and schemas work, but tool ' +
+        'calls that touch data will 401 at cv-api. Pass --token <access_token> ' +
+        'for real data.\n',
+    );
   }
 }
-
-const rpc = (child, msg) => child.stdin.write(JSON.stringify(msg) + '\n');
-
-const connect = () =>
-  new Promise((resolve, reject) => {
-    const child = spawn('node', [SERVER], {
-      env: {
-        ...fileEnv,
-        ...process.env,
-        // Logs go to stderr, so they never corrupt the JSON-RPC stream on
-        // stdout — but keep them quiet unless MCP_DEBUG is set.
-        LOG_LEVEL: process.env.MCP_DEBUG ? 'debug' : 'error',
-        LOG_TRANSPORT: process.env.LOG_TRANSPORT ?? 'console',
-      },
-      stdio: ['pipe', 'pipe', 'inherit'],
-    });
-
-    const pending = new Map();
-    let nextId = 1;
-    let buf = '';
-
-    child.stdout.on('data', (chunk) => {
-      buf += chunk.toString();
-      let i;
-      while ((i = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, i).trim();
-        buf = buf.slice(i + 1);
-        if (!line) continue;
-        let msg;
-        try {
-          msg = JSON.parse(line);
-        } catch {
-          continue; // not ours; ignore rather than crash
-        }
-        const resolver = pending.get(msg.id);
-        if (resolver) {
-          pending.delete(msg.id);
-          resolver(msg);
-        }
-      }
-    });
-
-    child.on('error', reject);
-
-    const call = (method, params = {}) =>
-      new Promise((res, rej) => {
-        const id = nextId++;
-        pending.set(id, res);
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          rej(new Error(`timeout waiting for ${method}`));
-        }, 60_000);
-        pending.set(id, (m) => {
-          clearTimeout(timer);
-          res(m);
-        });
-        rpc(child, { jsonrpc: '2.0', id, method, params });
-      });
-
-    call('initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities: {},
-      clientInfo: { name: 'cv-mcp-client', version: '1.0.0' },
-    })
-      .then(() => {
-        rpc(child, { jsonrpc: '2.0', method: 'notifications/initialized' });
-        resolve({ call, close: () => child.kill('SIGKILL') });
-      })
-      .catch(reject);
-  });
-
-const [command, ...rest] = process.argv.slice(2);
-const { call, close } = await connect();
-const bytes = (v) => Buffer.byteLength(JSON.stringify(v) ?? '', 'utf8');
 
 try {
   if (command === 'list') {
@@ -124,7 +78,9 @@ try {
       }))
       .sort((a, b) => b.wire - a.wire);
     console.table(rows);
-    console.log(`${rows.length} tools, ${bytes(result.tools).toLocaleString()} wire bytes`);
+    console.log(
+      `${rows.length} tools, ${bytes(result.tools).toLocaleString()} wire bytes`,
+    );
   } else if (command === 'schema') {
     const name = rest[0];
     if (!name) throw new Error('usage: npm run mcp:schema -- <tool>');
@@ -141,7 +97,8 @@ try {
     console.log(JSON.stringify(tool.inputSchema, null, 2));
   } else if (command === 'call') {
     const [name, rawArgs = '{}'] = rest;
-    if (!name) throw new Error('usage: npm run mcp:call -- <tool> \'<json args>\'');
+    if (!name)
+      throw new Error("usage: npm run mcp:call -- <tool> '<json args>'");
     let args;
     try {
       args = JSON.parse(rawArgs);
@@ -149,7 +106,10 @@ try {
       throw new Error(`arguments must be valid JSON: ${e.message}`);
     }
     const started = Date.now();
-    const { result, error } = await call('tools/call', { name, arguments: args });
+    const { result, error } = await call('tools/call', {
+      name,
+      arguments: args,
+    });
     console.log(`took ${Date.now() - started}ms`);
     if (error) {
       console.log('JSON-RPC error:', JSON.stringify(error, null, 2));
@@ -166,20 +126,31 @@ try {
           console.log(block.text);
         }
       });
-      console.log(`\nresponse bytes: ${bytes(result.content).toLocaleString()}`);
+      console.log(
+        `\nresponse bytes: ${bytes(result.content).toLocaleString()}`,
+      );
       if (result.isError) process.exitCode = 1;
     }
   } else if (command === 'size') {
     const { result } = await call('tools/list');
     const wire = bytes(result.tools);
-    const desc = result.tools.reduce((s, t) => s + (t.description || '').length, 0);
+    const desc = result.tools.reduce(
+      (s, t) => s + (t.description || '').length,
+      0,
+    );
     const schema = result.tools.reduce((s, t) => s + bytes(t.inputSchema), 0);
     console.log(`tools:        ${result.tools.length}`);
     console.log(`descriptions: ${desc.toLocaleString()}`);
     console.log(`schemas:      ${schema.toLocaleString()}`);
-    console.log(`WIRE TOTAL:   ${wire.toLocaleString()} bytes (~${Math.round(wire / 3.7).toLocaleString()} tokens)`);
-    console.log('\nPaid on every request, ahead of the system prompt, so it is');
-    console.log('also the most cacheable part of the prompt. See scripts/measure-payloads.ts');
+    console.log(
+      `WIRE TOTAL:   ${wire.toLocaleString()} bytes (~${Math.round(wire / 3.7).toLocaleString()} tokens)`,
+    );
+    console.log(
+      '\nPaid on every request, ahead of the system prompt, so it is',
+    );
+    console.log(
+      'also the most cacheable part of the prompt. See scripts/measure-payloads.ts',
+    );
   } else {
     console.log(
       [

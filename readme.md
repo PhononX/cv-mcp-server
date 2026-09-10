@@ -569,9 +569,44 @@ curl localhost:3005/info
 curl localhost:3005/.well-known/oauth-protected-resource
 ```
 
-`POST /` (the MCP endpoint) requires a bearer token — it returns **401** without
-one, so tool calls over HTTP can't be exercised locally without a real OAuth
-token. Use the stdio path for tool-level work.
+`POST /` (the MCP endpoint) needs a bearer token carrying the `mcp:read` and
+`mcp:write` scopes — without one it returns **401**, with the wrong scopes
+**`insufficient_scope`**.
+
+**You do not need an OAuth round trip to test the protocol layer.** The dev CLI
+mints a local token and targets a running HTTP server with `--http`:
+
+```bash
+npm run dev:http                                       # in one terminal
+npm run mcp:list   -- --http                           # defaults to localhost:3005
+npm run mcp:size   -- --http http://localhost:3005/
+npm run mcp:schema -- --http get_message
+npm run mcp:call   -- --http get_current_user '{}'
+```
+
+This works because `createOAuthTokenVerifier` (`src/auth/auth.service.ts`) uses
+`jwt.decode`, not `jwt.verify` — it requires a decodable JWT with `sub`,
+`client_id` and the two scopes, and the SDK middleware enforces `exp`. The
+signature is not checked, so the signing secret is irrelevant.
+
+**What that covers, and what it does not.** Enough for the transport, session
+handling, `tools/list`, schema shape and error envelopes. **Not** enough for
+calls that touch data: the token is forwarded verbatim to cv-api as
+`Authorization: Bearer <token>`, and cv-api does validate it, so a minted token
+gets a 401 there. For real data over HTTP, pass a genuine access token:
+
+```bash
+npm run mcp:call -- --http --token <access_token> get_current_user '{}'
+```
+
+For tool-level work against real data, stdio with an API key is simpler — no
+OAuth flow at all.
+
+> Not verifying the signature locally is not an auth bypass: cv-api is the
+> authority, session ids are random UUIDs rather than derived from token
+> claims, and rate limiting is IP-based. A forged token buys only a forged
+> `sub`/`client_id` in this server's logs and session context — worth knowing
+> if you rely on those for attribution.
 
 ### Tests
 
