@@ -142,7 +142,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing messages:', { params, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'list_messages',
+        });
       }
     },
   );
@@ -169,7 +172,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting message by id:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_message',
+        });
       }
     },
   );
@@ -197,7 +203,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting recent messages:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_recent_messages',
+        });
       }
     },
   );
@@ -228,7 +237,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error creating conversation message:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'create_conversation_message',
+        });
       }
     },
   );
@@ -253,7 +265,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error creating direct message:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'create_direct_message',
+        });
       }
     },
   );
@@ -323,18 +338,24 @@ function registerCarbonVoiceTools(server: McpServer): void {
             audio_url,
             reason: (error as Error).message,
           });
-          return formatToMCPToolResponse({
-            statusCode: 400,
-            body: {
-              error: {
-                code: 'INVALID_AUDIO_URL',
-                message: (error as Error).message,
+          return formatToMCPToolResponse(
+            {
+              statusCode: 400,
+              body: {
+                error: {
+                  code: 'INVALID_AUDIO_URL',
+                  message: (error as Error).message,
+                },
               },
             },
-          });
+            { isError: true, tool: 'create_voicememo_message' },
+          );
         }
         logger.error('Error creating voicememo message:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'create_voicememo_message',
+        });
       }
     },
   );
@@ -367,7 +388,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error adding attachments to message:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'add_attachments_to_message',
+        });
       }
     },
   );
@@ -396,7 +420,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(userInfo);
       } catch (error) {
         logger.error('Error getting user by id:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_user',
+        });
       }
     },
   );
@@ -421,7 +448,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error searching for user:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'search_user',
+        });
       }
     },
   );
@@ -446,7 +476,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error searching users:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'search_users',
+        });
       }
     },
   );
@@ -468,7 +501,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error searching users:', { params, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_current_user',
+        });
       }
     },
   );
@@ -518,7 +554,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing conversations:', { params, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'list_conversations',
+        });
       }
     },
   );
@@ -543,7 +582,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting conversation by id:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_conversation',
+        });
       }
     },
   );
@@ -568,7 +610,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting conversation users:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_conversation_users',
+        });
       }
     },
   );
@@ -635,7 +680,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(aiResponse);
       } catch (error) {
         logger.error('Error summarizing conversation:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'summarize_conversation',
+        });
       }
     },
   );
@@ -716,7 +764,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing root folders:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_root_folders',
+        });
       }
     },
   );
@@ -744,7 +795,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error creating folder:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'create_folder',
+        });
       }
     },
   );
@@ -770,7 +824,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting folder by id:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_folder',
+        });
       }
     },
   );
@@ -795,7 +852,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting folder with messages:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_folder_with_messages',
+        });
       }
     },
   );
@@ -824,7 +884,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error updating folder name:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'update_folder_name',
+        });
       }
     },
   );
@@ -849,7 +912,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error deleting folder:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'delete_folder',
+        });
       }
     },
   );
@@ -875,7 +941,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error moving folder:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'move_folder',
+        });
       }
     },
   );
@@ -903,7 +972,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error moving message to folder:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'move_message_to_folder',
+        });
       }
     },
   );
@@ -928,7 +1000,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting workspaces basic info:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_workspaces_basic_info',
+        });
       }
     },
   );
@@ -957,7 +1032,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing ai actions:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'list_ai_actions',
+        });
       }
     },
   );
@@ -982,7 +1060,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error running ai action:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'run_ai_action',
+        });
       }
     },
   );
@@ -1010,7 +1091,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error running ai action for shared link:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'run_ai_action_for_shared_link',
+        });
       }
     },
   );
@@ -1038,7 +1122,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting ai action responses:', { error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_ai_action_responses',
+        });
       }
     },
   );
@@ -1067,7 +1154,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error creating message share link:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'create_message_share_link',
+        });
       }
     },
   );
@@ -1096,7 +1186,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting message share link:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_message_share_link',
+        });
       }
     },
   );
@@ -1125,7 +1218,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing my action items:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'list_my_action_items',
+        });
       }
     },
   );
@@ -1161,7 +1257,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing action items:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'list_action_items',
+        });
       }
     },
   );
@@ -1186,7 +1285,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting action item:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_action_item',
+        });
       }
     },
   );
@@ -1214,7 +1316,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error creating action item:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'create_action_item',
+        });
       }
     },
   );
@@ -1246,7 +1351,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error updating action item:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'update_action_item',
+        });
       }
     },
   );
@@ -1278,7 +1386,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error setting action item status:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'set_action_item_status',
+        });
       }
     },
   );
@@ -1303,7 +1414,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error deleting action item:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'delete_action_item',
+        });
       }
     },
   );
@@ -1331,7 +1445,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error suggesting action items:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'suggest_action_items_from_messages',
+        });
       }
     },
   );
@@ -1366,7 +1483,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error searching message ids:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'search_message_ids',
+        });
       }
     },
   );
@@ -1397,7 +1517,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
           args,
           error,
         });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'search_messages_by_heard_status',
+        });
       }
     },
   );
@@ -1425,7 +1548,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error listing inbox notifications:', { args, error });
-        return formatToMCPToolResponse(error);
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'list_inbox_notifications',
+        });
       }
     },
   );

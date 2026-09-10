@@ -153,3 +153,68 @@ describe('formatToMCPToolResponse', () => {
     });
   });
 });
+
+describe('formatToMCPToolResponse isError flag', () => {
+  it('does not set isError on a success response', () => {
+    const result = formatToMCPToolResponse({ ok: true });
+    expect(result.isError).toBeUndefined();
+  });
+
+  it('sets isError when the caller marks the payload as a failure', () => {
+    // Without this, a failure is byte-indistinguishable from a success and the
+    // agent has to parse the body to notice anything went wrong.
+    const result = formatToMCPToolResponse(
+      { statusCode: 404, body: { error: { code: 'NOT_FOUND' } } },
+      { isError: true },
+    );
+    expect(result.isError).toBe(true);
+  });
+
+  it('still serializes the payload unchanged when no hint applies', () => {
+    const payload = { statusCode: 500, body: { error: { code: 'WAT' } } };
+    const result = formatToMCPToolResponse(payload, {
+      isError: true,
+      tool: 'list_messages',
+    });
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual(
+      payload,
+    );
+  });
+
+  it('appends a tool-specific next_action for a known error code', () => {
+    // run_ai_action documents BAD_REQUEST -> call list_ai_actions.
+    const result = formatToMCPToolResponse(
+      {
+        statusCode: 400,
+        body: { error: { code: 'BAD_REQUEST', message: 'nope' } },
+      },
+      { isError: true, tool: 'run_ai_action' },
+    );
+
+    const body = JSON.parse((result.content[0] as { text: string }).text);
+    expect(body.body.error.next_action).toContain('list_ai_actions');
+    expect(body.body.error.message).toBe('nope');
+    expect(result.isError).toBe(true);
+  });
+
+  it('leaves a bare Error alone rather than inventing an envelope', () => {
+    const result = formatToMCPToolResponse(new Error('boom'), {
+      isError: true,
+      tool: 'run_ai_action',
+    });
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as { text: string }).text).not.toContain(
+      'next_action',
+    );
+  });
+
+  it('does not add a hint for a tool with no documented error of that code', () => {
+    const result = formatToMCPToolResponse(
+      { statusCode: 400, body: { error: { code: 'BAD_REQUEST' } } },
+      { isError: true, tool: 'get_workspaces_basic_info' },
+    );
+    expect((result.content[0] as { text: string }).text).not.toContain(
+      'next_action',
+    );
+  });
+});

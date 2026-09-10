@@ -5,7 +5,12 @@ import {
 } from '../../../src/utils/fetch-audio-file';
 
 jest.mock('../../../src/utils/logger', () => ({
-  logger: { debug: jest.fn(), warn: jest.fn(), error: jest.fn(), info: jest.fn() },
+  logger: {
+    debug: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+  },
 }));
 
 describe('isBlockedAddress', () => {
@@ -105,7 +110,10 @@ describe('fetchAudioFile', () => {
       ok: true,
       status: 200,
       // Understates the real size, so only the streamed check can catch it.
-      headers: new Headers({ 'content-type': 'audio/mpeg', 'content-length': '10' }),
+      headers: new Headers({
+        'content-type': 'audio/mpeg',
+        'content-length': '10',
+      }),
       arrayBuffer: async () => oversized.buffer.slice(0, oversized.byteLength),
     }) as any;
 

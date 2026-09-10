@@ -110,9 +110,7 @@ describe('MCP Server', () => {
   const cvApiMock = {
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
     getContacts: jest.fn(),
-    searchMessageIds: jest
-      .fn()
-      .mockResolvedValue({ ids: [], has_more: false }),
+    searchMessageIds: jest.fn().mockResolvedValue({ ids: [], has_more: false }),
     searchMessagesByHeardStatus: jest
       .fn()
       .mockResolvedValue({ messages: [], unheard_counts_by_channel: {} }),
@@ -245,6 +243,60 @@ describe('MCP Server', () => {
     require('../../../src/server');
   });
 
+  describe('Error responses', () => {
+    // F2 from the review: success and failure previously returned an identical
+    // envelope, so an agent could not tell a failed call from a successful one
+    // without parsing the body for an `error` key.
+    //
+    // Sampled across tool families rather than all 41: the point is that the
+    // catch blocks carry the flag and the tool name, not that every API method
+    // can reject. Each case rejects only its own method, with `...Once`, so
+    // nothing leaks into later tests.
+    const cases: Array<[string, 'simplified' | 'cv', string, any]> = [
+      ['list_messages', 'simplified', 'listMessages', {}],
+      ['get_current_user', 'cv', 'getWhoAmI', {}],
+      [
+        'run_ai_action',
+        'simplified',
+        'aIResponseControllerCreateResponse',
+        { prompt_id: 'p', message_ids: ['m'] },
+      ],
+      [
+        'create_message_share_link',
+        'simplified',
+        'simplifiedMessageShareLinkControllerCreate',
+        { shared_message_id: 'm' },
+      ],
+      [
+        'list_my_action_items',
+        'simplified',
+        'actionItemControllerListMyActionItems',
+        {},
+      ],
+      ['search_message_ids', 'cv', 'searchMessageIds', {}],
+    ];
+
+    it.each(cases)(
+      '%s marks its failure with isError and its own tool name',
+      async (tool, target, method, args) => {
+        const mocks: any = target === 'cv' ? cvApiMock : simplifiedApiMock;
+        mocks[method].mockRejectedValueOnce(new Error(`boom-${tool}`));
+
+        const call = mockRegisterTool.mock.calls.find(
+          (c: any) => c[0] === tool,
+        );
+        expect(call).toBeDefined();
+
+        await call[2](args, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.anything(),
+          { isError: true, tool },
+        );
+      },
+    );
+  });
+
   describe('Tool inventory', () => {
     // Guards the documentation contract: TOOL_NAMES is the single source of
     // truth used by tests/unit/docs/tool-docs.test.ts to validate that every
@@ -341,7 +393,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -421,7 +476,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -504,7 +562,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -594,7 +655,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -678,7 +742,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -763,7 +830,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -858,7 +928,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -936,7 +1009,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -1014,7 +1090,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -1082,13 +1161,14 @@ describe('MCP Server', () => {
       });
 
       it('should document user_ids as filtering by ID, not username', () => {
-        expect(listConversationsCall[1].inputSchema.user_ids.description).toContain(
-          'IDs, not usernames',
-        );
+        expect(
+          listConversationsCall[1].inputSchema.user_ids.description,
+        ).toContain('IDs, not usernames');
       });
 
       it('should document match options and default', () => {
-        const description = listConversationsCall[1].inputSchema.match.description;
+        const description =
+          listConversationsCall[1].inputSchema.match.description;
         expect(description).toContain('any');
         expect(description).toContain('all');
         expect(description).toContain('default');
@@ -1137,7 +1217,10 @@ describe('MCP Server', () => {
           'Error listing conversations:',
           { params: {}, error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
 
@@ -1237,7 +1320,10 @@ describe('MCP Server', () => {
           'Error getting conversation by id:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1292,7 +1378,10 @@ describe('MCP Server', () => {
           'Error getting conversation users:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1420,7 +1509,10 @@ describe('MCP Server', () => {
           'Error summarizing conversation:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1479,7 +1571,10 @@ describe('MCP Server', () => {
           'Error listing root folders:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1535,7 +1630,10 @@ describe('MCP Server', () => {
           'Error creating folder:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1592,7 +1690,10 @@ describe('MCP Server', () => {
           'Error getting folder by id:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1649,7 +1750,10 @@ describe('MCP Server', () => {
           'Error getting folder with messages:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1709,7 +1813,10 @@ describe('MCP Server', () => {
           'Error updating folder name:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1762,7 +1869,10 @@ describe('MCP Server', () => {
           'Error deleting folder:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1818,7 +1928,10 @@ describe('MCP Server', () => {
         expect(mockLogger.error).toHaveBeenCalledWith('Error moving folder:', {
           error: apiError,
         });
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1884,7 +1997,10 @@ describe('MCP Server', () => {
           'Error moving message to folder:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1942,7 +2058,10 @@ describe('MCP Server', () => {
           'Error getting workspaces basic info:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2003,7 +2122,10 @@ describe('MCP Server', () => {
           'Error listing ai actions:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2065,7 +2187,10 @@ describe('MCP Server', () => {
           'Error running ai action:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2131,7 +2256,10 @@ describe('MCP Server', () => {
           'Error running ai action for shared link:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2167,10 +2295,9 @@ describe('MCP Server', () => {
           toolHandler({ id: 'user-123' }, mockContext),
         ).resolves.not.toThrow();
 
-        expect(cvApiMock.getContacts).toHaveBeenCalledWith(
-          ['user-123'],
-          { headers: { Authorization: 'Bearer test-token' } },
-        );
+        expect(cvApiMock.getContacts).toHaveBeenCalledWith(['user-123'], {
+          headers: { Authorization: 'Bearer test-token' },
+        });
 
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser);
       });
@@ -2198,6 +2325,7 @@ describe('MCP Server', () => {
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
           expect.objectContaining({ message: 'user not found' }),
+          expect.objectContaining({ isError: true }),
         );
         expect(result).toBeDefined();
       });
@@ -2277,15 +2405,18 @@ describe('MCP Server', () => {
 
         // Never reaches the API, and the agent gets the specific reason.
         expect(simplifiedApiMock.createVoiceMemoMessage).not.toHaveBeenCalled();
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith({
-          statusCode: 400,
-          body: {
-            error: {
-              code: 'INVALID_AUDIO_URL',
-              message: 'audio_url returned an empty file',
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            statusCode: 400,
+            body: {
+              error: {
+                code: 'INVALID_AUDIO_URL',
+                message: 'audio_url returned an empty file',
+              },
             },
           },
-        });
+          { isError: true, tool: 'create_voicememo_message' },
+        );
         expect(mockLogger.warn).toHaveBeenCalledWith(
           'Rejected audio_url for voicememo message',
           {
@@ -2297,14 +2428,19 @@ describe('MCP Server', () => {
 
       it('should still report ordinary API errors normally', async () => {
         const apiError = new Error('upstream boom');
-        simplifiedApiMock.createVoiceMemoMessage.mockRejectedValueOnce(apiError);
+        simplifiedApiMock.createVoiceMemoMessage.mockRejectedValueOnce(
+          apiError,
+        );
 
         const result = await findCall('create_voicememo_message')[2](
           { transcript: 'hi' },
           mockContext,
         );
 
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2402,7 +2538,10 @@ describe('MCP Server', () => {
             args,
             error: apiError,
           });
-          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+            apiError,
+            expect.objectContaining({ isError: true }),
+          );
           expect(result).toBeDefined();
         }
       });
@@ -2413,24 +2552,28 @@ describe('MCP Server', () => {
         mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
 
       it('should mark only delete_action_item as destructive', () => {
-        expect(findCall('delete_action_item')[1].annotations.destructiveHint).toBe(
-          true,
-        );
-        ['create_action_item', 'update_action_item', 'set_action_item_status'].forEach(
-          (name) => {
-            expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
-            expect(findCall(name)[1].annotations.readOnlyHint).toBe(false);
-          },
-        );
+        expect(
+          findCall('delete_action_item')[1].annotations.destructiveHint,
+        ).toBe(true);
+        [
+          'create_action_item',
+          'update_action_item',
+          'set_action_item_status',
+        ].forEach((name) => {
+          expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+          expect(findCall(name)[1].annotations.readOnlyHint).toBe(false);
+        });
       });
 
       it('should mark the action item read tools as read-only', () => {
-        ['list_my_action_items', 'list_action_items', 'get_action_item'].forEach(
-          (name) => {
-            expect(findCall(name)[1].annotations.readOnlyHint).toBe(true);
-            expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
-          },
-        );
+        [
+          'list_my_action_items',
+          'list_action_items',
+          'get_action_item',
+        ].forEach((name) => {
+          expect(findCall(name)[1].annotations.readOnlyHint).toBe(true);
+          expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+        });
       });
 
       it('list_action_items should split container path params from query params', async () => {
@@ -2464,7 +2607,9 @@ describe('MCP Server', () => {
           mockContext,
         );
 
-        expect(simplifiedApiMock.actionItemControllerUpdate).toHaveBeenCalledWith(
+        expect(
+          simplifiedApiMock.actionItemControllerUpdate,
+        ).toHaveBeenCalledWith(
           'ai-1',
           { title: 'new title', due_date: '2026-10-01' },
           { headers: { Authorization: 'Bearer test-token' } },
@@ -2482,13 +2627,19 @@ describe('MCP Server', () => {
 
         expect(
           simplifiedApiMock.actionItemControllerSetStatus,
-        ).toHaveBeenCalledWith('ai-1', { status: 'done' }, {
-          headers: { Authorization: 'Bearer test-token' },
-        });
+        ).toHaveBeenCalledWith(
+          'ai-1',
+          { status: 'done' },
+          {
+            headers: { Authorization: 'Bearer test-token' },
+          },
+        );
       });
 
       it('should surface errors from each action item tool', async () => {
-        const cases: Array<[string, keyof typeof simplifiedApiMock, string, any]> = [
+        const cases: Array<
+          [string, keyof typeof simplifiedApiMock, string, any]
+        > = [
           [
             'list_my_action_items',
             'actionItemControllerListMyActionItems',
@@ -2527,7 +2678,10 @@ describe('MCP Server', () => {
             args,
             error: apiError,
           });
-          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+            apiError,
+            expect.objectContaining({ isError: true }),
+          );
           expect(result).toBeDefined();
         }
       });
@@ -2567,9 +2721,7 @@ describe('MCP Server', () => {
           access_type: 'public',
         };
 
-        await expect(
-          call[2](testParams, mockContext),
-        ).resolves.not.toThrow();
+        await expect(call[2](testParams, mockContext)).resolves.not.toThrow();
 
         expect(
           simplifiedApiMock.simplifiedMessageShareLinkControllerCreate,
@@ -2594,7 +2746,10 @@ describe('MCP Server', () => {
           'Error creating message share link:',
           { args: { shared_message_id: 'msg-1' }, error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2634,16 +2789,16 @@ describe('MCP Server', () => {
           apiError,
         );
 
-        const result = await call[2](
-          { share_link_id: 'nope' },
-          mockContext,
-        );
+        const result = await call[2]({ share_link_id: 'nope' }, mockContext);
 
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Error getting message share link:',
           { args: { share_link_id: 'nope' }, error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2706,7 +2861,10 @@ describe('MCP Server', () => {
           'Error getting ai action responses:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });

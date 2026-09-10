@@ -1,5 +1,6 @@
 import { formatBytesHuman } from './format-bytes-human';
 import { logger } from './logger';
+import { withToolErrorHint } from './tool-error-hint';
 
 import { McpToolResponse } from '../interfaces';
 import { getTraceId } from '../transports/http/utils/request-context';
@@ -10,17 +11,38 @@ const isErrorWithDetails = (
   return typeof error === 'object' && error !== null;
 };
 
-export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
+export interface FormatOptions {
+  /**
+   * Marks the response as a failure so the agent can detect it without
+   * parsing the body. Set it in a handler's catch block; the formatter cannot
+   * tell an error payload from a successful one by inspection, and guessing
+   * would couple it to the shape of every response.
+   */
+  isError?: boolean;
+  /**
+   * Tool name, used to look up a recovery hint for the error's code in
+   * `TOOL_DOCS`. Only meaningful together with `isError`.
+   */
+  tool?: string;
+}
+
+export const formatToMCPToolResponse = (
+  data: unknown,
+  options: FormatOptions = {},
+): McpToolResponse => {
   const traceId = getTraceId();
   const stringifyStart = Date.now();
+  const payload = options.isError
+    ? withToolErrorHint(data, options.tool)
+    : data;
   try {
     logger.info('MCP_RESPONSE_STRINGIFY_START', {
       event: 'MCP_RESPONSE_STRINGIFY_START',
       traceId,
-      payloadType: Array.isArray(data) ? 'array' : typeof data,
+      payloadType: Array.isArray(payload) ? 'array' : typeof payload,
     });
 
-    const serializedData = JSON.stringify(data);
+    const serializedData = JSON.stringify(payload);
     // JSON.stringify(undefined) returns undefined (non-throwing). Keep legacy response shape.
     const payloadBytes =
       serializedData === undefined
@@ -38,6 +60,7 @@ export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
 
     return {
       content: [{ type: 'text', text: serializedData }],
+      ...(options.isError ? { isError: true } : {}),
     };
   } catch (error: unknown) {
     // Keep legacy error log contract used by current tests and dashboards.
@@ -46,7 +69,7 @@ export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
       event: 'MCP_RESPONSE_STRINGIFY_FAILED',
       traceId,
       stringifyDurationMs: Date.now() - stringifyStart,
-      payloadType: Array.isArray(data) ? 'array' : typeof data,
+      payloadType: Array.isArray(payload) ? 'array' : typeof payload,
       error,
     });
 
@@ -68,7 +91,10 @@ export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
         traceId,
       },
     });
-    const fallbackPayloadBytes = Buffer.byteLength(fallbackSerializedError, 'utf8');
+    const fallbackPayloadBytes = Buffer.byteLength(
+      fallbackSerializedError,
+      'utf8',
+    );
 
     logger.info('MCP_RESPONSE_STRINGIFY_FALLBACK_DONE', {
       event: 'MCP_RESPONSE_STRINGIFY_FALLBACK_DONE',
@@ -88,6 +114,9 @@ export const formatToMCPToolResponse = (data: unknown): McpToolResponse => {
           text: `--- Debug Info ---\nTrace ID: ${traceId || 'N/A'}\nFor support, include this Trace ID in your report.`,
         },
       ],
+      // Serialization failed, so this is a failure regardless of what the
+      // caller intended.
+      isError: true,
     };
   }
 };
