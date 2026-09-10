@@ -524,9 +524,28 @@ code:
 
 | Note | Cause |
 | --- | --- |
-| `401 UNAUTHORIZED` | `CARBON_VOICE_API_KEY` missing or invalid |
+| `401 UNAUTHORIZED` | `CARBON_VOICE_API_KEY` missing or invalid (see the note below — it is not an OAuth token) |
+| `403 FORBIDDEN` | key is valid, but workspace access is refused on SSO grounds |
 | `NETWORK_ERROR` | no route to the API from this machine |
 | `405 UNKNOWN_ERROR` | an HTTP proxy is intercepting — axios needs a CONNECT tunnel, check `HTTPS_PROXY` |
+
+> **`CARBON_VOICE_API_KEY` is a personal API key, not an OAuth credential.**
+> The two transports authenticate differently, and `setCarbonVoiceAuthHeader`
+> (`src/auth/auth.service.ts`) sends one or the other, never both:
+>
+> | | API key (stdio) | OAuth (HTTP) |
+> | --- | --- | --- |
+> | Header | `x-api-key: <key>` | `Authorization: Bearer <access_token>` |
+> | Identity | one user, fixed when the key is issued | whoever authorizes your app |
+> | Credential | one long-lived token | `client_id` + `client_secret` → access token |
+>
+> An OAuth access token will **not** work here: cv-api's `ApiKeyStrategy`
+> looks the value up as a `TYPE_API_KEY` token, and an access token is not in
+> that table. (The reverse does work — an API key is accepted in either
+> header, via a documented backward-compatibility fallback.)
+>
+> The key carries your identity with no scoping, so treat it like a password:
+> `.env` (gitignored) or a client's `env` block, never a commit.
 
 ### MCP Inspector
 
