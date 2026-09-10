@@ -63,6 +63,14 @@ jest.mock('../../../src/generated', () => {
     aIResponseControllerGetAllResponses: jest.fn(),
     simplifiedMessageShareLinkControllerCreate: jest.fn(),
     simplifiedMessageShareLinkControllerGetMessageShareLink: jest.fn(),
+    actionItemControllerListMyActionItems: jest.fn(),
+    actionItemControllerList: jest.fn(),
+    actionItemControllerGetById: jest.fn(),
+    actionItemControllerCreate: jest.fn(),
+    actionItemControllerUpdate: jest.fn(),
+    actionItemControllerSetStatus: jest.fn(),
+    actionItemControllerDelete: jest.fn(),
+    actionItemControllerCreateSuggestionsFromMessages: jest.fn(),
   };
   return {
     getCarbonVoiceSimplifiedAPI: jest.fn(() => simplifiedApiMock),
@@ -144,6 +152,28 @@ describe('MCP Server', () => {
     simplifiedMessageShareLinkControllerGetMessageShareLink: jest
       .fn()
       .mockResolvedValue({ id: 'share-1', link: 'https://cv/s/share-1' }),
+    actionItemControllerListMyActionItems: jest
+      .fn()
+      .mockResolvedValue({ results: [], has_more: false }),
+    actionItemControllerList: jest
+      .fn()
+      .mockResolvedValue({ results: [], has_more: false }),
+    actionItemControllerGetById: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't', status: 'todo' }),
+    actionItemControllerCreate: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't', status: 'todo' }),
+    actionItemControllerUpdate: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't2', status: 'todo' }),
+    actionItemControllerSetStatus: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't', status: 'done' }),
+    actionItemControllerDelete: jest.fn().mockResolvedValue({ success: true }),
+    actionItemControllerCreateSuggestionsFromMessages: jest
+      .fn()
+      .mockResolvedValue([{ id: 'ai-2', status: 'suggested' }]),
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
   };
 
@@ -2165,6 +2195,131 @@ describe('MCP Server', () => {
         const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
         expect(Array.isArray(callArg)).toBe(false);
         expect(callArg).toEqual(user);
+      });
+    });
+
+    describe('action item tools', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+      it('should mark only delete_action_item as destructive', () => {
+        expect(findCall('delete_action_item')[1].annotations.destructiveHint).toBe(
+          true,
+        );
+        ['create_action_item', 'update_action_item', 'set_action_item_status'].forEach(
+          (name) => {
+            expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+            expect(findCall(name)[1].annotations.readOnlyHint).toBe(false);
+          },
+        );
+      });
+
+      it('should mark the action item read tools as read-only', () => {
+        ['list_my_action_items', 'list_action_items', 'get_action_item'].forEach(
+          (name) => {
+            expect(findCall(name)[1].annotations.readOnlyHint).toBe(true);
+            expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+          },
+        );
+      });
+
+      it('list_action_items should split container path params from query params', async () => {
+        // The generated client takes containerType and containerId
+        // positionally; only the remaining params belong in the query.
+        await findCall('list_action_items')[2](
+          {
+            container_type: 'channel',
+            container_id: 'conv-1',
+            status: 'todo',
+            limit: 10,
+          },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.actionItemControllerList).toHaveBeenCalledWith(
+          'channel',
+          'conv-1',
+          { status: 'todo', limit: 10 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+        const query =
+          simplifiedApiMock.actionItemControllerList.mock.calls[0][2];
+        expect(query).not.toHaveProperty('container_type');
+        expect(query).not.toHaveProperty('container_id');
+      });
+
+      it('update_action_item should send id positionally and keep it out of the body', async () => {
+        await findCall('update_action_item')[2](
+          { id: 'ai-1', title: 'new title', due_date: '2026-10-01' },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.actionItemControllerUpdate).toHaveBeenCalledWith(
+          'ai-1',
+          { title: 'new title', due_date: '2026-10-01' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+        expect(
+          simplifiedApiMock.actionItemControllerUpdate.mock.calls[0][1],
+        ).not.toHaveProperty('id');
+      });
+
+      it('set_action_item_status should send only status in the body', async () => {
+        await findCall('set_action_item_status')[2](
+          { id: 'ai-1', status: 'done' },
+          mockContext,
+        );
+
+        expect(
+          simplifiedApiMock.actionItemControllerSetStatus,
+        ).toHaveBeenCalledWith('ai-1', { status: 'done' }, {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+      });
+
+      it('should surface errors from each action item tool', async () => {
+        const cases: Array<[string, keyof typeof simplifiedApiMock, string, any]> = [
+          [
+            'list_my_action_items',
+            'actionItemControllerListMyActionItems',
+            'Error listing my action items:',
+            {},
+          ],
+          [
+            'get_action_item',
+            'actionItemControllerGetById',
+            'Error getting action item:',
+            { id: 'ai-1' },
+          ],
+          [
+            'delete_action_item',
+            'actionItemControllerDelete',
+            'Error deleting action item:',
+            { id: 'ai-1' },
+          ],
+          [
+            'suggest_action_items_from_messages',
+            'actionItemControllerCreateSuggestionsFromMessages',
+            'Error suggesting action items:',
+            { message_ids: ['m1'] },
+          ],
+        ];
+
+        for (const [tool, apiMethod, logMessage, args] of cases) {
+          const apiError = new Error(`boom-${tool}`);
+          (simplifiedApiMock[apiMethod] as jest.Mock).mockRejectedValueOnce(
+            apiError,
+          );
+
+          const result = await findCall(tool)[2](args, mockContext);
+
+          expect(mockLogger.error).toHaveBeenCalledWith(logMessage, {
+            args,
+            error: apiError,
+          });
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+          expect(result).toBeDefined();
+        }
       });
     });
 

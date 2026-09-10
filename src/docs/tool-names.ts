@@ -45,6 +45,15 @@ export const TOOL_NAMES = [
   // Message Share Links
   'create_message_share_link',
   'get_message_share_link',
+  // Action Items
+  'list_my_action_items',
+  'list_action_items',
+  'get_action_item',
+  'create_action_item',
+  'update_action_item',
+  'set_action_item_status',
+  'delete_action_item',
+  'suggest_action_items_from_messages',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

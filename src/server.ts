@@ -8,6 +8,14 @@ import { getCarbonVoiceAPI } from './cv-api';
 import { renderToolDoc, TOOL_DOCS } from './docs';
 import { getCarbonVoiceSimplifiedAPI } from './generated';
 import {
+  actionItemControllerCreateBody,
+  actionItemControllerCreateSuggestionsFromMessagesBody,
+  actionItemControllerGetByIdParams,
+  actionItemControllerListMyActionItemsQueryParams,
+  actionItemControllerListParams,
+  actionItemControllerListQueryParams,
+  actionItemControllerSetStatusBody,
+  actionItemControllerUpdateBody,
   addLinkAttachmentsToMessageBody,
   addLinkAttachmentsToMessageParams,
   addMessageToFolderOrWorkspaceBody,
@@ -42,13 +50,17 @@ import {
   updateFolderNameParams,
 } from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
 import {
+  ActionItemControllerListMyActionItemsParams,
+  ActionItemControllerListParams,
   AddMessageToFolderPayload,
   AIPromptControllerGetPromptsParams,
   AIResponseControllerGetAllResponsesParams,
+  CreateActionItemPayload,
   CreateAIResponse,
   CreateFolderPayload,
   CreateMessageShareLink,
   CreateShareLinkAIResponse,
+  CreateSuggestionsFromMessagesPayload,
   CreateVoicememoMessage,
   GetAllConversationsParams,
   GetAllRootFoldersParams,
@@ -57,6 +69,8 @@ import {
   SearchUserParams,
   SearchUsersBody,
   SendDirectMessage,
+  UpdateActionItemPayload,
+  UpdateActionItemStatusPayload,
 } from './generated/models';
 import {
   AddLinkAttachmentsToMessageInput,
@@ -1062,6 +1076,241 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting message share link:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  // Action Items
+  server.registerTool(
+    'list_my_action_items',
+    {
+      description: renderToolDoc(TOOL_DOCS.list_my_action_items),
+      inputSchema: actionItemControllerListMyActionItemsQueryParams.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: ActionItemControllerListMyActionItemsParams,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerListMyActionItems(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error listing my action items:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'list_action_items',
+    {
+      description: renderToolDoc(TOOL_DOCS.list_action_items),
+      inputSchema: actionItemControllerListParams.merge(
+        actionItemControllerListQueryParams,
+      ).shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: ActionItemControllerListParams & {
+        container_type: string;
+        container_id: string;
+      },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        const { container_type, container_id, ...queryParams } = args;
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerList(
+            container_type,
+            container_id,
+            queryParams,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error listing action items:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'get_action_item',
+    {
+      description: renderToolDoc(TOOL_DOCS.get_action_item),
+      inputSchema: actionItemControllerGetByIdParams.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerGetById(
+            args.id,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error getting action item:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'create_action_item',
+    {
+      description: renderToolDoc(TOOL_DOCS.create_action_item),
+      inputSchema: actionItemControllerCreateBody.shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: CreateActionItemPayload,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerCreate(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error creating action item:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'update_action_item',
+    {
+      description: renderToolDoc(TOOL_DOCS.update_action_item),
+      inputSchema: actionItemControllerGetByIdParams.merge(
+        actionItemControllerUpdateBody,
+      ).shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: UpdateActionItemPayload & { id: string },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        const { id, ...payload } = args;
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerUpdate(
+            id,
+            payload,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error updating action item:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'set_action_item_status',
+    {
+      description: renderToolDoc(TOOL_DOCS.set_action_item_status),
+      inputSchema: actionItemControllerGetByIdParams.merge(
+        actionItemControllerSetStatusBody,
+      ).shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: UpdateActionItemStatusPayload & { id: string },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        const { id, ...payload } = args;
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerSetStatus(
+            id,
+            payload,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error setting action item status:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'delete_action_item',
+    {
+      description: renderToolDoc(TOOL_DOCS.delete_action_item),
+      inputSchema: actionItemControllerGetByIdParams.shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+    },
+    async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerDelete(
+            args.id,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error deleting action item:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'suggest_action_items_from_messages',
+    {
+      description: renderToolDoc(TOOL_DOCS.suggest_action_items_from_messages),
+      inputSchema: actionItemControllerCreateSuggestionsFromMessagesBody.shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: CreateSuggestionsFromMessagesPayload,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.actionItemControllerCreateSuggestionsFromMessages(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error suggesting action items:', { args, error });
         return formatToMCPToolResponse(error);
       }
     },

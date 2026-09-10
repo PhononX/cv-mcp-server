@@ -221,4 +221,185 @@ export const TOOL_DOCS: ToolDocRegistry = {
       },
     ],
   },
+
+  /**********************
+   * Action Items
+   *********************/
+
+  list_my_action_items: {
+    purpose:
+      'List action items assigned to you, across every conversation and folder.',
+    whenToUse:
+      'Answering "what do I owe / what is on my plate". Filter by `status` ' +
+      '(`todo` for open work, `suggested` for AI-proposed items not yet accepted, ' +
+      '`done` for completed). Page with `starting_after`.',
+    whenNotToUse:
+      '`list_action_items` when you want one specific conversation or folder ' +
+      'rather than everything assigned to you.',
+    example: { status: 'todo', limit: 25 },
+    responseShape:
+      '`{results: [{id, title, status, notes_text?, assigned_to?, due_date?, ' +
+      'container_id?, container_type?, source_message_id?, creator_id, ...}], ' +
+      'total?, results_count?, has_more?, next_cursor?, filters?}`. ' +
+      'Keep paging while `has_more` is true, passing `next_cursor` as `starting_after`.',
+    recommendedFields: [
+      'results.id',
+      'results.title',
+      'results.status',
+      'results.due_date',
+    ],
+  },
+
+  list_action_items: {
+    purpose:
+      'List action items belonging to one container — a conversation, a folder, or home.',
+    whenToUse:
+      'You have a `container_id` and want its action items. `container_type` is ' +
+      '`channel` for a conversation, `folder` for a folder, or `home`. ' +
+      'Filter by `status` or `assigned_to` (pass the string `null` for unassigned).',
+    whenNotToUse:
+      '`list_my_action_items` for everything assigned to you regardless of where it lives.',
+    prerequisites: [
+      {
+        field: 'container_id',
+        fromTool: 'list_conversations',
+        fromField: 'results[].id',
+      },
+    ],
+    example: {
+      container_type: 'channel',
+      container_id: 'conv-abc',
+      status: 'todo',
+    },
+    responseShape:
+      'Same as `list_my_action_items`: `{results: [...], total?, results_count?, ' +
+      'has_more?, next_cursor?, filters?}`.',
+    recommendedFields: [
+      'results.id',
+      'results.title',
+      'results.status',
+      'results.assigned_to',
+    ],
+  },
+
+  get_action_item: {
+    purpose: 'Get one action item by its ID, with full detail.',
+    whenToUse:
+      'You have an action item ID and need its notes, assignee, due date, or source message.',
+    whenNotToUse:
+      '`list_my_action_items` or `list_action_items` if you do not have an ID yet — ' +
+      'they already return the same fields per item, so a follow-up call is usually wasted.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_my_action_items',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'ai-abc' },
+    responseShape:
+      '`{id, title, status, notes_text?, creator_id, assigned_to?, due_date?, ' +
+      'container_id?, container_type?, source_message_id?, last_updated_by, ...}`.',
+  },
+
+  create_action_item: {
+    purpose:
+      'Create an action item, optionally attached to a conversation or folder.',
+    whenToUse:
+      'Recording a task. Only `title` is required. Attach it by passing both ' +
+      '`container_type` and `container_id`, and link it to what prompted it with ' +
+      '`source_message_id`.',
+    whenNotToUse:
+      '`suggest_action_items_from_messages` to have tasks extracted from message ' +
+      'content automatically instead of writing each one yourself.',
+    example: { title: 'Send the pricing deck', assigned_to: 'user-abc' },
+    responseShape:
+      '`{id, title, status, notes_text?, assigned_to?, due_date?, container_id?, ' +
+      'container_type?, creator_id, ...}`. New items start at status `todo`.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning:
+          '`assigned_to` is not a valid user ID, or `container_id` does not match `container_type`.',
+        nextAction:
+          'Resolve people with `search_users` (never pass a name) and containers with ' +
+          '`list_conversations` or `get_root_folders`.',
+      },
+    ],
+  },
+
+  update_action_item: {
+    purpose: "Change an action item's title, notes, assignee, or due date.",
+    whenToUse:
+      'Editing item content. Send only the fields you want changed — omitted fields ' +
+      'are left as they are.',
+    whenNotToUse:
+      '`set_action_item_status` to move an item between `todo` / `done` / `suggested`; ' +
+      'status is not editable here.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_my_action_items',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'ai-abc', due_date: '2026-10-01' },
+    responseShape: 'The updated action item, same shape as `get_action_item`.',
+  },
+
+  set_action_item_status: {
+    purpose: 'Move an action item between `suggested`, `todo` and `done`.',
+    whenToUse:
+      'Completing an item (`done`), reopening it (`todo`), or accepting an AI-suggested ' +
+      'item by promoting it from `suggested` to `todo`.',
+    whenNotToUse:
+      '`update_action_item` for title, notes, assignee or due date; this tool only sets status.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_my_action_items',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'ai-abc', status: 'done' },
+    responseShape: 'The updated action item, same shape as `get_action_item`.',
+  },
+
+  delete_action_item: {
+    purpose: 'Permanently delete an action item.',
+    whenToUse: 'The item was created in error and should not exist at all.',
+    whenNotToUse:
+      '`set_action_item_status` with `done` to complete an item — that keeps the record. ' +
+      'Deleting cannot be undone, so prefer it only when the item is genuinely spurious.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_my_action_items',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'ai-abc' },
+    responseShape: 'Deletion confirmation for the removed item.',
+  },
+
+  suggest_action_items_from_messages: {
+    purpose:
+      'Have Carbon Voice extract candidate action items from the content of specific messages.',
+    whenToUse:
+      'Turning a conversation into tasks — "what did we agree to?". Pass the ' +
+      '`message_ids` to analyse. Results come back at status `suggested`; promote the ' +
+      'ones you want with `set_action_item_status`.',
+    whenNotToUse:
+      '`create_action_item` when you already know the task and do not need it inferred.',
+    prerequisites: [
+      {
+        field: 'message_ids',
+        fromTool: 'list_messages',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { message_ids: ['msg-1', 'msg-2'] },
+    responseShape:
+      'The created suggestions, each shaped like `get_action_item`, at status `suggested`.',
+  },
 };

@@ -283,6 +283,17 @@ The server will create two log files in this directory:
 - **`run_ai_action_for_shared_link`** - Run AI actions on shared content
 - **`get_ai_action_responses`** - Retrieve AI-generated responses
 
+### Action Items
+
+- **`list_my_action_items`** - List action items assigned to you across all conversations
+- **`list_action_items`** - List action items in one conversation, folder, or home
+- **`get_action_item`** - Get a single action item by ID
+- **`create_action_item`** - Create an action item
+- **`update_action_item`** - Update title, notes, assignee, or due date
+- **`set_action_item_status`** - Move an item between `suggested`, `todo`, and `done`
+- **`delete_action_item`** - Permanently delete an action item
+- **`suggest_action_items_from_messages`** - Extract candidate action items from messages using AI
+
 ### Message Share Links
 
 - **`create_message_share_link`** - Create a shareable link to a message (returns the URL)
