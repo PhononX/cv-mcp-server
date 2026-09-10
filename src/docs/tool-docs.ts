@@ -513,4 +513,459 @@ export const TOOL_DOCS: ToolDocRegistry = {
       },
     ],
   },
+
+  list_messages: {
+    purpose:
+      'List messages with filtering by date, conversation, folder, workspace, creator or language.',
+    whenToUse:
+      'The general-purpose message reader. Returns full message bodies including ' +
+      'transcript and AI summary. Max date span is 183 days. Presigned URLs in ' +
+      'the response are ready to use as-is — never re-encode them.',
+    whenNotToUse:
+      '`get_recent_messages` for a quick look at the latest few (hard-capped at ' +
+      '10, no paging). `search_message_ids` for filters this cannot express — ' +
+      'notified state, mentions or labels.',
+    example: {
+      workspace_id: 'ws-abc',
+      start_date: '2026-09-01T00:00:00Z',
+      size: 25,
+    },
+    responseShape:
+      '`{page, size, sort_direction, total, results_count, has_next_page, ' +
+      'filters, results: [{id, transcript?, ai_summary?, audio_url?, creator_id, ' +
+      'conversation_id?, duration_ms, reply_count, status, type, created_at, ...}]}`. ' +
+      'Use `has_next_page` and `total` to decide whether to page — do not guess.',
+    recommendedFields: [
+      'total',
+      'has_next_page',
+      'results.id',
+      'results.transcript',
+      'results.created_at',
+    ],
+  },
+
+  get_message: {
+    purpose: 'Get one message by ID, optionally expanded with related records.',
+    whenToUse:
+      'You have a message ID. `fields` ADDS related data (`conversation`, ' +
+      '`creator`, `labels`) — it does not narrow the response. Use ' +
+      '`response_fields` to narrow.',
+    whenNotToUse:
+      '`list_messages` when you do not have an ID, or need several messages — ' +
+      'it already returns full bodies, so fetching each one again is wasted.',
+    prerequisites: [
+      { field: 'id', fromTool: 'list_messages', fromField: 'results[].id' },
+    ],
+    example: { id: 'msg-abc', fields: 'creator' },
+    responseShape:
+      '`{message: {id, transcript?, ai_summary?, audio_url?, creator_id, ' +
+      'duration_ms, status, type, attachments?, created_at, ...}}`.',
+  },
+
+  get_recent_messages: {
+    purpose:
+      'Get up to 10 of the most recent messages, each with its conversation, creator and labels.',
+    whenToUse:
+      'A quick "what just happened" glance. Pre-joined, so no follow-up calls ' +
+      'for creator or conversation names.',
+    whenNotToUse:
+      '`list_messages` whenever you need more than 10, any date range, paging, ' +
+      'or a filter other than conversation and language — this tool supports none of those.',
+    example: { conversation_id: 'conv-abc' },
+    responseShape:
+      '`{results: [{message: {...}, conversation: {...}, creator: {...}, ' +
+      'labels: [...]}]}`. No total and no paging: the cap of 10 is the whole answer.',
+  },
+
+  create_conversation_message: {
+    purpose:
+      'Post a message into an existing conversation, or reply in a thread.',
+    whenToUse:
+      'You have a `conversation_id`. Pass `parent_id` (a message ID) to reply as ' +
+      'a thread. You must supply `transcript` or `links` — neither is marked ' +
+      'required individually, but the call fails without at least one.',
+    whenNotToUse:
+      '`create_direct_message` to reach people who are not already in a ' +
+      'conversation. `create_voicememo_message` for a standalone memo.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_conversations',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'conv-abc', transcript: 'Agreed, shipping Friday.' },
+    responseShape:
+      '`{message: {id, link, transcript?, status, type, conversation_id, created_at, ...}}`.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning: 'Neither `transcript` nor `links` was provided.',
+        nextAction: 'Pass at least one of them.',
+      },
+    ],
+  },
+
+  create_direct_message: {
+    purpose:
+      'Send a direct message to one or more people, by user ID or email.',
+    whenToUse:
+      'Reaching people outside an existing conversation. Address it with ' +
+      '`to.user_ids` or `to.emails`. Requires `transcript` or `links`.',
+    whenNotToUse:
+      '`create_conversation_message` when a conversation already exists — a DM ' +
+      'starts a separate thread rather than joining it.',
+    prerequisites: [
+      { field: 'to.user_ids', fromTool: 'search_users', fromField: 'id' },
+    ],
+    example: {
+      to: { user_ids: ['user-abc'] },
+      transcript: 'Quick question about the deck.',
+    },
+    responseShape:
+      '`{message: {id, link, transcript?, status, conversation_id, created_at, ...}}`.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning:
+          'A user ID is invalid, or neither `transcript` nor `links` was provided.',
+        nextAction:
+          'Resolve people with `search_users` — never pass a display name as a ' +
+          'user ID — and include a transcript or links.',
+      },
+    ],
+  },
+
+  add_attachments_to_message: {
+    purpose: 'Attach one or more link URLs to an existing message.',
+    whenToUse: 'Adding external links to a message that already exists.',
+    whenNotToUse:
+      '`create_message_share_link` to share a Carbon Voice message outward — ' +
+      'that produces a link, this consumes them.',
+    prerequisites: [
+      { field: 'id', fromTool: 'list_messages', fromField: 'results[].id' },
+    ],
+    example: { id: 'msg-abc', links: ['https://example.com/spec'] },
+    responseShape: '`{...}` confirmation with the resulting attachments.',
+  },
+
+  get_user: {
+    purpose:
+      "Get a user's full profile by ID — names, languages, voice settings, workspace roles.",
+    whenToUse: 'You already have a user ID and need complete details.',
+    whenNotToUse:
+      '`search_user` / `search_users` to FIND someone by email, phone or name. ' +
+      '`get_current_user` for the caller — this tool needs an explicit ID and ' +
+      'will not default to you.',
+    prerequisites: [{ field: 'id', fromTool: 'search_users', fromField: 'id' }],
+    example: { id: 'user-abc' },
+    responseShape:
+      '`{id, first_name, last_name?, languages, voice_gender, workspace_ids, ' +
+      'workspace_roles, user_type, created_at, ...}`.',
+    recommendedFields: ['id', 'first_name', 'last_name', 'workspace_ids'],
+  },
+
+  search_user: {
+    purpose: 'Find a single user by email, phone, ID or name.',
+    whenToUse:
+      'Resolving ONE person. Supply exactly one of `email`, `phone`, `id` or ' +
+      '`name`. Name search only matches your own contacts.',
+    whenNotToUse:
+      '`search_users` for several people in one call — it takes arrays and saves ' +
+      'a round trip per person. `get_user` when you already have the ID.',
+    example: { email: 'someone@example.com' },
+    responseShape:
+      '`{id, full_name, first_name, last_name?, link, image_url?, languages?, ...}`. ' +
+      'Use `id` wherever another tool asks for a user ID.',
+    commonErrors: [
+      {
+        code: 'NOT_FOUND',
+        meaning: 'Nobody matched, or a name search hit a non-contact.',
+        nextAction:
+          'Try an email or phone instead of a name; name search is limited to your contacts.',
+      },
+    ],
+  },
+
+  search_users: {
+    purpose: 'Resolve several users at once by emails, phones, IDs or names.',
+    whenToUse:
+      'Turning a list of people into user IDs in one call — the right first step ' +
+      'before any tool that takes user IDs. Name search only matches your contacts.',
+    whenNotToUse:
+      '`search_user` for a single lookup. `get_user` for a full profile once you have the ID.',
+    example: { names: ['Brett'] },
+    responseShape:
+      'Array of `{id, full_name, first_name, last_name?, link, languages?, ...}`. ' +
+      'If a name returns more than one candidate, ask which person was meant ' +
+      'rather than guessing.',
+    recommendedFields: ['id', 'full_name'],
+  },
+
+  get_current_user: {
+    purpose: "Get the calling user's own identity, workspaces and settings.",
+    whenToUse:
+      'Establishing who you are acting as, or finding the caller’s workspace IDs ' +
+      'before a workspace-scoped call. Takes no arguments.',
+    whenNotToUse:
+      '`get_user` for somebody else (it requires an explicit ID). ' +
+      '`get_workspaces_basic_info` if you only need workspace IDs and names — ' +
+      'it is far smaller than this response.',
+    example: {},
+    responseShape:
+      '`{success, user: {user_guid, first_name, last_name?, email_txt?, ' +
+      'phone_txt?, workspace_guids, identities, entries, environments, ' +
+      'lifecycle_events, notification_settings, settings, ...}, settings: {...}}`. ' +
+      'This payload is LARGE — several unbounded arrays and an open settings map.',
+    recommendedFields: [
+      'user.user_guid',
+      'user.first_name',
+      'user.email_txt',
+      'user.workspace_guids',
+    ],
+  },
+
+  list_conversations: {
+    purpose:
+      'List your conversations from the last 6 months, optionally filtered by participants.',
+    whenToUse:
+      'Finding a `conversation_id`. Filter with `user_ids` plus `match` (`any` = ' +
+      'union, `all` = intersection).',
+    whenNotToUse:
+      '`get_conversation` when you already have an ID and want full detail — this ' +
+      'returns only id, name, workspace_id and type.',
+    example: { user_ids: ['user-abc'], match: 'any' },
+    responseShape:
+      '`{results_count, results: [{id, name, workspace_id, type}]}` where type is ' +
+      '`directMessage` | `customerConversation` | `namedConversation` | `asyncMeeting`. ' +
+      'No paging: `results_count` is the whole set.',
+  },
+
+  get_conversation: {
+    purpose: 'Get one conversation by ID, with full metadata.',
+    whenToUse:
+      'You have a `conversation_id` and need its description, visibility, owner or workspace name.',
+    whenNotToUse:
+      '`get_conversation_users` for the participant list. `list_messages` with ' +
+      '`conversation_id` for its messages — this returns neither.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_conversations',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'conv-abc' },
+    responseShape:
+      '`{id, name, description?, link, workspace_id, workspace_name, owner_id, ' +
+      'type, visibility, ...}`.',
+  },
+
+  get_conversation_users: {
+    purpose: 'List the people in a conversation.',
+    whenToUse:
+      'Finding out who is in a conversation, or collecting participant user IDs.',
+    whenNotToUse:
+      '`search_users` to resolve people by name or email generally — this is ' +
+      'scoped to one conversation.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'list_conversations',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'conv-abc' },
+    responseShape: 'Array of user objects with `id` and profile fields.',
+    recommendedFields: ['id', 'full_name'],
+  },
+
+  get_root_folders: {
+    purpose: 'List the root folders of a workspace for a given folder type.',
+    whenToUse:
+      'Orienting in the folder tree, or finding a `folder_id`. `type` is required: ' +
+      '`voicememo` or `prerecorded`. `include_all_tree` returns nested folders too.',
+    whenNotToUse:
+      '`get_folder` to inspect one folder. `get_folder_with_messages` when you ' +
+      'want a folder’s messages rather than its structure.',
+    example: { type: 'voicememo', workspace_id: 'ws-abc' },
+    responseShape:
+      '`{type, workspace_id?, include_all_tree?, sort_by, sort_direction, ' +
+      'results: [{id, name, parent_folder_id?, subfolder_ids?, ' +
+      'total_nested_folders_count, total_nested_messages_count, ...}]}`. ' +
+      'Not paginated — this is the complete set.',
+    recommendedFields: [
+      'results.id',
+      'results.name',
+      'results.total_nested_messages_count',
+    ],
+  },
+
+  create_folder: {
+    purpose: 'Create a folder in a workspace, optionally nested under another.',
+    whenToUse:
+      'Organising memos. `name`, `type` and `workspace_id` are all required; add ' +
+      '`parent_folder_id` to nest.',
+    whenNotToUse: '`move_folder` to relocate a folder that already exists.',
+    prerequisites: [
+      {
+        field: 'workspace_id',
+        fromTool: 'get_workspaces_basic_info',
+        fromField: 'id',
+      },
+    ],
+    example: { name: 'Q4 planning', type: 'voicememo', workspace_id: 'ws-abc' },
+    responseShape: 'The created folder, same shape as `get_folder`.',
+  },
+
+  get_folder: {
+    purpose:
+      "Get one folder's metadata and, optionally, its immediate subfolders.",
+    whenToUse:
+      'Inspecting a folder. Set `include_first_level_tree: true` to get ' +
+      'subfolders — and note that `date` and `direction` only take effect when ' +
+      'you do; otherwise they are silently ignored.',
+    whenNotToUse:
+      '`get_folder_with_messages` when you want the messages inside the folder — ' +
+      'this returns structure and counts only.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'get_root_folders',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'folder-abc', include_first_level_tree: true },
+    responseShape:
+      '`{id, name, type, workspace_id, parent_folder_id?, path?, ' +
+      'subfolder_ids?, message_ids?, total_nested_folders_count, ' +
+      'total_nested_messages_count, subfolders?, ...}`.',
+  },
+
+  get_folder_with_messages: {
+    purpose: 'Get a folder together with the messages stored directly in it.',
+    whenToUse:
+      'Reading a folder’s contents. Only messages at that folder’s own level are ' +
+      'returned — nested folders are not walked.',
+    whenNotToUse:
+      '`get_folder` for structure and counts without message bodies. ' +
+      '`list_messages` with `folder_id` when you need date filtering or paging, ' +
+      'which this tool does not support.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'get_root_folders',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'folder-abc' },
+    responseShape: '`{folder: {...}, messages: [{...}]}`.',
+    recommendedFields: ['folder.id', 'folder.name', 'messages'],
+  },
+
+  update_folder_name: {
+    purpose: 'Rename a folder.',
+    whenToUse:
+      'Changing only the name. `name` is the sole editable field here.',
+    whenNotToUse: '`move_folder` to change where a folder sits in the tree.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'get_root_folders',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'folder-abc', name: 'Q4 planning (final)' },
+    responseShape: 'The updated folder, same shape as `get_folder`.',
+  },
+
+  delete_folder: {
+    purpose:
+      'Permanently delete a folder, including every nested folder and all their messages.',
+    whenToUse:
+      'Only when the whole subtree should be destroyed. This cascades and cannot be undone.',
+    whenNotToUse:
+      '`move_folder` to get a folder out of the way, or `move_message_to_folder` ' +
+      'to relocate its messages first. Check ' +
+      '`total_nested_messages_count` via `get_folder` before calling — the ' +
+      'cascade is easy to underestimate.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'get_root_folders',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'folder-abc' },
+    responseShape: 'Deletion confirmation.',
+  },
+
+  move_folder: {
+    purpose: 'Move a folder into another folder, or up to a workspace root.',
+    whenToUse:
+      'Relocating a folder. Pass `folder_id` for a new parent folder, or ' +
+      '`workspace_id` to move it to the workspace root — one or the other, not both.',
+    whenNotToUse:
+      '`update_folder_name` to rename in place. `move_message_to_folder` for a ' +
+      'single message rather than a folder.',
+    prerequisites: [
+      {
+        field: 'id',
+        fromTool: 'get_root_folders',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { id: 'folder-abc', folder_id: 'folder-parent' },
+    responseShape: 'The moved folder, same shape as `get_folder`.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning:
+          'Both `folder_id` and `workspace_id` were given, or neither, or the ' +
+          'move would nest a folder inside itself.',
+        nextAction: 'Pass exactly one destination.',
+      },
+    ],
+  },
+
+  move_message_to_folder: {
+    purpose: 'Move a message into a folder, or out to a workspace.',
+    whenToUse:
+      'Filing a memo. Only `voicememo` and `prerecorded` message types can be ' +
+      'moved. Pass `folder_id` or `workspace_id` — one or the other, not both.',
+    whenNotToUse:
+      '`move_folder` to relocate a whole folder. `create_voicememo_message` with ' +
+      '`folder_id` to file a memo at creation time instead of moving it after.',
+    prerequisites: [
+      {
+        field: 'message_id',
+        fromTool: 'list_messages',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { message_id: 'msg-abc', folder_id: 'folder-abc' },
+    responseShape: 'Confirmation with the message’s new placement.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning:
+          'The message is not a `voicememo` or `prerecorded` type, or both/neither ' +
+          'destination was given.',
+        nextAction:
+          'Check `type` via `get_message` first, and pass exactly one destination.',
+      },
+    ],
+  },
+
+  get_workspaces_basic_info: {
+    purpose: 'List every workspace you belong to, as id and name only.',
+    whenToUse:
+      'The cheapest way to resolve a workspace name to an ID before a ' +
+      'workspace-scoped call. Takes no arguments.',
+    whenNotToUse:
+      '`get_current_user` if you need more than ids and names — but note that ' +
+      'response is much larger, so prefer this one when ids suffice.',
+    example: {},
+    responseShape: 'Array of `{id, name}`. Nothing else, and no paging.',
+  },
 };

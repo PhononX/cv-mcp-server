@@ -32,7 +32,12 @@ describe('TOOL_DOCS registry', () => {
     });
 
     it('documents what to pass and what comes back', () => {
-      expect(Object.keys(doc.example).length).toBeGreaterThan(0);
+      // `example` must be present, but `{}` is the correct example for the
+      // tools that genuinely take no arguments (get_current_user,
+      // get_workspaces_basic_info) — rendering `EXAMPLE: {}` tells the agent
+      // exactly that.
+      expect(doc.example).toBeDefined();
+      expect(typeof doc.example).toBe('object');
       expect(doc.responseShape.trim().length).toBeGreaterThan(0);
     });
 

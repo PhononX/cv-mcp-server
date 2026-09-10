@@ -121,17 +121,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'list_messages',
     {
-      description:
-        'List Messages. By default returns latest 20 messages. The maximum allowed range between dates is 183 days (6 months). ' +
-        'All presigned URLs returned by this tool are ready to use. ' +
-        'Do not parse, modify, or re-encode them—always present or use the URLs exactly as received.' +
-        'If you want to get messages from a specific date range, you can use the "start_date" and "end_date" parameters. ' +
-        'If you want to get messages from a specific date, you can use the "date" parameter. ' +
-        'If you want to get messages from a specific user, you can use the "user_ids" parameter. ' +
-        'If you want to get messages from a specific conversation, you can use the "conversation_id" parameter. ' +
-        'If you want to get messages from a specific folder, you can use the "folder_id" parameter. ' +
-        'If you want to get messages from a specific workspace, you can use the "workspace_id" parameter. ' +
-        'If you want to get messages for a particular language, you can use the "language" parameter. ',
+      description: renderToolDoc(TOOL_DOCS.list_messages),
       inputSchema: listMessagesQueryParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -160,7 +150,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_message',
     {
-      description: 'Get a message by its ID.',
+      description: renderToolDoc(TOOL_DOCS.get_message),
       inputSchema: getMessageByIdParams.merge(getMessageByIdQueryParams).shape,
       annotations: {
         readOnlyHint: true,
@@ -187,9 +177,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_recent_messages',
     {
-      description:
-        'Get most recent messages, including their associated Conversation, Creator, and Labels information. ' +
-        'Returns a maximum of 10 messages.',
+      description: renderToolDoc(TOOL_DOCS.get_recent_messages),
       inputSchema: getTenRecentMessagesResponseQueryParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -217,9 +205,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'create_conversation_message',
     {
-      description:
-        'Sends a message to an existing conversation or any type with a conversation_id. ' +
-        'To reply as a thread, included a message_id for "parent_id". You must provide a transcript or attachment.',
+      description: renderToolDoc(TOOL_DOCS.create_conversation_message),
       inputSchema: createConversationMessageParams.merge(
         createConversationMessageBody,
       ).shape,
@@ -250,9 +236,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'create_direct_message',
     {
-      description:
-        'Send a Direct Message (DM) to a User or a Group of Users. ' +
-        'In order to create a Direct Message, you must provide transcript or link attachments.',
+      description: renderToolDoc(TOOL_DOCS.create_direct_message),
       inputSchema: sendDirectMessageBody.shape,
       annotations: {
         readOnlyHint: false,
@@ -358,8 +342,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'add_attachments_to_message',
     {
-      description:
-        'Add attachments to a message. In order to add attachments to a message, you must provide a message id and the attachments.',
+      description: renderToolDoc(TOOL_DOCS.add_attachments_to_message),
       inputSchema: addLinkAttachmentsToMessageParams.merge(
         addLinkAttachmentsToMessageBody,
       ).shape,
@@ -393,12 +376,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_user',
     {
-      description:
-        'Get detailed information about a specific user by their ID. ' +
-        'Returns the full user profile — name, languages, voice settings, ' +
-        'workspace memberships and roles, notification preferences, and timestamps. ' +
-        'This is richer than `search_user` (which only finds users by phone, email, or name). ' +
-        'Use this when you already have a user ID and need their complete information.',
+      description: renderToolDoc(TOOL_DOCS.get_user),
       inputSchema: getUserByIdParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -426,10 +404,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'search_user',
     {
-      description:
-        'Search for a User by their phone number, email address, id or name. ' +
-        '(In order to search for a User, you must provide a phone number, email address, id or name.)' +
-        'When searching by name, only users that are part of your contacts will be returned',
+      description: renderToolDoc(TOOL_DOCS.search_user),
       inputSchema: searchUserQueryParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -454,10 +429,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'search_users',
     {
-      description:
-        'Search multiple Users by their phone numbers, email addresses, ids or names. ' +
-        '(In order to search Users, you must provide phone numbers, email addresses, ids or names.)' +
-        'When searching by name, only users that are part of your contacts will be returned',
+      description: renderToolDoc(TOOL_DOCS.search_users),
       inputSchema: searchUsersBody.shape,
       annotations: {
         readOnlyHint: true,
@@ -482,7 +454,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_current_user',
     {
-      description: 'Get the current user information. ',
+      description: renderToolDoc(TOOL_DOCS.get_current_user),
       inputSchema: z.object({}).shape, // Needed in order to have access to authInfo
       annotations: {
         readOnlyHint: true,
@@ -519,11 +491,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'list_conversations',
     {
-      description:
-        'List all conversations. ' +
-        'Returns a simplified view of user conversations that have had messages sent or received within the last 6 months. ' +
-        'Each result includes id, name, workspace_id, and type ' +
-        '(directMessage, customerConversation, namedConversation, or asyncMeeting).',
+      description: renderToolDoc(TOOL_DOCS.list_conversations),
       inputSchema: listConversationsQueryParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -558,7 +526,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_conversation',
     {
-      description: 'Get a conversation by its ID.',
+      description: renderToolDoc(TOOL_DOCS.get_conversation),
       inputSchema: getConversationByIdParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -583,7 +551,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_conversation_users',
     {
-      description: 'Get users in a conversation.',
+      description: renderToolDoc(TOOL_DOCS.get_conversation_users),
       inputSchema: getConversationByIdParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -728,9 +696,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_root_folders',
     {
-      description:
-        'Lists all root folders for a given workspace, including their names, IDs, and basic structure, ' +
-        'but does not provide aggregate counts.(Required to inform message type:voicememo,prerecorded)',
+      description: renderToolDoc(TOOL_DOCS.get_root_folders),
       inputSchema: getAllRootFoldersQueryParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -758,7 +724,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'create_folder',
     {
-      description: 'Create a new folder.',
+      description: renderToolDoc(TOOL_DOCS.create_folder),
       inputSchema: createFolderBody.shape,
       annotations: {
         readOnlyHint: false,
@@ -786,7 +752,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_folder',
     {
-      description: 'Get a folder by its ID.',
+      description: renderToolDoc(TOOL_DOCS.get_folder),
       inputSchema: getFolderByIdParams.merge(getFolderByIdQueryParams).shape,
       annotations: {
         readOnlyHint: true,
@@ -812,8 +778,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_folder_with_messages',
     {
-      description:
-        'Get a folder including its messages by its ID. (Only messages at folder level are returned.)',
+      description: renderToolDoc(TOOL_DOCS.get_folder_with_messages),
       inputSchema: getFolderMessagesParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -838,7 +803,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'update_folder_name',
     {
-      description: 'Update a folder name by its ID.',
+      description: renderToolDoc(TOOL_DOCS.update_folder_name),
       inputSchema: updateFolderNameParams.merge(updateFolderNameBody).shape,
       annotations: {
         readOnlyHint: false,
@@ -867,9 +832,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'delete_folder',
     {
-      description:
-        'Delete a folder by its ID. Deleting a folder will also delete nested folders and all the messages in referenced folders. ' +
-        '(This is a destructive action and cannot be undone, so please be careful.)',
+      description: renderToolDoc(TOOL_DOCS.delete_folder),
       inputSchema: deleteFolderParams.shape,
       annotations: {
         readOnlyHint: false,
@@ -894,8 +857,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'move_folder',
     {
-      description:
-        'Move a folder by its ID. Move a Folder into another Folder or into a Workspace.',
+      description: renderToolDoc(TOOL_DOCS.move_folder),
       inputSchema: moveFolderParams.merge(moveFolderBody).shape,
       annotations: {
         readOnlyHint: false,
@@ -921,9 +883,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'move_message_to_folder',
     {
-      description:
-        'Move a message to a folder by its ID. Move a Message into another Folder or into a Workspace. ' +
-        'Only allowed to move messages of type: voicememo,prerecorded.',
+      description: renderToolDoc(TOOL_DOCS.move_message_to_folder),
       inputSchema: addMessageToFolderOrWorkspaceBody.shape,
       annotations: {
         readOnlyHint: false,
@@ -952,7 +912,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_workspaces_basic_info',
     {
-      description: 'Get basic information about a workspace.',
+      description: renderToolDoc(TOOL_DOCS.get_workspaces_basic_info),
       inputSchema: z.object({}).shape,
       annotations: {
         readOnlyHint: true,
