@@ -61,6 +61,8 @@ jest.mock('../../../src/generated', () => {
     aIResponseControllerCreateResponse: jest.fn(),
     createShareLinkAIResponse: jest.fn(),
     aIResponseControllerGetAllResponses: jest.fn(),
+    simplifiedMessageShareLinkControllerCreate: jest.fn(),
+    simplifiedMessageShareLinkControllerGetMessageShareLink: jest.fn(),
   };
   return {
     getCarbonVoiceSimplifiedAPI: jest.fn(() => simplifiedApiMock),
@@ -136,6 +138,12 @@ describe('MCP Server', () => {
     aIResponseControllerGetAllResponses: jest
       .fn()
       .mockResolvedValue({ responses: [] }),
+    simplifiedMessageShareLinkControllerCreate: jest
+      .fn()
+      .mockResolvedValue({ id: 'share-1', link: 'https://cv/s/share-1' }),
+    simplifiedMessageShareLinkControllerGetMessageShareLink: jest
+      .fn()
+      .mockResolvedValue({ id: 'share-1', link: 'https://cv/s/share-1' }),
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
   };
 
@@ -2157,6 +2165,121 @@ describe('MCP Server', () => {
         const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
         expect(Array.isArray(callArg)).toBe(false);
         expect(callArg).toEqual(user);
+      });
+    });
+
+    describe('create_message_share_link tool', () => {
+      let call: any;
+      beforeEach(() => {
+        call = mockRegisterTool.mock.calls.find(
+          (c: any) => c[0] === 'create_message_share_link',
+        );
+      });
+
+      it('should register create_message_share_link as a non-destructive write', () => {
+        expect(call).toBeDefined();
+        expect(call[1].inputSchema).toBeDefined();
+        expect(call[1].annotations.readOnlyHint).toBe(false);
+        expect(call[1].annotations.destructiveHint).toBe(false);
+        expect(call[1].description).toBeDefined();
+      });
+
+      it('should accept the share link fields the API requires', () => {
+        // Guards against the schema drifting away from the upstream body.
+        expect(Object.keys(call[1].inputSchema)).toEqual(
+          expect.arrayContaining([
+            'shared_message_id',
+            'share_type',
+            'access_type',
+          ]),
+        );
+      });
+
+      it('should forward the body to the simplified API', async () => {
+        const testParams = {
+          shared_message_id: 'msg-1',
+          share_type: 'link',
+          access_type: 'public',
+        };
+
+        await expect(
+          call[2](testParams, mockContext),
+        ).resolves.not.toThrow();
+
+        expect(
+          simplifiedApiMock.simplifiedMessageShareLinkControllerCreate,
+        ).toHaveBeenCalledWith(testParams, {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
+      });
+
+      it('should handle errors when API call fails', async () => {
+        const apiError = new Error('API error');
+        simplifiedApiMock.simplifiedMessageShareLinkControllerCreate.mockRejectedValueOnce(
+          apiError,
+        );
+
+        const result = await call[2](
+          { shared_message_id: 'msg-1' },
+          mockContext,
+        );
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error creating message share link:',
+          { args: { shared_message_id: 'msg-1' }, error: apiError },
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(result).toBeDefined();
+      });
+    });
+
+    describe('get_message_share_link tool', () => {
+      let call: any;
+      beforeEach(() => {
+        call = mockRegisterTool.mock.calls.find(
+          (c: any) => c[0] === 'get_message_share_link',
+        );
+      });
+
+      it('should register get_message_share_link as read-only', () => {
+        expect(call).toBeDefined();
+        expect(call[1].inputSchema).toBeDefined();
+        expect(call[1].annotations.readOnlyHint).toBe(true);
+        expect(call[1].annotations.destructiveHint).toBe(false);
+        expect(call[1].description).toBeDefined();
+      });
+
+      it('should pass share_link_id as the positional argument', async () => {
+        // The generated client takes the id positionally, not as an object.
+        await expect(
+          call[2]({ share_link_id: 'share-1' }, mockContext),
+        ).resolves.not.toThrow();
+
+        expect(
+          simplifiedApiMock.simplifiedMessageShareLinkControllerGetMessageShareLink,
+        ).toHaveBeenCalledWith('share-1', {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+      });
+
+      it('should handle errors when API call fails', async () => {
+        const apiError = new Error('API error');
+        simplifiedApiMock.simplifiedMessageShareLinkControllerGetMessageShareLink.mockRejectedValueOnce(
+          apiError,
+        );
+
+        const result = await call[2](
+          { share_link_id: 'nope' },
+          mockContext,
+        );
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error getting message share link:',
+          { args: { share_link_id: 'nope' }, error: apiError },
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(result).toBeDefined();
       });
     });
 

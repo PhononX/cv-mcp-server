@@ -36,6 +36,8 @@ import {
   searchUserQueryParams,
   searchUsersBody,
   sendDirectMessageBody,
+  simplifiedMessageShareLinkControllerCreateBody,
+  simplifiedMessageShareLinkControllerGetMessageShareLinkParams,
   updateFolderNameBody,
   updateFolderNameParams,
 } from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
@@ -45,6 +47,7 @@ import {
   AIResponseControllerGetAllResponsesParams,
   CreateAIResponse,
   CreateFolderPayload,
+  CreateMessageShareLink,
   CreateShareLinkAIResponse,
   CreateVoicememoMessage,
   GetAllConversationsParams,
@@ -429,7 +432,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     ...getAllConversationsQueryParams.shape,
     user_ids: getAllConversationsQueryParams.shape.user_ids.describe(
       'List of user IDs to filter conversations by. When omitted, all conversations for the caller are returned. ' +
-        'Requires actual user IDs, not usernames or display names. If you only have a person\'s name, call ' +
+        "Requires actual user IDs, not usernames or display names. If you only have a person's name, call " +
         '`search_users` first (e.g. `names: ["Brett"]`) to resolve it to a user ID. If `search_users` returns ' +
         'more than one candidate for a name, ask the caller which person they meant instead of guessing.',
     ),
@@ -953,9 +956,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'run_ai_action_for_shared_link',
     {
-      description:
-        'Run an AI Action (Prompt) for a shared link. You can run an AI Action for a shared link by its ID or a list of shared link IDs. ' +
-        'You can also provide the language of the response.',
+      description: renderToolDoc(TOOL_DOCS.run_ai_action_for_shared_link),
       inputSchema: createShareLinkAIResponseBody.shape,
       annotations: {
         readOnlyHint: false,
@@ -1003,6 +1004,64 @@ function registerCarbonVoiceTools(server: McpServer): void {
         );
       } catch (error) {
         logger.error('Error getting ai action responses:', { error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  // Message Share Links
+  server.registerTool(
+    'create_message_share_link',
+    {
+      description: renderToolDoc(TOOL_DOCS.create_message_share_link),
+      inputSchema: simplifiedMessageShareLinkControllerCreateBody.shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: CreateMessageShareLink,
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.simplifiedMessageShareLinkControllerCreate(
+            args,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error creating message share link:', { args, error });
+        return formatToMCPToolResponse(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'get_message_share_link',
+    {
+      description: renderToolDoc(TOOL_DOCS.get_message_share_link),
+      inputSchema:
+        simplifiedMessageShareLinkControllerGetMessageShareLinkParams.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+    },
+    async (
+      args: { share_link_id: string },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      try {
+        return formatToMCPToolResponse(
+          await simplifiedApi.simplifiedMessageShareLinkControllerGetMessageShareLink(
+            args.share_link_id,
+            setCarbonVoiceAuthHeader(authInfo?.token),
+          ),
+        );
+      } catch (error) {
+        logger.error('Error getting message share link:', { args, error });
         return formatToMCPToolResponse(error);
       }
     },

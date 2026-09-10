@@ -42,6 +42,9 @@ export const TOOL_NAMES = [
   'run_ai_action',
   'run_ai_action_for_shared_link',
   'get_ai_action_responses',
+  // Message Share Links
+  'create_message_share_link',
+  'get_message_share_link',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

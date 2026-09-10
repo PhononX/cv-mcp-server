@@ -283,6 +283,11 @@ The server will create two log files in this directory:
 - **`run_ai_action_for_shared_link`** - Run AI actions on shared content
 - **`get_ai_action_responses`** - Retrieve AI-generated responses
 
+### Message Share Links
+
+- **`create_message_share_link`** - Create a shareable link to a message (returns the URL)
+- **`get_message_share_link`** - Look up an existing share link, including its access settings
+
 ## Usage Examples
 
 ### Getting Started
