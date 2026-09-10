@@ -137,3 +137,41 @@ describe('AI action chain discoverability', () => {
     },
   );
 });
+
+describe('summarize_conversation limit bounds', () => {
+  // Codex finding on PR #6: the schema must not accept values the upstream
+  // page validation will reject, now that the handler forwards limit as `size`.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { summarizeConversationParams } = require('../../../src/schemas');
+
+  it.each([0, -1, 2.5])('rejects limit=%s', (limit) => {
+    expect(
+      summarizeConversationParams.safeParse({
+        conversation_id: 'c',
+        prompt_id: 'p',
+        limit,
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([1, 20, 50, 200])(
+    'accepts limit=%s (clamped in the handler)',
+    (limit) => {
+      expect(
+        summarizeConversationParams.safeParse({
+          conversation_id: 'c',
+          prompt_id: 'p',
+          limit,
+        }).success,
+      ).toBe(true);
+    },
+  );
+
+  it('defaults to 50 when omitted', () => {
+    const parsed = summarizeConversationParams.parse({
+      conversation_id: 'c',
+      prompt_id: 'p',
+    });
+    expect(parsed.limit).toBe(50);
+  });
+});

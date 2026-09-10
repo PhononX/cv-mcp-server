@@ -1638,6 +1638,35 @@ describe('MCP Server', () => {
         );
       });
 
+      it('should floor a fractional limit and never send size below 1', async () => {
+        // Codex finding on PR #6: the schema accepted 0, negatives and
+        // fractions, and the handler now forwards limit as `size`. Upstream
+        // validates size >= 1 and integral, so those values became failed
+        // calls — where the old code dropped `limit` entirely and they were
+        // harmless. The schema now rejects them (.int().positive()); this
+        // pins the handler's defence for anything that gets past it.
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1', limit: 7.9 },
+          mockContext,
+        );
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 7 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+
+        simplifiedApiMock.listMessages.mockClear();
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1', limit: 0 },
+          mockContext,
+        );
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 1 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
       it('should clamp limit to the upstream page cap of 50 rather than failing', async () => {
         const toolHandler = summarizeConversationCall[2];
 

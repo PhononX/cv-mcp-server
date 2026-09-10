@@ -740,9 +740,18 @@ function registerCarbonVoiceTools(server: McpServer): void {
           // leaked `prompt_id` upstream as a stray query param.
           const listParams: ListMessagesParams = {
             conversation_id: args.conversation_id,
-            size: Math.min(
-              args.limit ?? MAX_SUMMARIZE_MESSAGES,
-              MAX_SUMMARIZE_MESSAGES,
+            // Clamp the upper bound rather than reject it: an agent asking
+            // for more than a page gets the maximum instead of a failed call.
+            // The lower bound is a schema concern (`.int().positive()`) — 0 or
+            // a fraction has no sensible clamp, and forwarding it as `size`
+            // would be rejected by the upstream page validation, which the old
+            // code never hit because it dropped `limit` entirely.
+            size: Math.max(
+              1,
+              Math.min(
+                Math.floor(args.limit ?? MAX_SUMMARIZE_MESSAGES),
+                MAX_SUMMARIZE_MESSAGES,
+              ),
             ),
           };
           if (args.start_date) {

@@ -36,11 +36,14 @@ export const summarizeConversationParams = z.object({
     ),
   limit: z
     .number()
+    .int()
+    .positive()
     .optional()
     .default(50)
     .describe(
       'How many recent messages to summarize when `message_ids` is omitted. ' +
-        'Values above 50 are clamped to 50 (the upstream page limit). Ignored when `message_ids` is provided.',
+        'Must be a positive integer; values above 50 are clamped to 50 (the ' +
+        'upstream page limit). Ignored when `message_ids` is provided.',
     ),
 });
 

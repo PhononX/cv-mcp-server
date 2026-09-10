@@ -162,6 +162,94 @@ describe('fetchAudioFile', () => {
     );
   });
 
+  // --- Codex review findings on PR #6 -------------------------------------
+
+  it('accepts an IPv6-literal URL, whose hostname arrives bracketed', async () => {
+    // WHATWG URL.hostname keeps the brackets: `[2606:4700::1111]`. Left as-is,
+    // net.isIP returns 0, the value is treated as a DNS name, the lookup fails,
+    // and every public IPv6-literal URL is refused. The existing isBlockedAddress
+    // tests passed bare addresses, so they could not catch this.
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'audio/mpeg' }),
+      body: null,
+      arrayBuffer: async () => Buffer.from('ID3audio').buffer,
+    }) as any;
+
+    const file = await fetchAudioFile('https://[2606:4700::1111]/memo.mp3');
+    expect(file.name).toBe('memo.mp3');
+  });
+
+  it('still blocks a bracketed IPv6 loopback literal', async () => {
+    const fetchSpy = jest.fn();
+    global.fetch = fetchSpy as any;
+
+    await expect(fetchAudioFile('https://[::1]/memo.mp3')).rejects.toThrow(
+      /non-public address/,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('aborts mid-stream once the cap is exceeded, without buffering it all', async () => {
+    // The P1 finding: checking the size after `arrayBuffer()` lets an
+    // unbounded chunked response exhaust the heap before the check runs.
+    // A 1 MiB chunk generator that would produce 40 MiB must be cut short.
+    let chunksProduced = 0;
+    let cancelled = false;
+    const oneMiB = new Uint8Array(1024 * 1024);
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'audio/mpeg' }),
+      body: {
+        getReader: () => ({
+          read: async () => {
+            chunksProduced += 1;
+            if (chunksProduced > 40) return { done: true, value: undefined };
+            return { done: false, value: oneMiB };
+          },
+          cancel: async () => {
+            cancelled = true;
+          },
+        }),
+      },
+      arrayBuffer: async () => {
+        throw new Error('arrayBuffer must not be used when a stream exists');
+      },
+    }) as any;
+
+    await expect(fetchAudioFile('https://8.8.8.8/big.mp3')).rejects.toThrow(
+      /exceeds the .* limit/,
+    );
+    // 25 MiB cap: stopped shortly after crossing it, nowhere near 40.
+    expect(chunksProduced).toBeLessThan(30);
+    expect(cancelled).toBe(true);
+  });
+
+  it('reads a streamed body in full when it is under the cap', async () => {
+    let served = false;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'audio/mpeg' }),
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (served) return { done: true, value: undefined };
+            served = true;
+            return { done: false, value: new Uint8Array([1, 2, 3, 4]) };
+          },
+          cancel: async () => undefined,
+        }),
+      },
+    }) as any;
+
+    const file = await fetchAudioFile('https://8.8.8.8/small.mp3');
+    expect(file.size).toBe(4);
+  });
+
   it('surfaces an upstream failure status', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

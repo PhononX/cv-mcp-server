@@ -1,3 +1,4 @@
+import { File } from 'node:buffer';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import path from 'node:path';
@@ -89,6 +90,18 @@ export const isBlockedAddress = (ip: string): boolean => {
   return false;
 };
 
+/**
+ * WHATWG `URL.hostname` keeps the square brackets on an IPv6 literal, so
+ * `https://[2606:4700::1111]/a.mp3` yields `[2606:4700::1111]`. Left as-is,
+ * `net.isIP` returns 0, the value is treated as a DNS name, the lookup fails,
+ * and every public IPv6-literal URL is rejected. Brackets belong in the URL,
+ * not in an address we are about to test or resolve.
+ */
+const bareHostname = (hostname: string): string =>
+  hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname;
+
 const isHostAllowlisted = (hostname: string): boolean => {
   const allowed = env.AUDIO_FETCH_ALLOWED_HOSTS;
   if (allowed.length === 0) {
@@ -121,10 +134,11 @@ const assertUrlIsFetchable = async (raw: string): Promise<URL> => {
   // A literal IP needs no lookup; a hostname must be resolved and every
   // returned address checked, since one bad answer is enough to reach
   // internal infrastructure.
-  const literal = net.isIP(url.hostname);
+  const host = bareHostname(url.hostname);
+  const literal = net.isIP(host);
   const addresses = literal
-    ? [url.hostname]
-    : (await dns.lookup(url.hostname, { all: true })).map((a) => a.address);
+    ? [host]
+    : (await dns.lookup(host, { all: true })).map((a) => a.address);
 
   if (addresses.length === 0) {
     throw new AudioFetchError(
@@ -149,6 +163,49 @@ const deriveFilename = (url: URL): string => {
     return base;
   }
   return `${base.replace(/\.[^.]*$/, '') || 'audio'}.mp3`;
+};
+
+/**
+ * Reads a response body, aborting as soon as the accumulated size exceeds
+ * `maxBytes`. Bounds peak memory to roughly the cap regardless of what the
+ * server claims in `content-length`.
+ */
+const readCapped = async (
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer> => {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // No readable stream (e.g. a 204). Fall back, bounded by the same cap.
+    const fallback = Buffer.from(await response.arrayBuffer());
+    if (fallback.byteLength > maxBytes) {
+      throw new AudioFetchError(
+        `audio_url is ${fallback.byteLength} bytes, above the ${maxBytes}-byte limit`,
+      );
+    }
+    return fallback;
+  }
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (value) {
+      total += value.byteLength;
+      if (total > maxBytes) {
+        // Stop pulling bytes we have already decided to reject.
+        await reader.cancel().catch(() => undefined);
+        throw new AudioFetchError(
+          `audio_url exceeds the ${maxBytes}-byte limit (aborted after ${total} bytes)`,
+        );
+      }
+      chunks.push(Buffer.from(value));
+    }
+  }
+  return Buffer.concat(chunks);
 };
 
 /**
@@ -207,15 +264,13 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
       );
     }
 
-    // content-length can lie or be absent, so enforce the cap on real bytes.
-    const buffer = Buffer.from(await response.arrayBuffer());
+    // content-length can lie or be absent, so enforce the cap on real bytes —
+    // and do it WHILE reading. Buffering the whole body first (arrayBuffer())
+    // and checking afterwards means an unbounded chunked response can exhaust
+    // the heap before the check ever runs, which makes the limit decorative.
+    const buffer = await readCapped(response, maxBytes);
     if (buffer.byteLength === 0) {
       throw new AudioFetchError('audio_url returned an empty file');
-    }
-    if (buffer.byteLength > maxBytes) {
-      throw new AudioFetchError(
-        `audio_url is ${buffer.byteLength} bytes, above the ${maxBytes}-byte limit`,
-      );
     }
 
     const contentType =
