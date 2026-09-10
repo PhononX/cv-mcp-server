@@ -406,7 +406,18 @@ function registerCarbonVoiceTools(server: McpServer): void {
             { isError: true, tool: 'create_voicememo_message' },
           );
         }
-        logger.error('Error creating voicememo message:', { args, error });
+        // `args` carries `audio_url`, which is commonly presigned — logging it
+        // whole would put the signature in the log at error level. This branch
+        // is reached whenever the failure is NOT an audio-fetch rejection (an
+        // upstream upload refusal, say), so it needs the same redaction the
+        // AudioFetchError branch above applies.
+        logger.error('Error creating voicememo message:', {
+          args: {
+            ...rest,
+            audio_url: audio_url ? redactUrlForLog(audio_url) : undefined,
+          },
+          error,
+        });
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'create_voicememo_message',

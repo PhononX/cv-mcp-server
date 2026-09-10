@@ -1,6 +1,13 @@
 import { logger } from '../../../src/utils/logger';
 import { formatToMCPToolResponse } from '../../../src/utils/format-to-mcp-tool-response';
 
+/** Narrows the content-block union so the text can be asserted on. */
+const firstText = (result: { content: unknown[] }): string => {
+  const block = result.content[0] as { type: string; text?: unknown };
+  expect(block.type).toBe('text');
+  return block.text as string;
+};
+
 // Mock the logger to prevent circular reference issues
 jest.mock('../../../src/utils/logger', () => ({
   logger: {
@@ -116,16 +123,33 @@ describe('formatToMCPToolResponse', () => {
     });
   });
 
-  it('should format undefined response', () => {
+  // A void endpoint (202/204 with an empty body) resolves to undefined, and
+  // JSON.stringify(undefined) is undefined rather than a string. Emitting that
+  // would produce `text: undefined`, which fails the MCP content-block schema.
+  it('substitutes an acknowledgement for an unserializable (void) response', () => {
     const result = formatToMCPToolResponse(undefined);
 
     expect(result).toEqual({
       content: [
         {
           type: 'text',
-          text: JSON.stringify(undefined),
+          text: JSON.stringify({ success: true }),
         },
       ],
+    });
+    expect(typeof firstText(result)).toBe('string');
+  });
+
+  it('substitutes an error payload for a void response marked isError', () => {
+    const result = formatToMCPToolResponse(undefined, { isError: true });
+
+    expect(result.isError).toBe(true);
+    expect(typeof firstText(result)).toBe('string');
+    expect(JSON.parse(firstText(result))).toEqual({
+      error: {
+        code: 'UNKNOWN_ERROR',
+        message: 'The tool failed without returning an error payload.',
+      },
     });
   });
 

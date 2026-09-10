@@ -27,10 +27,19 @@ export const readDotEnv = () => {
   const out = {};
   if (!fs.existsSync(file)) return out;
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (m && !m[1].startsWith('#')) {
-      out[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let value = m[2].trim();
+    const quoted = /^(['"])([\s\S]*)\1$/.exec(value);
+    if (quoted) {
+      value = quoted[2];
+    } else {
+      // Unquoted values end at an unescaped ` #`, per dotenv semantics.
+      // Without this, `KEY=secret # only stdio uses it` yields a key with the
+      // comment appended and every authenticated call 401s.
+      value = value.replace(/\s+#.*$/, '').trim();
     }
+    out[m[1]] = value;
   }
   return out;
 };

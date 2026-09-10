@@ -35,6 +35,19 @@ export interface FormatOptions {
   responseFields?: string[];
 }
 
+/**
+ * Stand-ins for a payload that does not serialize (in practice: `undefined`,
+ * returned by the endpoints the generated client types as `mutator<void>`).
+ * See the note at the `JSON.stringify` call.
+ */
+const EMPTY_SUCCESS_PAYLOAD = JSON.stringify({ success: true });
+const EMPTY_ERROR_PAYLOAD = JSON.stringify({
+  error: {
+    code: 'UNKNOWN_ERROR',
+    message: 'The tool failed without returning an error payload.',
+  },
+});
+
 export const formatToMCPToolResponse = (
   data: unknown,
   options: FormatOptions = {},
@@ -51,12 +64,19 @@ export const formatToMCPToolResponse = (
       payloadType: Array.isArray(payload) ? 'array' : typeof payload,
     });
 
-    const serializedData = JSON.stringify(payload);
-    // JSON.stringify(undefined) returns undefined (non-throwing). Keep legacy response shape.
-    const payloadBytes =
-      serializedData === undefined
-        ? 0
-        : Buffer.byteLength(serializedData, 'utf8');
+    // JSON.stringify(undefined) returns undefined rather than throwing, which
+    // would put `text: undefined` on the wire — an invalid MCP text content
+    // block that a schema-validating client rejects. The void endpoints hit
+    // this every time they succeed (202/204 with an empty body), so substitute
+    // the acknowledgement their tool docs already promise.
+    const serialized = JSON.stringify(payload);
+    const serializedData =
+      serialized === undefined
+        ? options.isError
+          ? EMPTY_ERROR_PAYLOAD
+          : EMPTY_SUCCESS_PAYLOAD
+        : serialized;
+    const payloadBytes = Buffer.byteLength(serializedData, 'utf8');
     const stringifyDurationMs = Date.now() - stringifyStart;
 
     logger.info('MCP_RESPONSE_STRINGIFY_DONE', {
