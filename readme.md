@@ -529,6 +529,24 @@ code:
 | `NETWORK_ERROR` | no route to the API from this machine |
 | `405 UNKNOWN_ERROR` | an HTTP proxy is intercepting — axios needs a CONNECT tunnel, check `HTTPS_PROXY` |
 
+> **Two credential options for stdio, and a PAT is the better one.**
+> Set `CARBON_VOICE_PAT` instead of `CARBON_VOICE_API_KEY` where you can — it
+> is sent as `Authorization: Bearer cv_pat_...`, which is what cv-api's
+> `PatTokenStrategy` reads:
+>
+> | | API key | PAT |
+> | --- | --- | --- |
+> | Scopes | none — full user identity | `cv:read` / `cv:write` |
+> | Expiry | long-lived | max 2 years, revocable |
+> | Getting one | email devsupport@phononx.com | self-service: `POST /pats` |
+>
+> When both are set the PAT wins **and `x-api-key` is suppressed entirely**.
+> That matters: cv-api tries `api-key` before `pat-token` in its strategy
+> chain, so sending both would let the API key win and silently discard the
+> PAT's scopes.
+>
+> Neither is used by the HTTP transport, which authenticates with OAuth.
+
 > **`CARBON_VOICE_API_KEY` is a personal API key, not an OAuth credential.**
 > The two transports authenticate differently, and `setCarbonVoiceAuthHeader`
 > (`src/auth/auth.service.ts`) sends one or the other, never both:

@@ -49,6 +49,19 @@ const Environment = z.object({
     .optional()
     .transform((val) => val || CV_API_BASE_URL),
   CARBON_VOICE_API_KEY: z.string().optional(),
+  /**
+   * Personal Access Token for the stdio transport, as an alternative to
+   * CARBON_VOICE_API_KEY. Sent as `Authorization: Bearer <pat>`, which is what
+   * cv-api's PatTokenStrategy reads; it recognises PATs by their `cv_pat_`
+   * prefix and applies the token's own scopes.
+   *
+   * Preferred over an API key where available: a PAT is scoped (cv:read /
+   * cv:write), expires, is revocable, and is self-service via `POST /pats` —
+   * whereas an API key carries the full user identity with no scoping.
+   *
+   * Takes precedence over CARBON_VOICE_API_KEY when both are set.
+   */
+  CARBON_VOICE_PAT: z.string().optional(),
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error'])
     .optional()
