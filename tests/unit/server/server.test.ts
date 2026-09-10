@@ -2612,6 +2612,50 @@ describe('MCP Server', () => {
         ).not.toHaveProperty('audio_url');
       });
 
+      // The HTTP transport's `createOAuthTokenVerifier` only DECODES the bearer
+      // token; nothing checks its signature. cv-api is therefore the sole
+      // authority on whether the caller is real, and this is the one tool with
+      // a side effect in front of the upstream call — so the order matters.
+      it('should authenticate with cv-api before fetching a caller-supplied URL', async () => {
+        mockFetchAudioFile.mockResolvedValueOnce({ name: 'memo.mp3' });
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3' },
+          mockContext,
+        );
+
+        expect(cvApiMock.getWhoAmI).toHaveBeenCalledWith({
+          headers: { Authorization: 'Bearer test-token' },
+        });
+        expect(cvApiMock.getWhoAmI.mock.invocationCallOrder[0]).toBeLessThan(
+          mockFetchAudioFile.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('should not fetch at all when cv-api rejects the credentials', async () => {
+        cvApiMock.getWhoAmI.mockRejectedValueOnce({
+          statusCode: 401,
+          body: { error: { code: 'UNAUTHORIZED', message: 'invalid token' } },
+        });
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3' },
+          mockContext,
+        );
+
+        expect(mockFetchAudioFile).not.toHaveBeenCalled();
+        expect(simplifiedApiMock.createVoiceMemoMessage).not.toHaveBeenCalled();
+      });
+
+      it('should skip the preflight when there is no audio_url to fetch', async () => {
+        await findCall('create_voicememo_message')[2](
+          { transcript: 'no audio here' },
+          mockContext,
+        );
+
+        expect(cvApiMock.getWhoAmI).not.toHaveBeenCalled();
+      });
+
       it('should return an actionable INVALID_AUDIO_URL instead of a bare failure', async () => {
         const rejection = new Error('audio_url returned an empty file');
         rejection.name = 'AudioFetchError';

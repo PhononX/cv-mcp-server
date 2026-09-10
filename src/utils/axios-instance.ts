@@ -492,14 +492,25 @@ export async function mutator<T>(
   { url, method, params, data, headers }: AxiosRequestConfig,
   options?: AxiosRequestConfig,
 ): Promise<T> {
+  // MERGE the two header sets rather than letting `options` replace them.
+  // `options` carries the auth header; the generated request carries the
+  // content type. Spreading `...options` wholesale dropped
+  // `Content-Type: multipart/form-data` from the voicememo upload, leaving the
+  // instance default of `application/json` in force — and axios responds to a
+  // FormData body under a JSON content type by running it through
+  // `formDataToJSON`, so the File serialized to `{}` and the audio never left
+  // the process. Callers keep the ability to override a header (that is how
+  // `x-api-key: undefined` suppresses the instance default), they just no
+  // longer clear the ones they did not set.
+  const { headers: optionHeaders, ...restOptions } = options ?? {};
   try {
     const response = await axiosInstance({
       url,
       method,
       params,
       data,
-      headers,
-      ...options,
+      ...restOptions,
+      headers: { ...headers, ...optionHeaders },
     });
 
     return response.data as T;

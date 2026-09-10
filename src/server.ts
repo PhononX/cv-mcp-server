@@ -368,16 +368,29 @@ function registerCarbonVoiceTools(server: McpServer): void {
     ): Promise<McpToolResponse> => {
       const { audio_url, ...rest } = args;
       try {
+        const authHeader = setCarbonVoiceAuthHeader(authInfo?.token);
         const payload: CreateVoicememoMessage = { ...rest };
         if (audio_url) {
+          // Prove the caller is authenticated BEFORE fetching a URL they
+          // chose. On the HTTP transport `createOAuthTokenVerifier` only
+          // DECODES the bearer token — nothing validates its signature — so
+          // cv-api is the sole authority on whether the caller is real. Every
+          // other tool consults that authority first by construction, because
+          // its only side effect IS the upstream call. This one has an
+          // outbound fetch in front of it, so without this preflight a caller
+          // holding a forged token could make the server resolve and download
+          // arbitrary public URLs, and only learn it was unauthorized
+          // afterwards.
+          //
+          // /whoami is the cheapest authenticated endpoint. It costs one round
+          // trip on the audio path only, which is negligible next to the
+          // download and multipart upload that follow.
+          await cvApi.getWhoAmI(authHeader);
           payload.audio_file = await fetchAudioFile(audio_url);
         }
 
         return formatToMCPToolResponse(
-          await simplifiedApi.createVoiceMemoMessage(
-            payload,
-            setCarbonVoiceAuthHeader(authInfo?.token),
-          ),
+          await simplifiedApi.createVoiceMemoMessage(payload, authHeader),
         );
       } catch (error) {
         // Surface fetch rejections as themselves: the message names what was
