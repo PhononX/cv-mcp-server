@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { setCarbonVoiceAuthHeader } from '../../../src/auth';
 import { getCarbonVoiceAPI } from '../../../src/cv-api';
+import { TOOL_NAMES } from '../../../src/docs';
 import { getCarbonVoiceSimplifiedAPI } from '../../../src/generated';
 import { formatToMCPToolResponse, logger } from '../../../src/utils';
 import {
@@ -186,6 +187,27 @@ describe('MCP Server', () => {
 
     // Import the server module after mocks are set up
     require('../../../src/server');
+  });
+
+  describe('Tool inventory', () => {
+    // Guards the documentation contract: TOOL_NAMES is the single source of
+    // truth used by tests/unit/docs/tool-docs.test.ts to validate that every
+    // declared prerequisite points at a tool that exists. A tool registered
+    // without being added there — or removed without being taken out — fails
+    // here rather than silently breaking those cross-references.
+    it('registers exactly the tools listed in TOOL_NAMES', () => {
+      const registered = mockRegisterTool.mock.calls.map(
+        (call: any) => call[0],
+      );
+      expect([...registered].sort()).toEqual([...TOOL_NAMES].sort());
+    });
+
+    it('registers no tool twice', () => {
+      const registered = mockRegisterTool.mock.calls.map(
+        (call: any) => call[0],
+      );
+      expect(new Set(registered).size).toBe(registered.length);
+    });
   });
 
   describe('Tool Registration', () => {
@@ -1250,20 +1272,81 @@ describe('MCP Server', () => {
           conversation_id: 'test-conversation-id',
           prompt_id: 'test-prompt-id',
           language: 'en',
+          limit: 40,
         };
 
         await expect(
           toolHandler(testParams, mockContext),
         ).resolves.not.toThrow();
 
+        // Only listMessages-accepted params are forwarded, and this tool's
+        // `limit` is translated to the upstream `size`. Previously `args` was
+        // passed wholesale, so `limit` was silently dropped (capping summaries
+        // at the default page of 20) and `prompt_id` leaked upstream.
         expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
-          testParams,
+          {
+            conversation_id: 'test-conversation-id',
+            size: 40,
+            language: 'en',
+          },
           { headers: { Authorization: 'Bearer test-token' } },
         );
+        const forwarded = simplifiedApiMock.listMessages.mock.calls[0][0];
+        expect(forwarded).not.toHaveProperty('prompt_id');
+        expect(forwarded).not.toHaveProperty('limit');
         expect(
           simplifiedApiMock.aIResponseControllerCreateResponse,
         ).toHaveBeenCalled();
         expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
+      });
+
+      it('should default size to the 50-message cap when limit is omitted', async () => {
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1' },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 50 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should clamp limit to the upstream page cap of 50 rather than failing', async () => {
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1', limit: 500 },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 50 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should not call listMessages when message_ids are supplied', async () => {
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          {
+            conversation_id: 'conv-1',
+            prompt_id: 'prompt-1',
+            message_ids: ['m1', 'm2'],
+          },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.listMessages).not.toHaveBeenCalled();
+        expect(
+          simplifiedApiMock.aIResponseControllerCreateResponse,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({ message_ids: ['m1', 'm2'] }),
+          expect.anything(),
+        );
       });
 
       it('should handle errors when API call fails', async () => {

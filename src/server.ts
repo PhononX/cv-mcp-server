@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { setCarbonVoiceAuthHeader } from './auth';
 import { SERVICE_NAME, SERVICE_VERSION } from './constants';
 import { getCarbonVoiceAPI } from './cv-api';
+import { renderToolDoc, TOOL_DOCS } from './docs';
 import { getCarbonVoiceSimplifiedAPI } from './generated';
 import {
   addLinkAttachmentsToMessageBody,
@@ -70,6 +71,14 @@ import { formatToMCPToolResponse, logger } from './utils';
 
 const simplifiedApi = getCarbonVoiceSimplifiedAPI();
 const cvApi = getCarbonVoiceAPI();
+
+/**
+ * Upstream `listMessages` caps page `size` at 50, so `summarize_conversation`
+ * cannot gather more than this in one pass. Requests above it are clamped
+ * rather than rejected: an agent that asks for more gets the maximum instead
+ * of a failed call it has to retry.
+ */
+const MAX_SUMMARIZE_MESSAGES = 50;
 
 /**
  * Registers all Carbon Voice tools on an MCP server instance.
@@ -522,7 +531,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'summarize_conversation',
     {
-      description: 'Summarize a conversation.',
+      description: renderToolDoc(TOOL_DOCS.summarize_conversation),
       inputSchema: summarizeConversationParams.shape,
       annotations: {
         readOnlyHint: false,
@@ -538,8 +547,30 @@ function registerCarbonVoiceTools(server: McpServer): void {
 
         // If no message ids are provided, get couple of messages from the conversation
         if (!args.message_ids) {
+          // `limit` is this tool's own param, not a listMessages one: the
+          // upstream query takes `size` (capped at 50). Forwarding `args`
+          // wholesale silently dropped `limit` — so summaries were built from
+          // the default page of 20 messages while the schema promised 50 — and
+          // leaked `prompt_id` upstream as a stray query param.
+          const listParams: ListMessagesParams = {
+            conversation_id: args.conversation_id,
+            size: Math.min(
+              args.limit ?? MAX_SUMMARIZE_MESSAGES,
+              MAX_SUMMARIZE_MESSAGES,
+            ),
+          };
+          if (args.start_date) {
+            listParams.start_date = args.start_date;
+          }
+          if (args.end_date) {
+            listParams.end_date = args.end_date;
+          }
+          if (args.language) {
+            listParams.language = args.language;
+          }
+
           const messages = await simplifiedApi.listMessages(
-            args,
+            listParams,
             setCarbonVoiceAuthHeader(authInfo?.token),
           );
           message_ids = messages.results?.map((message) => message.id) || [];
@@ -869,10 +900,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'list_ai_actions',
     {
-      description:
-        'List AI Actions (Prompts). Optionally, you can filter by owner type and workspace id. ' +
-        'Filtering by owner type, Possible values: "user", "workspace", "system". ' +
-        'Do not use unless the user explicitly requests it.',
+      description: renderToolDoc(TOOL_DOCS.list_ai_actions),
       inputSchema: aIPromptControllerGetPromptsQueryParams.shape,
       annotations: {
         readOnlyHint: true,
@@ -900,8 +928,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'run_ai_action',
     {
-      description:
-        'Run an AI Action (Prompt) for a message. You can run an AI Action for a message by its ID or a list of message IDs.',
+      description: renderToolDoc(TOOL_DOCS.run_ai_action),
       inputSchema: aIResponseControllerCreateResponseBody.shape,
       annotations: {
         readOnlyHint: false,
@@ -956,9 +983,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
   server.registerTool(
     'get_ai_action_responses',
     {
-      description:
-        'Retrieve previously generated AI Action (Prompt) responses by filtering for a specific prompt, message, or conversation ID. ' +
-        'Combine filters to narrow results and view all AI-generated responses related to a particular prompt, message, or conversation.',
+      description: renderToolDoc(TOOL_DOCS.get_ai_action_responses),
       inputSchema: aIResponseControllerGetAllResponsesQueryParams.shape,
       annotations: {
         readOnlyHint: true,

@@ -7,7 +7,14 @@ export const summarizeConversationParams = z.object({
   language: z.string().optional(),
   start_date: z.string().datetime().optional(),
   end_date: z.string().datetime().optional(),
-  limit: z.number().optional().default(50),
+  limit: z
+    .number()
+    .optional()
+    .default(50)
+    .describe(
+      'How many recent messages to summarize when `message_ids` is omitted. ' +
+        'Values above 50 are clamped to 50 (the upstream page limit). Ignored when `message_ids` is provided.',
+    ),
 });
 
 export const catchUpConversationParams = z.object({
