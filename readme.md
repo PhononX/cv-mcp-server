@@ -166,6 +166,27 @@ If you prefer to run the MCP server locally with API key authentication:
 
 When using the stdio version of the MCP server, you can configure additional environment variables:
 
+#### AUDIO_FETCH_ALLOWED_HOSTS
+
+Comma-separated hostname allowlist for `create_voicememo_message`'s `audio_url`.
+When set, only these hosts (and their subdomains) may be fetched. **Set this in
+production** — it is the strongest control against the server being used as an
+SSRF proxy. When unset, any public host is allowed, but private, loopback and
+link-local address space is still refused.
+
+```
+AUDIO_FETCH_ALLOWED_HOSTS=cdn.example.com,uploads.example.com
+```
+
+#### AUDIO_FETCH_MAX_BYTES
+
+Maximum size of a fetched audio file, in bytes. Defaults to `26214400` (25 MB).
+Enforced against both `content-length` and the bytes actually received.
+
+#### AUDIO_FETCH_TIMEOUT_MS
+
+Timeout for the whole `audio_url` fetch, in milliseconds. Defaults to `30000`.
+
 #### LOG_LEVEL
 
 Controls the verbosity of logging output. Available options:
@@ -245,8 +266,15 @@ The server will create two log files in this directory:
 - **`get_recent_messages`** - Get the 10 most recent messages with full context
 - **`create_conversation_message`** - Send a message to a conversation
 - **`create_direct_message`** - Send direct messages to users or groups
-- **`create_voicememo_message`** - Create voice memo messages
+- **`create_voicememo_message`** - Create a voice memo from text (spoken via TTS) or from audio at a URL
 - **`add_attachments_to_message`** - Add link attachments to existing messages
+
+> **Voice memo audio.** Pass `audio_url` (a public http(s) URL) to upload existing
+> audio; the server fetches it and forwards the bytes. The upstream `audio_file`
+> multipart param is not exposed over MCP, because a JSON-RPC client cannot
+> construct a `File`. Fetches are constrained: http(s) only, private/loopback/
+> link-local addresses refused, redirects re-validated per hop, plus a size cap
+> and timeout — see `AUDIO_FETCH_*` below.
 
 ### Users
 

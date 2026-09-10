@@ -92,7 +92,7 @@ import {
   searchMessagesByHeardStatusParams,
   summarizeConversationParams,
 } from './schemas';
-import { formatToMCPToolResponse, logger } from './utils';
+import { fetchAudioFile, formatToMCPToolResponse, logger } from './utils';
 
 const simplifiedApi = getCarbonVoiceSimplifiedAPI();
 const cvApi = getCarbonVoiceAPI();
@@ -274,29 +274,81 @@ function registerCarbonVoiceTools(server: McpServer): void {
     },
   );
 
+  // `audio_file` is intentionally dropped from the MCP schema and replaced with
+  // `audio_url`. Upstream types it as `zod.instanceof(File)`, which serializes
+  // to an untyped `{}` in JSON Schema while its description advertises
+  // supported audio formats — so the tool promised audio upload, gave agents no
+  // type to aim at, and then rejected every value a JSON-RPC client can express
+  // ("Input not instance of File"). A URL is something an agent can actually
+  // produce; the server fetches it and forwards the bytes as multipart.
+  const createVoicememoMessageInput = createVoiceMemoMessageBody
+    .omit({ audio_file: true })
+    .extend({
+      audio_url: z
+        .string()
+        .url()
+        .optional()
+        .describe(
+          'Public http(s) URL to an audio file to upload. Supported formats: ' +
+            '.mp3, .m4a, .wav, .aac, .ogg, .flac, .wma, .opus, .webm. ' +
+            'Overrides `transcript` when provided. The server fetches this URL, ' +
+            'so it must be publicly reachable — private, loopback and link-local ' +
+            'addresses are refused.',
+        ),
+    });
+
   server.registerTool(
     'create_voicememo_message',
     {
-      description:
-        'Create a VoiceMemo Message. In order to create a VoiceMemo Message, you must provide a transcript or link attachments.',
-      inputSchema: createVoiceMemoMessageBody.shape,
+      description: renderToolDoc(TOOL_DOCS.create_voicememo_message),
+      inputSchema: createVoicememoMessageInput.shape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
       },
     },
     async (
-      args: CreateVoicememoMessage,
+      args: Omit<CreateVoicememoMessage, 'audio_file'> & {
+        audio_url?: string;
+      },
       { authInfo },
     ): Promise<McpToolResponse> => {
+      const { audio_url, ...rest } = args;
       try {
+        const payload: CreateVoicememoMessage = { ...rest };
+        if (audio_url) {
+          payload.audio_file = await fetchAudioFile(audio_url);
+        }
+
         return formatToMCPToolResponse(
           await simplifiedApi.createVoiceMemoMessage(
-            args,
+            payload,
             setCarbonVoiceAuthHeader(authInfo?.token),
           ),
         );
       } catch (error) {
+        // Surface fetch rejections as themselves: the message names what was
+        // wrong with the URL, which is what the agent needs to fix the call.
+        //
+        // Matched on `name` rather than `instanceof`: the class can arrive via
+        // more than one module registry (the utils barrel, a test's
+        // requireActual, a dual CJS/ESM resolution), and `instanceof` silently
+        // fails across duplicates. The name is stable in all of them.
+        if ((error as Error)?.name === 'AudioFetchError') {
+          logger.warn('Rejected audio_url for voicememo message', {
+            audio_url,
+            reason: (error as Error).message,
+          });
+          return formatToMCPToolResponse({
+            statusCode: 400,
+            body: {
+              error: {
+                code: 'INVALID_AUDIO_URL',
+                message: (error as Error).message,
+              },
+            },
+          });
+        }
         logger.error('Error creating voicememo message:', { args, error });
         return formatToMCPToolResponse(error);
       }

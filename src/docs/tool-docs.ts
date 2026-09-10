@@ -472,4 +472,45 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`skip`/`limit`, not cursors.',
     recommendedFields: ['results', 'total_unread', 'total_results'],
   },
+
+  /**********************
+   * Messages
+   *********************/
+
+  create_voicememo_message: {
+    purpose:
+      'Create a voice memo, either from text (spoken via text-to-speech) or from an audio file at a URL.',
+    whenToUse:
+      'Pass `transcript` to have Carbon Voice speak the text, or `audio_url` ' +
+      'to upload existing audio (which overrides `transcript`). Place it with ' +
+      '`folder_id` or `workspace_id`, not both.',
+    whenNotToUse:
+      '`create_conversation_message` to post into an existing conversation, or ' +
+      '`create_direct_message` to send to specific people. A voice memo is ' +
+      'standalone and lives in a folder or workspace.',
+    example: {
+      transcript: 'Reminder to review the pricing deck before Friday.',
+    },
+    responseShape:
+      '`{message: {id, link, transcript?, audio_url?, duration_ms, status, ' +
+      'type, created_at, ...}}`. `status` is often `processing` at first.',
+    commonErrors: [
+      {
+        code: 'INVALID_AUDIO_URL',
+        meaning:
+          '`audio_url` is unreachable, too large, timed out, or resolves to a ' +
+          'private address.',
+        nextAction:
+          'The message gives the reason. Use a public URL, or pass ' +
+          '`transcript` instead.',
+      },
+      {
+        code: 'BAD_REQUEST',
+        meaning:
+          'None of `transcript`, `audio_url` or `links` was provided, or ' +
+          '`folder_id` and `workspace_id` disagree.',
+        nextAction: 'Provide one of those, and only one placement target.',
+      },
+    ],
+  },
 };

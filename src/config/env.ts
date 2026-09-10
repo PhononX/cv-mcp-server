@@ -18,8 +18,7 @@ const parseLogTransports = (value: string): LogTransport[] => {
   }
 
   const invalidTransports = parsedTransports.filter(
-    (transport) =>
-      !validLogTransports.includes(transport as LogTransport),
+    (transport) => !validLogTransports.includes(transport as LogTransport),
   );
 
   if (invalidTransports.length > 0) {
@@ -64,9 +63,7 @@ const Environment = z.object({
     .url()
     .or(z.string().regex(/^\/.*/, 'Must be an absolute path or URL'))
     .optional()
-    .transform(
-      (val) => val || '/.well-known/oauth-protected-resource',
-    ),
+    .transform((val) => val || '/.well-known/oauth-protected-resource'),
   LOG_TRANSPORT: z
     .string()
     .optional()
@@ -90,6 +87,51 @@ const Environment = z.object({
     .enum(['dev', 'prod'])
     .optional()
     .default(getRunningEnvironment()),
+  /**
+   * Max size (bytes) of an audio file fetched by `create_voicememo_message`
+   * from `audio_url`. Caps memory per request and limits the blast radius of
+   * pointing the server at an enormous file.
+   */
+  AUDIO_FETCH_MAX_BYTES: z
+    .string()
+    .optional()
+    .default(String(25 * 1024 * 1024))
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error('AUDIO_FETCH_MAX_BYTES must be a positive integer');
+      }
+      return n;
+    }),
+  /** Timeout (ms) for fetching an audio file from `audio_url`. */
+  AUDIO_FETCH_TIMEOUT_MS: z
+    .string()
+    .optional()
+    .default('30000')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error('AUDIO_FETCH_TIMEOUT_MS must be a positive number');
+      }
+      return n;
+    }),
+  /**
+   * Optional comma-separated hostname allowlist for `audio_url`. When set,
+   * only these hosts (and their subdomains) may be fetched — the strongest
+   * available control against using this server as an SSRF proxy. When unset,
+   * any public host is allowed but private/loopback/link-local address space
+   * is still blocked. Set this in production.
+   */
+  AUDIO_FETCH_ALLOWED_HOSTS: z
+    .string()
+    .optional()
+    .default('')
+    .transform((val) =>
+      val
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   /** Idle TTL (ms): session is destroyed after this long without activity; refreshed on each interaction. */
   MCP_SESSION_TTL_MS: z
     .string()
@@ -109,9 +151,7 @@ const Environment = z.object({
     .transform((s) => {
       const n = Number(s);
       if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
-        throw new Error(
-          'MCP_SESSION_MAX_SESSIONS must be a positive integer',
-        );
+        throw new Error('MCP_SESSION_MAX_SESSIONS must be a positive integer');
       }
       return n;
     }),

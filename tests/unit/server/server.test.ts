@@ -83,6 +83,7 @@ jest.mock('../../../src/generated', () => {
 // Mock the utils module
 jest.mock('../../../src/utils', () => ({
   formatToMCPToolResponse: jest.fn(),
+  fetchAudioFile: jest.fn(),
   logger: {
     error: jest.fn(),
     info: jest.fn(),
@@ -202,7 +203,11 @@ describe('MCP Server', () => {
   // Mock the logger
   const mockLogger = {
     error: jest.fn(),
+    warn: jest.fn(),
   };
+
+  // Mock the audio fetcher used by create_voicememo_message's audio_url path
+  const mockFetchAudioFile = jest.fn();
 
   // Mock the setCarbonVoiceAuthHeader function
   const mockSetCarbonVoiceAuthHeader = jest.fn().mockReturnValue({
@@ -224,6 +229,7 @@ describe('MCP Server', () => {
 
     jest.doMock('../../../src/utils', () => ({
       formatToMCPToolResponse: mockFormatToMCPToolResponse,
+      fetchAudioFile: mockFetchAudioFile,
       logger: mockLogger,
     }));
 
@@ -2207,6 +2213,99 @@ describe('MCP Server', () => {
         const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
         expect(Array.isArray(callArg)).toBe(false);
         expect(callArg).toEqual(user);
+      });
+    });
+
+    describe('create_voicememo_message audio handling', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+      it('should not expose audio_file, which no JSON-RPC client can supply', () => {
+        // Upstream types audio_file as zod.instanceof(File): it renders as an
+        // untyped {} in JSON Schema while advertising audio formats, then
+        // rejects every value an agent can send.
+        const schema = findCall('create_voicememo_message')[1].inputSchema;
+        expect(Object.keys(schema)).not.toContain('audio_file');
+        expect(Object.keys(schema)).toContain('audio_url');
+        expect(Object.keys(schema)).toContain('transcript');
+      });
+
+      it('should send transcript straight through when no audio_url is given', async () => {
+        await findCall('create_voicememo_message')[2](
+          { transcript: 'hello there' },
+          mockContext,
+        );
+
+        expect(mockFetchAudioFile).not.toHaveBeenCalled();
+        expect(simplifiedApiMock.createVoiceMemoMessage).toHaveBeenCalledWith(
+          { transcript: 'hello there' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should fetch audio_url and forward it as audio_file', async () => {
+        const file = { name: 'memo.mp3' };
+        mockFetchAudioFile.mockResolvedValueOnce(file);
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3', workspace_id: 'ws-1' },
+          mockContext,
+        );
+
+        expect(mockFetchAudioFile).toHaveBeenCalledWith(
+          'https://example.com/memo.mp3',
+        );
+        expect(simplifiedApiMock.createVoiceMemoMessage).toHaveBeenCalledWith(
+          { workspace_id: 'ws-1', audio_file: file },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+        // audio_url is ours, not the API's — it must not leak upstream.
+        expect(
+          simplifiedApiMock.createVoiceMemoMessage.mock.calls[0][0],
+        ).not.toHaveProperty('audio_url');
+      });
+
+      it('should return an actionable INVALID_AUDIO_URL instead of a bare failure', async () => {
+        const rejection = new Error('audio_url returned an empty file');
+        rejection.name = 'AudioFetchError';
+        mockFetchAudioFile.mockRejectedValueOnce(rejection);
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/empty.mp3' },
+          mockContext,
+        );
+
+        // Never reaches the API, and the agent gets the specific reason.
+        expect(simplifiedApiMock.createVoiceMemoMessage).not.toHaveBeenCalled();
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith({
+          statusCode: 400,
+          body: {
+            error: {
+              code: 'INVALID_AUDIO_URL',
+              message: 'audio_url returned an empty file',
+            },
+          },
+        });
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          'Rejected audio_url for voicememo message',
+          {
+            audio_url: 'https://example.com/empty.mp3',
+            reason: 'audio_url returned an empty file',
+          },
+        );
+      });
+
+      it('should still report ordinary API errors normally', async () => {
+        const apiError = new Error('upstream boom');
+        simplifiedApiMock.createVoiceMemoMessage.mockRejectedValueOnce(apiError);
+
+        const result = await findCall('create_voicememo_message')[2](
+          { transcript: 'hi' },
+          mockContext,
+        );
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(result).toBeDefined();
       });
     });
 
