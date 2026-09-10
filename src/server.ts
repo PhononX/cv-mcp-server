@@ -8,22 +8,16 @@ import { getCarbonVoiceAPI } from './cv-api';
 import { renderToolDoc, TOOL_DOCS } from './docs';
 import { getCarbonVoiceSimplifiedAPI } from './generated';
 import {
-  actionItemControllerCreateBody,
   actionItemControllerCreateSuggestionsFromMessagesBody,
   actionItemControllerGetByIdParams,
   actionItemControllerListMyActionItemsQueryParams,
   actionItemControllerListParams,
   actionItemControllerListQueryParams,
   actionItemControllerSetStatusBody,
-  actionItemControllerUpdateBody,
   addLinkAttachmentsToMessageBody,
   addLinkAttachmentsToMessageParams,
-  aIPromptControllerGetPromptsQueryParams,
-  aIResponseControllerCreateResponseBody,
-  aIResponseControllerGetAllResponsesQueryParams,
   createConversationMessageParams,
   createFolderBody,
-  createShareLinkAIResponseBody,
   deleteFolderParams,
   getAllConversationsQueryParams,
   getAllRootFoldersQueryParams,
@@ -34,14 +28,11 @@ import {
   getMessageByIdQueryParams,
   getTenRecentMessagesResponseQueryParams,
   getUserByIdParams,
-  listMessagesQueryParams,
   moveFolderBody,
   moveFolderParams,
   searchUserQueryParams,
   searchUsersBody,
-  sendDirectMessageBody,
   simplifiedMessageShareLinkControllerCreateBody,
-  simplifiedMessageShareLinkControllerGetMessageShareLinkParams,
   updateFolderNameBody,
   updateFolderNameParams,
 } from './generated/carbon-voice-api/CarbonVoiceSimplifiedAPI.zod';
@@ -80,17 +71,26 @@ import {
 } from './interfaces';
 import { SummarizeConversationParams } from './interfaces/conversation.interface';
 import {
+  createActionItemBodyShape,
   createConversationMessageBodyShape,
   createVoicememoBodyShape,
+  getAiActionResponsesQueryShape,
   getFolderInputShape,
+  getMessageShareLinkParamsShape,
+  listAiActionsQueryShape,
   ListInboxNotificationsParams,
   listInboxNotificationsParams,
+  listMessagesInputShape,
   moveMessageToFolderBodyShape,
+  runAiActionBodyShape,
+  runAiActionForSharedLinkBodyShape,
   SearchMessageIdsParams,
   searchMessageIdsParams,
   SearchMessagesByHeardStatusParams,
   searchMessagesByHeardStatusParams,
+  sendDirectMessageBodyShape,
   summarizeConversationParams,
+  updateActionItemBodyShape,
 } from './schemas';
 import { fetchAudioFile, formatToMCPToolResponse, logger } from './utils';
 
@@ -148,7 +148,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.list_messages),
       inputSchema: {
-        ...listMessagesQueryParams.shape,
+        ...listMessagesInputShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -295,7 +295,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'create_direct_message',
     {
       description: renderToolDoc(TOOL_DOCS.create_direct_message),
-      inputSchema: sendDirectMessageBody.shape,
+      inputSchema: { ...sendDirectMessageBodyShape },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -1134,7 +1134,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.list_ai_actions),
       inputSchema: {
-        ...aIPromptControllerGetPromptsQueryParams.shape,
+        ...listAiActionsQueryShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -1172,7 +1172,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.run_ai_action),
       inputSchema: {
-        ...aIResponseControllerCreateResponseBody.shape,
+        ...runAiActionBodyShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -1208,7 +1208,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.run_ai_action_for_shared_link),
       inputSchema: {
-        ...createShareLinkAIResponseBody.shape,
+        ...runAiActionForSharedLinkBodyShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -1244,7 +1244,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.get_ai_action_responses),
       inputSchema: {
-        ...aIResponseControllerGetAllResponsesQueryParams.shape,
+        ...getAiActionResponsesQueryShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -1319,7 +1319,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     {
       description: renderToolDoc(TOOL_DOCS.get_message_share_link),
       inputSchema: {
-        ...simplifiedMessageShareLinkControllerGetMessageShareLinkParams.shape,
+        ...getMessageShareLinkParamsShape,
         ...responseFieldsShape,
       },
       annotations: {
@@ -1473,7 +1473,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'create_action_item',
     {
       description: renderToolDoc(TOOL_DOCS.create_action_item),
-      inputSchema: actionItemControllerCreateBody.shape,
+      inputSchema: { ...createActionItemBodyShape },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -1504,9 +1504,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
     'update_action_item',
     {
       description: renderToolDoc(TOOL_DOCS.update_action_item),
-      inputSchema: actionItemControllerGetByIdParams.merge(
-        actionItemControllerUpdateBody,
-      ).shape,
+      inputSchema: {
+        ...actionItemControllerGetByIdParams.shape,
+        ...updateActionItemBodyShape,
+      },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
