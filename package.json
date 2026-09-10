@@ -47,7 +47,8 @@
     "mcp:list": "node scripts/mcp-client.mjs list",
     "mcp:schema": "node scripts/mcp-client.mjs schema",
     "mcp:call": "node scripts/mcp-client.mjs call",
-    "mcp:size": "node scripts/mcp-client.mjs size"
+    "mcp:size": "node scripts/mcp-client.mjs size",
+    "mcp:smoke": "node scripts/mcp-smoke.mjs"
   },
   "files": [
     "dist"

@@ -497,6 +497,37 @@ npm run mcp:call -- create_voicememo_message '{"audio_url":"http://169.254.169.2
 
 Calls that reach the API need a valid `CARBON_VOICE_API_KEY`.
 
+### Smoke-testing against a real account
+
+```bash
+cp .env.sample .env      # put a real CARBON_VOICE_API_KEY in it
+npm run build
+npm run mcp:smoke
+```
+
+Walks ~19 read-only steps against your live account, chaining IDs the way the
+tool descriptions tell an agent to — workspace id, then conversation id, then
+message id — so a broken prerequisite shows up as a failed step instead of an
+agent quietly guessing. Add `--verbose` to dump each payload.
+
+Every read is called twice: bare, and with the `response_fields` set its own
+description recommends. The report shows the byte delta per tool and in total,
+so the projection claim is measured on your data rather than on a fixture.
+
+**It cannot change your account** — no tool that creates, updates, moves or
+deletes is invoked. Write paths are listed at the end with copy-paste commands
+to run deliberately, one at a time.
+
+Exit code is non-zero if any step fails. When every step fails it prints a
+diagnosis, because that pattern is nearly always configuration rather than
+code:
+
+| Note | Cause |
+| --- | --- |
+| `401 UNAUTHORIZED` | `CARBON_VOICE_API_KEY` missing or invalid |
+| `NETWORK_ERROR` | no route to the API from this machine |
+| `405 UNKNOWN_ERROR` | an HTTP proxy is intercepting — axios needs a CONNECT tunnel, check `HTTPS_PROXY` |
+
 ### MCP Inspector
 
 ```bash
