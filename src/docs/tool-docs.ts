@@ -228,14 +228,17 @@ export const TOOL_DOCS: ToolDocRegistry = {
 
   list_my_action_items: {
     purpose:
-      'List action items assigned to you, across every conversation and folder.',
+      'List your action items across every conversation and folder: those ' +
+      'assigned to you, PLUS unassigned ones you created.',
     whenToUse:
-      'Answering "what do I owe / what is on my plate". Filter by `status` ' +
-      '(`todo` for open work, `suggested` for AI-proposed items not yet accepted, ' +
-      '`done` for completed). Page with `starting_after`.',
+      'Answering "what do I owe / what is on my plate" — but check ' +
+      "`assigned_to` before calling something the user's own commitment: a " +
+      'null one is an item they raised that nobody has picked up. Filter by ' +
+      '`status` (`todo` open, `suggested` AI-proposed, `done` complete). Page ' +
+      'with `starting_after`.',
     whenNotToUse:
       '`list_action_items` when you want one specific conversation or folder ' +
-      'rather than everything assigned to you.',
+      'rather than everything of yours.',
     example: { status: 'todo', limit: 25 },
     responseShape:
       '`{results: [{id, title, status, notes_text?, assigned_to?, due_date?, ' +

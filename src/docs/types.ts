@@ -5,6 +5,14 @@
  * OpenAPI schemas: `orval.config.ts` pulls from a live spec URL, so upstream
  * description edits would otherwise change our tool text between builds with no
  * diff in this repo. See `.specs/features/agent-efficiency-improvements/`.
+ *
+ * Authoring one? READ THE ENDPOINT'S JSDoc in `src/generated/carbon-voice-api.ts`
+ * first, and the cv-api handler behind it if the semantics are load-bearing.
+ * Writing what a tool *sounds like* it does is how `list_my_action_items` came
+ * to claim "assigned to you" when the endpoint actually returns items assigned
+ * to you OR unassigned ones you created — a wrong answer to "what do I owe?".
+ * The integration suite checks that every documented example is callable, but
+ * nothing can check prose against behaviour except reading the contract.
  */
 
 /** An ID this tool requires that another tool produces. */
