@@ -500,10 +500,25 @@ export const TOOL_DOCS: ToolDocRegistry = {
       'tool accepts no date filter (see note below). `list_messages` for plain ' +
       'recent history.',
     example: { heardStatus: 'unheard', limit: 25 },
+    // Full-API shape, so `_guid` naming rather than the simplified `id`. Named
+    // explicitly because an agent cannot choose `response_fields` against
+    // `messages: [...]`.
     responseShape:
-      '`{messages: [...], unheard_counts_by_channel: {conversation_id: count}, ' +
-      'success}`. Use `unheard_counts_by_channel` to decide where to look first.',
-    recommendedFields: ['unheard_counts_by_channel'],
+      '`{messages: [{message_guid, creator_guid, creator_first_name, ' +
+      'channel_guids, transcript_txt, message_ts, heard_status, ...}], ' +
+      'unheard_counts_by_channel: {conversation_id: count}, success}`. ' +
+      'Use `unheard_counts_by_channel` to decide where to look first.',
+    // Must keep the messages: "catch me up" is answered from them, and a
+    // projection down to counts alone would force the whole call to be
+    // repeated unprojected to say anything about what was actually missed.
+    recommendedFields: [
+      'unheard_counts_by_channel',
+      'messages.message_guid',
+      'messages.channel_guids',
+      'messages.creator_first_name',
+      'messages.transcript_txt',
+      'messages.message_ts',
+    ],
   },
 
   list_inbox_notifications: {

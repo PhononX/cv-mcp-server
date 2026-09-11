@@ -93,13 +93,38 @@ const step = async (name, tool, buildArgs, extract) => {
     const payload = resultJson(result);
 
     // Second call with the projection its own description recommends.
+    //
+    // A failure here has to fail the STEP. Validating the recommended
+    // `response_fields` against real data is the reason this second call
+    // exists, so swallowing its error and reporting `ok` would mean the check
+    // passes precisely when the thing it checks is broken.
     const recommended = ctx.recommended?.[tool];
     if (recommended?.length) {
-      const { result: narrow } = await call('tools/call', {
+      const { result: narrow, error: narrowError } = await call('tools/call', {
         name: tool,
         arguments: { ...toolArgs, response_fields: recommended },
       });
-      if (!narrow?.isError) row.narrowed = bytes(narrow.content);
+      if (narrowError) {
+        row.status = 'FAIL';
+        row.note = `projection JSON-RPC: ${
+          narrowError.message ?? JSON.stringify(narrowError)
+        }`;
+        results.push(row);
+        return;
+      }
+      if (narrow?.isError) {
+        row.status = 'FAIL';
+        const err = resultJson(narrow)?.body?.error;
+        const status = resultJson(narrow)?.statusCode;
+        row.note =
+          'projection failed: ' +
+          ([status, err?.code, err?.message].filter(Boolean).join(' ') ||
+            resultText(narrow).slice(0, 90) ||
+            'isError');
+        results.push(row);
+        return;
+      }
+      row.narrowed = bytes(narrow.content);
     }
 
     if (extract && payload !== undefined) {
