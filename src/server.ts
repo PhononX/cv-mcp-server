@@ -101,6 +101,7 @@ import {
   formatToMCPToolResponse,
   logger,
   redactUrlForLog,
+  withAudioFetchPermit,
 } from './utils';
 
 const simplifiedApi = getCarbonVoiceSimplifiedAPI();
@@ -389,7 +390,18 @@ function registerCarbonVoiceTools(server: McpServer): void {
           // trip on the audio path only, which is negligible next to the
           // download and multipart upload that follow.
           await cvApi.getWhoAmI(authHeader);
-          payload.audio_file = await fetchAudioFile(audio_url);
+
+          // The permit spans the upload, not just the download. The fetched
+          // bytes stay resident inside `payload.audio_file` until the
+          // multipart upload has consumed them, and that upload is the slower
+          // half — releasing after the download would bound the cheap part and
+          // leave concurrent uploads holding unbounded audio in memory.
+          return formatToMCPToolResponse(
+            await withAudioFetchPermit(async () => {
+              payload.audio_file = await fetchAudioFile(audio_url);
+              return simplifiedApi.createVoiceMemoMessage(payload, authHeader);
+            }),
+          );
         }
 
         return formatToMCPToolResponse(

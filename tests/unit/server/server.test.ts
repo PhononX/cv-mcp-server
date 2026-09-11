@@ -84,6 +84,7 @@ jest.mock('../../../src/generated', () => {
 jest.mock('../../../src/utils', () => ({
   formatToMCPToolResponse: jest.fn(),
   fetchAudioFile: jest.fn(),
+  withAudioFetchPermit: jest.fn(async (fn: () => Promise<unknown>) => fn()),
   // Real implementation: the point of the assertion below is that redaction
   // actually happens, not that a stub was called.
   redactUrlForLog: jest.requireActual('../../../src/utils/redact-url.util')
@@ -210,6 +211,23 @@ describe('MCP Server', () => {
 
   // Mock the audio fetcher used by create_voicememo_message's audio_url path
   const mockFetchAudioFile = jest.fn();
+  /**
+   * Records when the permit is entered and left so a test can assert the
+   * upload happens INSIDE it. The permit exists to bound memory held by
+   * concurrent uploads; one released at the end of the download would bound
+   * only the cheaper half.
+   */
+  const permitEvents: string[] = [];
+  const mockWithAudioFetchPermit = jest.fn(
+    async (fn: () => Promise<unknown>) => {
+      permitEvents.push('acquire');
+      try {
+        return await fn();
+      } finally {
+        permitEvents.push('release');
+      }
+    },
+  );
 
   // Mock the setCarbonVoiceAuthHeader function
   const mockSetCarbonVoiceAuthHeader = jest.fn().mockReturnValue({
@@ -232,6 +250,7 @@ describe('MCP Server', () => {
     jest.doMock('../../../src/utils', () => ({
       formatToMCPToolResponse: mockFormatToMCPToolResponse,
       fetchAudioFile: mockFetchAudioFile,
+      withAudioFetchPermit: mockWithAudioFetchPermit,
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       redactUrlForLog: require('../../../src/utils/redact-url.util')
         .redactUrlForLog,
@@ -2620,6 +2639,51 @@ describe('MCP Server', () => {
         expect(
           simplifiedApiMock.createVoiceMemoMessage.mock.calls[0][0],
         ).not.toHaveProperty('audio_url');
+      });
+
+      // The fetched bytes stay resident inside `audio_file` until the multipart
+      // upload consumes them, and the upload is the slower half — so the permit
+      // must still be held when it runs. Released at the end of the download it
+      // would bound only downloads, leaving concurrent uploads holding
+      // unbounded audio in memory, which is the failure it exists to prevent.
+      it('should hold the audio permit across the upload, not just the download', async () => {
+        permitEvents.length = 0;
+        mockFetchAudioFile.mockImplementationOnce(async () => {
+          permitEvents.push('download');
+          return { name: 'memo.mp3' };
+        });
+        simplifiedApiMock.createVoiceMemoMessage.mockImplementationOnce(
+          async () => {
+            permitEvents.push('upload');
+            return {};
+          },
+        );
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3' },
+          mockContext,
+        );
+
+        expect(permitEvents).toEqual([
+          'acquire',
+          'download',
+          'upload',
+          'release',
+        ]);
+      });
+
+      // No audio means no bytes to bound, so the permit must not be taken at
+      // all — charging a transcript-only call would shrink the budget for the
+      // calls that actually need it.
+      it('should not take an audio permit for a transcript-only message', async () => {
+        permitEvents.length = 0;
+
+        await findCall('create_voicememo_message')[2](
+          { transcript: 'hello there' },
+          mockContext,
+        );
+
+        expect(permitEvents).toEqual([]);
       });
 
       // The HTTP transport's `createOAuthTokenVerifier` only DECODES the bearer

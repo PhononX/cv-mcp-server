@@ -30,13 +30,16 @@ export const readDotEnv = () => {
     const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)$/);
     if (!m) continue;
     let value = m[2].trim();
-    const quoted = /^(['"])([\s\S]*)\1$/.exec(value);
+    // The quote and any trailing comment must be matched TOGETHER. Unquoting
+    // first with an end-anchored pattern fails on `KEY="secret" # note` — the
+    // line does not end in a quote — and stripping the comment first would
+    // truncate `KEY="has # inside"`. Either way the spawned server gets a
+    // wrong credential and every authenticated call 401s.
+    const quoted = /^(['"])([\s\S]*?)\1\s*(?:#.*)?$/.exec(value);
     if (quoted) {
       value = quoted[2];
     } else {
       // Unquoted values end at an unescaped ` #`, per dotenv semantics.
-      // Without this, `KEY=secret # only stdio uses it` yields a key with the
-      // comment appended and every authenticated call 401s.
       value = value.replace(/\s+#.*$/, '').trim();
     }
     out[m[1]] = value;

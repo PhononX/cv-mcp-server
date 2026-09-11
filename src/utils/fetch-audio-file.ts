@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { File } from 'node:buffer';
 import dns from 'node:dns/promises';
 import net from 'node:net';
@@ -448,12 +449,11 @@ const discardBody = async (response?: Response): Promise<void> => {
 // address fail certificate validation), and `AUDIO_FETCH_ALLOWED_HOSTS`
 // restricts which hosts are reachable at all.
 /**
- * In-flight fetches, process-wide.
+ * Held permits, process-wide.
  *
- * `AUDIO_FETCH_MAX_BYTES` bounds ONE fetch; this bounds their sum. The
- * tool-call queue serializes per session, so concurrency across sessions was
- * unbounded and each in-flight fetch holds its chunks, the concatenated buffer
- * and the resulting File alive until the upstream upload finishes.
+ * `AUDIO_FETCH_MAX_BYTES` bounds ONE download; this bounds their sum.
+ * The tool-call queue serializes per session, so concurrency across sessions
+ * is otherwise unbounded.
  *
  * Callers over the budget are refused immediately rather than queued: queuing
  * would hold the request open and let the backlog grow, which is the failure
@@ -461,18 +461,66 @@ const discardBody = async (response?: Response): Promise<void> => {
  */
 let inFlight = 0;
 
+/**
+ * Marks the async context of a held permit, so a nested `fetchAudioFile` joins
+ * the caller's permit instead of taking a second one. A counter or boolean
+ * cannot do this — concurrent operations would see each other's state — but an
+ * AsyncLocalStorage store is visible only to the continuations of the `run`
+ * that entered it.
+ */
+const permitHeld = new AsyncLocalStorage<true>();
+
 /** Exported for tests; the counter is module state and must not leak between them. */
 export const _resetAudioFetchConcurrency = (): void => {
   inFlight = 0;
 };
 
-export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
+/**
+ * Runs `fn` holding one audio permit.
+ *
+ * The memory a download costs is not released when the download ends: the
+ * concatenated buffer lives on inside the returned `File` until the upstream
+ * multipart upload has consumed it, and that upload is the slower half. A
+ * permit scoped to the download alone would bound the cheap part and leave the
+ * expensive part unbounded, which is the whole failure this guards against —
+ * so the operation that OWNS the File decides when the permit ends.
+ *
+ * `fetchAudioFile` takes a permit itself when it is not already inside one, so
+ * a caller that forgets to wrap is still bounded (just more loosely). Wrapping
+ * the fetch AND the upload together is the correct usage; see the
+ * `create_voicememo_message` handler.
+ */
+export const withAudioFetchPermit = async <T>(
+  fn: () => Promise<T>,
+): Promise<T> => {
+  // Already inside a permit: reuse it. Taking a second would charge one
+  // operation twice and deadlock the budget against itself at limit 1.
+  if (permitHeld.getStore()) {
+    return fn();
+  }
+
   if (inFlight >= env.AUDIO_FETCH_MAX_CONCURRENT) {
     throw new AudioFetchError(
       `too many audio downloads in progress (limit ${env.AUDIO_FETCH_MAX_CONCURRENT}); retry shortly`,
     );
   }
 
+  // Claimed last, with nothing between it and the `try` that releases it: a
+  // leaked permit is worse than the memory it bounds, since nothing short of a
+  // restart recovers one.
+  inFlight += 1;
+
+  try {
+    return await permitHeld.run(true, fn);
+  } finally {
+    inFlight -= 1;
+  }
+};
+
+export const fetchAudioFile = (rawUrl: string): Promise<File> =>
+  withAudioFetchPermit(() => downloadAudioFile(rawUrl));
+
+const downloadAudioFile = async (rawUrl: string): Promise<File> => {
   const maxBytes = env.AUDIO_FETCH_MAX_BYTES;
   const deadlineAt = Date.now() + env.AUDIO_FETCH_TIMEOUT_MS;
   const controller = new AbortController();
@@ -480,11 +528,6 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
     () => controller.abort(),
     env.AUDIO_FETCH_TIMEOUT_MS,
   );
-
-  // Claimed last, with nothing between it and the `try` that releases it: a
-  // throw in the setup above would leak the slot permanently. Nothing there
-  // throws today, but the ordering is what keeps that true.
-  inFlight += 1;
 
   try {
     let target = await assertUrlIsFetchable(rawUrl, deadlineAt);
@@ -577,6 +620,5 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
     );
   } finally {
     clearTimeout(timeout);
-    inFlight -= 1;
   }
 };

@@ -62,6 +62,42 @@ describe('readDotEnv', () => {
     });
   });
 
+  // The end-anchored unquote could not see a quoted value followed by a
+  // comment: the line does not end in a quote, so it fell through to the
+  // unquoted branch, which stripped the comment and left BOTH quotes in the
+  // value. The server then authenticated as `"abc123"` and got a 401.
+  it('strips a comment that follows a double-quoted value', () => {
+    expect(parse('CARBON_VOICE_API_KEY="abc123" # local credential\n')).toEqual(
+      {
+        CARBON_VOICE_API_KEY: 'abc123',
+      },
+    );
+  });
+
+  it('strips a comment that follows a single-quoted value', () => {
+    expect(parse("CARBON_VOICE_API_KEY='abc123' # local credential\n")).toEqual(
+      {
+        CARBON_VOICE_API_KEY: 'abc123',
+      },
+    );
+  });
+
+  // The fix must not become "strip the comment first": that would truncate a
+  // value whose own content contains a #.
+  it('keeps a quoted # while still stripping the comment after it', () => {
+    expect(parse('CARBON_VOICE_API_KEY="abc # 123" # a note\n')).toEqual({
+      CARBON_VOICE_API_KEY: 'abc # 123',
+    });
+  });
+
+  // Non-greedy matching must not stop at an interior quote when the line is
+  // not actually a quoted value with a trailing comment.
+  it('leaves a value with interior quotes and no comment alone', () => {
+    expect(parse('CARBON_VOICE_API_KEY="a" and "b"\n')).toEqual({
+      CARBON_VOICE_API_KEY: 'a" and "b',
+    });
+  });
+
   it('skips commented-out and blank lines', () => {
     expect(parse('# CARBON_VOICE_PAT=cv_pat_xxx\n\nLOG_LEVEL=debug\n')).toEqual(
       {

@@ -26,6 +26,7 @@ jest.mock('../../../src/utils/logger', () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const {
   fetchAudioFile,
+  withAudioFetchPermit,
   _resetAudioFetchConcurrency,
 } = require('../../../src/utils/fetch-audio-file');
 
@@ -109,5 +110,78 @@ describe('audio fetch concurrency budget', () => {
       );
       expect(err.message).not.toMatch(/too many audio downloads/);
     }
+  });
+
+  // The bytes a download costs are not freed when the download ends — they
+  // live inside the returned File until the upstream upload consumes them, and
+  // the upload is the slower half. A permit released at the end of the fetch
+  // bounds only the cheap part, which is the bug this pairing exists to close.
+  describe('a permit held across the upload', () => {
+    it('keeps the budget charged while the upload runs', async () => {
+      global.fetch = jest.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        arrayBuffer: async () => Buffer.from('ID3audio').buffer,
+      })) as never;
+
+      let finishUpload: (v: unknown) => void = () => undefined;
+      const uploading = new Promise((r) => (finishUpload = r));
+
+      // Two callers download and then sit in their (stalled) uploads.
+      const held = [1, 2].map((n) =>
+        withAudioFetchPermit(async () => {
+          await fetchAudioFile(`https://8.8.8.8/${n}.mp3`);
+          await uploading;
+          return n;
+        }),
+      );
+      // Let both get past the download and into the upload.
+      await new Promise((r) => setImmediate(r));
+
+      const error = await fetchAudioFile('https://8.8.8.8/c.mp3').catch(
+        (e: Error) => e,
+      );
+      expect(error.message).toMatch(/too many audio downloads/);
+
+      finishUpload(undefined);
+      await expect(Promise.all(held)).resolves.toEqual([1, 2]);
+    });
+
+    it('does not charge the nested fetch a second permit', async () => {
+      global.fetch = jest.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        arrayBuffer: async () => Buffer.from('ID3audio').buffer,
+      })) as never;
+
+      // MAX is 2. If the inner fetch took its own permit, this single
+      // operation would hold two and a second caller would be refused — and at
+      // a limit of 1 the operation would deadlock against itself.
+      const outer = withAudioFetchPermit(async () => {
+        await fetchAudioFile('https://8.8.8.8/a.mp3');
+        return withAudioFetchPermit(async () => 'nested-ok');
+      });
+
+      await expect(outer).resolves.toBe('nested-ok');
+    });
+
+    it('releases the permit when the upload throws', async () => {
+      global.fetch = jest.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        arrayBuffer: async () => Buffer.from('ID3audio').buffer,
+      })) as never;
+
+      for (let i = 0; i < MAX + 3; i++) {
+        const err = await withAudioFetchPermit(async () => {
+          await fetchAudioFile('https://8.8.8.8/a.mp3');
+          throw new Error('upload failed');
+        }).catch((e: Error) => e);
+        expect(err.message).toBe('upload failed');
+      }
+    });
   });
 });
