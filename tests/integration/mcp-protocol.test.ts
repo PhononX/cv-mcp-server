@@ -623,3 +623,59 @@ describe('list_conversations type filter over the protocol', () => {
     expect(body.results_count).toBe(1);
   });
 });
+
+// The README's tool inventory is what a human reads before wiring this server
+// up, and it drifted three separate ways before this guard: it advertised
+// `get_workspace_folders_and_message_counts`, whose registration is commented
+// out in `src/server.ts`; it omitted `summarize_conversation`, `get_current_user`
+// and `suggest_action_items_from_message`; and it carried a stale tool count.
+//
+// This is worth automating precisely because it is mechanical — unlike the
+// truthfulness of a tool's prose, which no test can check.
+describe('readme tool inventory', () => {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { TOOL_NAMES } = require('../../src/docs');
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  const readme: string = fs.readFileSync(
+    path.resolve(__dirname, '../../readme.md'),
+    'utf8',
+  );
+  const section = readme.slice(
+    readme.indexOf('## Available Tools'),
+    readme.indexOf('## Narrowing Responses'),
+  );
+  const listed = [...section.matchAll(/\*\*`([a-z_]+)`\*\*/g)].map((m) => m[1]);
+
+  it('finds the Available Tools section', () => {
+    expect(section.length).toBeGreaterThan(0);
+    expect(listed.length).toBeGreaterThan(0);
+  });
+
+  it('documents every registered tool', () => {
+    const missing = TOOL_NAMES.filter((t: string) => !listed.includes(t));
+
+    expect({ missing }).toEqual({ missing: [] });
+  });
+
+  it('advertises no tool that is not registered', () => {
+    const phantom = listed.filter((t) => !TOOL_NAMES.includes(t));
+
+    expect({ phantom }).toEqual({ phantom: [] });
+  });
+
+  it('states the current tool count wherever it states one', () => {
+    const counts = [...readme.matchAll(/\b(\d+) tools\b/g)].map((m) =>
+      Number(m[1]),
+    );
+
+    counts.forEach((n) => {
+      expect({ claimed: n, actual: TOOL_NAMES.length }).toEqual({
+        claimed: TOOL_NAMES.length,
+        actual: TOOL_NAMES.length,
+      });
+    });
+  });
+});

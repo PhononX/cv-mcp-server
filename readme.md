@@ -283,6 +283,7 @@ The server will create two log files in this directory:
 - **`create_direct_message`** - Send direct messages to users or groups
 - **`create_voicememo_message`** - Create a voice memo from text (spoken via TTS) or from audio at a URL
 - **`add_attachments_to_message`** - Add link attachments to existing messages
+- **`summarize_conversation`** - Summarise a conversation with an AI Action (needs a `prompt_id` from `list_ai_actions`)
 
 > **Voice memo audio.** Pass `audio_url` (a public **https** URL) to upload
 > existing audio; the server fetches it and forwards the bytes. The upstream
@@ -295,6 +296,7 @@ The server will create two log files in this directory:
 
 ### Users
 
+- **`get_current_user`** - Who you are acting as, plus your workspace IDs
 - **`get_user`** - Retrieve user information by ID
 - **`search_user`** - Find a user by phone number or email
 - **`search_users`** - Search multiple users by various identifiers
@@ -307,7 +309,6 @@ The server will create two log files in this directory:
 
 ### Folders
 
-- **`get_workspace_folders_and_message_counts`** - Get folder and message statistics
 - **`get_root_folders`** - List root folders for a workspace
 - **`create_folder`** - Create new folders
 - **`get_folder`** - Retrieve folder information
@@ -340,14 +341,15 @@ The server will create two log files in this directory:
 
 ### Action Items
 
-- **`list_my_action_items`** - List action items assigned to you across all conversations
+- **`list_my_action_items`** - Your action items across all conversations: those assigned to you, **plus unassigned ones you created**. Check `assigned_to` before treating an item as someone's personal commitment
 - **`list_action_items`** - List action items in one conversation, folder, or home
 - **`get_action_item`** - Get a single action item by ID
 - **`create_action_item`** - Create an action item
 - **`update_action_item`** - Update title, notes, assignee, or due date
 - **`set_action_item_status`** - Move an item between `suggested`, `todo`, and `done`
 - **`delete_action_item`** - Permanently delete an action item
-- **`suggest_action_items_from_messages`** - Extract candidate action items from messages using AI
+- **`suggest_action_items_from_message`** - Extract action items from ONE message and **return them immediately** (no polling)
+- **`suggest_action_items_from_messages`** - Extract candidate action items from SEVERAL messages using AI. Enqueued and answered `202`, so poll a listing tool with `status: "suggested"` for the results. Reasons over the whole set at once, so it can catch commitments that span messages
 
 ### Message Share Links
 
@@ -473,7 +475,7 @@ alongside the published `Carbon Voice` entry and you can compare the two.
 > **A missing credential looks like success.** Both `CARBON_VOICE_PAT` and
 > `CARBON_VOICE_API_KEY` are optional in the config schema and `tools/list`
 > never calls the API, so the server
-> connects and shows all 41 tools with no key at all. The failure surfaces
+> connects and shows all 42 tools with no key at all. The failure surfaces
 > only on the first tool call. "It connected" does not mean auth works — make
 > a real call to confirm.
 
