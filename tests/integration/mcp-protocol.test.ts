@@ -679,3 +679,85 @@ describe('readme tool inventory', () => {
     });
   });
 });
+
+// `name` is the same kind of MCP-side filter as `types`, with one extra
+// obligation: a zero-match result must not read as "no such conversation".
+describe('list_conversations name filter over the protocol', () => {
+  it('narrows to conversations whose name contains the string', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: { name: 'project x' },
+    });
+
+    const body = jsonOf(result as never);
+    expect(body.results).toEqual([
+      {
+        id: 'c2',
+        name: 'Project X',
+        workspace_id: 'w1',
+        type: 'namedConversation',
+      },
+    ]);
+    expect(body.results_count).toBe(1);
+  });
+
+  it('never forwards name to the upstream API', async () => {
+    getAllConversations.mockClear();
+
+    await client.callTool({
+      name: 'list_conversations',
+      arguments: { user_ids: ['u_fred'], name: 'fred' },
+    });
+
+    expect(getAllConversations).toHaveBeenCalledWith(
+      { user_ids: ['u_fred'] },
+      expect.anything(),
+    );
+  });
+
+  // The case the ticket is really about: an agent told `results: []` and
+  // nothing else will report that the conversation does not exist, which is
+  // wrong and unrecoverable when the user merely misspelled it.
+  it('reports the pre-filter total when nothing matches', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: { name: 'no such conversation' },
+    });
+
+    const body = jsonOf(result as never);
+    expect(body.results).toEqual([]);
+    expect(body.results_count).toBe(0);
+    expect(body.unfiltered_count).toBe(3);
+  });
+
+  // Two types in, one row out: the name has to do real narrowing here, so
+  // this cannot pass against an implementation that filters nothing.
+  it('composes with types', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: { name: 'stand', types: ['directMessage', 'asyncMeeting'] },
+    });
+
+    const body = jsonOf(result as never);
+    expect(body.results).toEqual([
+      { id: 'c3', name: 'Standup', workspace_id: 'w1', type: 'asyncMeeting' },
+    ]);
+    expect(body.results_count).toBe(1);
+  });
+
+  // A projection must not strip the signal that keeps an empty result honest.
+  it('composes with response_fields, keeping unfiltered_count', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: {
+        name: 'no such conversation',
+        response_fields: ['results.id'],
+      },
+    });
+
+    const body = jsonOf(result as never);
+    expect(body.results).toEqual([]);
+    expect(body.results_count).toBe(0);
+    expect(body.unfiltered_count).toBe(3);
+  });
+});

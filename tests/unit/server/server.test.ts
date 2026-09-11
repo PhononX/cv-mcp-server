@@ -1357,12 +1357,13 @@ describe('MCP Server', () => {
       });
 
       it('should accept user_ids and match query params via inputSchema', () => {
-        // Every upstream query param is still exposed, plus the two the MCP
-        // server adds itself: `types` filters rows, `response_fields` narrows
-        // columns. Neither is forwarded upstream.
+        // Every upstream query param is still exposed, plus the three the MCP
+        // server adds itself: `types` and `name` filter rows,
+        // `response_fields` narrows columns. None is forwarded upstream.
         expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual([
           ...Object.keys(getAllConversationsQueryParams.shape),
           'types',
+          'name',
           'response_fields',
         ]);
       });
