@@ -717,9 +717,9 @@ export const TOOL_DOCS: ToolDocRegistry = {
   },
 
   search_user: {
-    purpose: 'Find a single user by email, phone, ID or name.',
+    purpose: 'Find a single user by email, phone or name.',
     whenToUse:
-      'Resolving ONE person. Supply exactly one of `email`, `phone`, `id` or ' +
+      'Resolving ONE person. Supply exactly one of `email`, `phone` or ' +
       '`name`. Name search only matches your own contacts.',
     whenNotToUse:
       '`search_users` for several people in one call — it takes arrays and saves ' +

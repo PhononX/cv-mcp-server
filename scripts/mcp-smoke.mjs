@@ -19,10 +19,14 @@
  * Write paths are listed at the end with copy-paste commands, for you to run
  * deliberately.
  *
- * Needs stdio credentials — either CARBON_VOICE_PAT (preferred: scoped,
- * expiring, self-service) or CARBON_VOICE_API_KEY, from .env or the
- * environment — plus real network access. A read-scoped PAT is enough, since
- * every step here is read-only.
+ * Needs stdio credentials — either CARBON_VOICE_PAT (preferred: expiring,
+ * revocable, self-service) or CARBON_VOICE_API_KEY, from .env or the
+ * environment — plus real network access.
+ *
+ * Read-only is a property of THIS SCRIPT, not of the credential: cv-api does
+ * not enforce PAT scopes outside the app subscribe endpoints, so a cv:read PAT
+ * can write like any other. Use a credential you are willing to revoke, not one
+ * you believe is narrowed.
  */
 import { bytes, connect, resultJson, resultText } from './lib/mcp-stdio.mjs';
 

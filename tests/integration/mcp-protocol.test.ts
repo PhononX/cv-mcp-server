@@ -289,6 +289,38 @@ describe('tools/list contract', () => {
         expect(props).toContain(req);
       });
     });
+
+    // The example is what an agent copies. Checked against the LIVE schema
+    // rather than the doc, so a parameter that is renamed or dropped upstream
+    // surfaces here instead of as a rejected call in production.
+    it('gives an example whose keys are all real parameters', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { TOOL_DOCS } = require('../../src/docs');
+      const example = TOOL_DOCS[name]?.example ?? {};
+      const props = Object.keys(tool().inputSchema?.properties ?? {});
+
+      Object.keys(example).forEach((key) => {
+        expect({ tool: name, key, real: props.includes(key) }).toEqual({
+          tool: name,
+          key,
+          real: true,
+        });
+      });
+    });
+
+    it('requires every required parameter in its own example', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { TOOL_DOCS } = require('../../src/docs');
+      const example = TOOL_DOCS[name]?.example ?? {};
+
+      (tool().inputSchema?.required ?? []).forEach((req) => {
+        expect({ tool: name, req, present: req in example }).toEqual({
+          tool: name,
+          req,
+          present: true,
+        });
+      });
+    });
   });
 });
 
@@ -491,7 +523,9 @@ describe('error responses over the protocol', () => {
   it('rejects an unreachable audio_url without calling the API', async () => {
     const result = await client.callTool({
       name: 'create_voicememo_message',
-      arguments: { audio_url: 'http://169.254.169.254/latest/meta-data/' },
+      // https, so the ADDRESS check is what rejects this rather than the
+      // https-only rule added in cfacbf4 — the address guard is the point.
+      arguments: { audio_url: 'https://169.254.169.254/latest/meta-data/' },
     });
 
     expect((result as { isError?: boolean }).isError).toBe(true);

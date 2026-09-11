@@ -267,3 +267,70 @@ describe('projectResponse', () => {
     });
   });
 });
+
+// `response_fields` is caller-supplied and the payload is whatever the API
+// returned. `a.__proto__.isError` used to walk into Object.prototype and write
+// there — and `formatToMCPToolResponse` branches on `options.isError`, so that
+// one key would have marked every later response in the process as an error.
+describe('prototype pollution', () => {
+  // JSON.parse creates a real own property for a "__proto__" key, and axios
+  // parses API responses with JSON.parse — so this shape is reachable.
+  const withOwnProto = () =>
+    JSON.parse('{"json": {"__proto__": {"isError": true}}}');
+
+  afterEach(() => {
+    // Fail loudly rather than leaking a polluted prototype into later tests.
+    delete (Object.prototype as unknown as Record<string, unknown>).isError;
+    delete (Object.prototype as unknown as Record<string, unknown>).polluted;
+  });
+
+  it('does not write through __proto__ into Object.prototype', () => {
+    projectResponse(withOwnProto(), ['json.__proto__.isError']);
+
+    expect('isError' in {}).toBe(false);
+    expect(({} as { isError?: unknown }).isError).toBeUndefined();
+  });
+
+  it('does not write through constructor.prototype', () => {
+    const payload = JSON.parse('{"a": {"b": 1}}');
+
+    projectResponse(payload, ['a.constructor.prototype.polluted']);
+
+    expect('polluted' in {}).toBe(false);
+  });
+
+  // The rejected segment copies nothing, but the container created on the way
+  // down remains — the same shape any over-deep path already produced
+  // (`{a:{b:1}}` projected by `a.c.d` yields `{a:{}}`). Harmless, and left
+  // as-is so the security fix does not quietly change projection behaviour.
+  it('copies nothing through a forbidden segment', () => {
+    const result = projectResponse(withOwnProto(), [
+      'json.__proto__.isError',
+    ]) as Record<string, unknown>;
+
+    expect(result).toEqual({ json: {} });
+    expect(JSON.stringify(result)).not.toContain('isError');
+  });
+
+  it('still projects real fields alongside a rejected one', () => {
+    const payload = JSON.parse('{"id": "m1", "json": {"__proto__": {"x": 1}}}');
+
+    expect(projectResponse(payload, ['id', 'json.__proto__.x'])).toEqual({
+      id: 'm1',
+      json: {},
+    });
+  });
+
+  // `'total' in source` was true via the prototype chain even for a payload
+  // that owns no such key, so a polluted prototype could inject pagination
+  // metadata into an unrelated response.
+  it('preserves pagination metadata only when the payload owns it', () => {
+    (Object.prototype as unknown as Record<string, unknown>).total = 999;
+
+    try {
+      expect(projectResponse({ id: 'm1' }, ['id'])).toEqual({ id: 'm1' });
+    } finally {
+      delete (Object.prototype as unknown as Record<string, unknown>).total;
+    }
+  });
+});

@@ -42,6 +42,23 @@ const ALWAYS_PRESERVED = [
 
 type Indexable = Record<string, unknown>;
 
+/**
+ * Path segments that must never be traversed or written.
+ *
+ * `response_fields` is caller-supplied and the payload is whatever the API
+ * returned, so `a.__proto__.isError` used to walk into `Object.prototype` and
+ * write there — polluting every object in the process. `formatToMCPToolResponse`
+ * branches on `options.isError`, so that one key alone would have marked every
+ * later response, in every session, as an error.
+ *
+ * `in` was part of the problem: `'__proto__' in anyObject` is true via the
+ * prototype chain even when nothing owns it. Own-property checks below.
+ */
+const FORBIDDEN_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const owns = (source: Indexable, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(source, key);
+
 const isPlainObject = (value: unknown): value is Indexable =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -51,8 +68,10 @@ const copyPath = (
   segments: string[],
 ): void => {
   const [head, ...rest] = segments;
-  if (!head || !(head in source)) {
-    // Unknown path: ignore it. Rejecting would cost a round trip.
+  if (!head || FORBIDDEN_SEGMENTS.has(head) || !owns(source, head)) {
+    // Unknown or unsafe path: ignore it. Rejecting would cost a round trip,
+    // and a caller with no business walking the prototype chain gets the same
+    // treatment as one that simply mistyped a field.
     return;
   }
 
@@ -102,7 +121,7 @@ const projectObject = (source: Indexable, fields: string[]): Indexable => {
   });
 
   ALWAYS_PRESERVED.forEach((key) => {
-    if (key in source) {
+    if (owns(source, key)) {
       out[key] = source[key];
     }
   });
