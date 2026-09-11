@@ -472,7 +472,6 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
       `too many audio downloads in progress (limit ${env.AUDIO_FETCH_MAX_CONCURRENT}); retry shortly`,
     );
   }
-  inFlight += 1;
 
   const maxBytes = env.AUDIO_FETCH_MAX_BYTES;
   const deadlineAt = Date.now() + env.AUDIO_FETCH_TIMEOUT_MS;
@@ -481,6 +480,11 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
     () => controller.abort(),
     env.AUDIO_FETCH_TIMEOUT_MS,
   );
+
+  // Claimed last, with nothing between it and the `try` that releases it: a
+  // throw in the setup above would leak the slot permanently. Nothing there
+  // throws today, but the ordering is what keeps that true.
+  inFlight += 1;
 
   try {
     let target = await assertUrlIsFetchable(rawUrl, deadlineAt);
