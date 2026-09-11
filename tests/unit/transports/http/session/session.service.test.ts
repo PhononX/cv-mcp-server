@@ -673,6 +673,57 @@ describe('Session Service', () => {
       );
     });
 
+    // CI caught this as a 1ms overshoot: expected <= X, received X + 1. It is a
+    // real race, not a flaky assertion. `computeEffectiveIdleTtlMs` measured
+    // the remaining budget against one clock reading and `refreshIdleTimer`
+    // stamped `expiresAt` from a second one, so the cap was exceeded by
+    // whatever elapsed between them. Leaving it to chance is how it hid; here
+    // the clock is forced to tick between the two reads so the old code fails
+    // every run rather than one in a few hundred.
+    it('never exceeds the wall-clock cap, even if the clock ticks mid-refresh', () => {
+      const sessionId = 'clock-tick-session';
+      const oneHour = 60 * 60 * 1000;
+      const base = Date.now();
+      const createdAt = new Date(base - 50 * 60 * 1000); // 50m ago
+      const mockSession = {
+        transport: mockTransport,
+        timeout: {} as any,
+        userId: 'test-user-id',
+        metrics: {
+          sessionId,
+          userId: 'test-user-id',
+          createdAt,
+          expiresAt: new Date(base + 60000),
+          totalInteractions: 1,
+          totalToolCalls: 0,
+          lastActivityAt: new Date(base),
+          errorCount: 0,
+          averageResponseTime: 0,
+        },
+      };
+
+      const config = new SessionConfig(oneHour, 2000, 5 * 60 * 1000, oneHour);
+      sessionService = new SessionService(sessionManager as any, config);
+      (sessionManager.getSession as jest.Mock).mockReturnValue(mockSession);
+
+      // Advance one millisecond on every clock read, so any two readings in the
+      // refresh path are guaranteed to differ.
+      let tick = 0;
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockImplementation(() => base + tick++);
+
+      try {
+        sessionService.recordInteraction(sessionId);
+      } finally {
+        nowSpy.mockRestore();
+      }
+
+      expect(mockSession.metrics.expiresAt.getTime()).toBeLessThanOrEqual(
+        createdAt.getTime() + oneHour,
+      );
+    });
+
     it('should return false and destroy session when max wall-clock age is exceeded', () => {
       const sessionId = 'expired-by-max-age-session';
       const oneHour = 60 * 60 * 1000;
