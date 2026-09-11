@@ -216,6 +216,10 @@ export const isBlockedAddress = (ip: string): boolean => {
   }
 
   if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  // fec0::/10 site-local. Deprecated by RFC 3879 and so easy to leave out, but
+  // plenty of networks still route it internally — which is exactly what makes
+  // it worth reaching for.
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0) return true;
   if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
   if (bytes[0] === 0xff) return true; // ff00::/8 multicast
 

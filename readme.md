@@ -162,30 +162,45 @@ If you prefer to run the MCP server locally with API key authentication:
 3. Replace `"your_api_key_here"` with your actual Carbon Voice API key
 4. Save the file and restart Claude Desktop
 
-### Environment Variables (Only available for Stdio Version)
+### Audio fetch controls (all transports)
 
-When using the stdio version of the MCP server, you can configure additional environment variables:
+These govern `create_voicememo_message`'s `audio_url` — the one place the server
+fetches a URL a caller supplied. **They apply to every transport**, stdio and
+HTTP alike; they are not part of the stdio-only set below.
 
 #### AUDIO_FETCH_ALLOWED_HOSTS
 
-Comma-separated hostname allowlist for `create_voicememo_message`'s `audio_url`.
-When set, only these hosts (and their subdomains) may be fetched. **Set this in
-production** — it is the strongest control against the server being used as an
-SSRF proxy. When unset, any public host is allowed, but private, loopback and
-link-local address space is still refused.
+Comma-separated hostname allowlist. When set, only these hosts (and their
+subdomains) may be fetched. **Set this in production** — it is the strongest
+control against the server being used as an SSRF proxy, and the only one that
+also narrows the DNS-rebinding window described in `src/utils/fetch-audio-file.ts`.
+When unset, any public host is allowed over https, while private, loopback,
+link-local and site-local address space is still refused.
+
+Entries may be hostnames or IP literals; an IPv6 literal works written bare or
+bracketed.
 
 ```
 AUDIO_FETCH_ALLOWED_HOSTS=cdn.example.com,uploads.example.com
 ```
 
+Naming a host here is also what permits plain `http` for it. With no allowlist,
+only `https` URLs are accepted.
+
 #### AUDIO_FETCH_MAX_BYTES
 
 Maximum size of a fetched audio file, in bytes. Defaults to `26214400` (25 MB).
-Enforced against both `content-length` and the bytes actually received.
+Enforced against both `content-length` and the bytes actually received, while
+streaming — an oversized body is cancelled rather than buffered.
 
 #### AUDIO_FETCH_TIMEOUT_MS
 
 Timeout for the whole `audio_url` fetch, in milliseconds. Defaults to `30000`.
+Bounds DNS resolution as well as the request itself.
+
+### Environment Variables (Only available for Stdio Version)
+
+When using the stdio version of the MCP server, you can configure additional environment variables:
 
 #### LOG_LEVEL
 
@@ -269,12 +284,14 @@ The server will create two log files in this directory:
 - **`create_voicememo_message`** - Create a voice memo from text (spoken via TTS) or from audio at a URL
 - **`add_attachments_to_message`** - Add link attachments to existing messages
 
-> **Voice memo audio.** Pass `audio_url` (a public http(s) URL) to upload existing
-> audio; the server fetches it and forwards the bytes. The upstream `audio_file`
-> multipart param is not exposed over MCP, because a JSON-RPC client cannot
-> construct a `File`. Fetches are constrained: http(s) only, private/loopback/
-> link-local addresses refused, redirects re-validated per hop, plus a size cap
-> and timeout — see `AUDIO_FETCH_*` below.
+> **Voice memo audio.** Pass `audio_url` (a public **https** URL) to upload
+> existing audio; the server fetches it and forwards the bytes. The upstream
+> `audio_file` multipart param is not exposed over MCP, because a JSON-RPC
+> client cannot construct a `File`. Fetches are constrained: https only (plain
+> http needs the host in `AUDIO_FETCH_ALLOWED_HOSTS`), private/loopback/
+> link-local/site-local addresses refused, URLs embedding credentials refused,
+> redirects re-validated per hop, plus a size cap and timeout — see
+> `AUDIO_FETCH_*` under [Audio fetch controls](#audio-fetch-controls-all-transports).
 
 ### Users
 
