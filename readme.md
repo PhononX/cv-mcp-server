@@ -198,6 +198,17 @@ streaming — an oversized body is cancelled rather than buffered.
 Timeout for the whole `audio_url` fetch, in milliseconds. Defaults to `30000`.
 Bounds DNS resolution as well as the request itself.
 
+#### AUDIO_FETCH_MAX_CONCURRENT
+
+How many `audio_url` fetches may be in flight across the whole process.
+Defaults to `4`; callers beyond it are refused immediately rather than queued.
+
+`AUDIO_FETCH_MAX_BYTES` caps a single fetch, this caps their sum. The tool-call
+queue serializes per *session*, so without a process-wide budget one caller
+using several sessions could hold gigabytes of transient memory — each in-flight
+fetch keeps its chunks, the concatenated buffer, and the resulting file alive
+until the upstream upload finishes.
+
 ### Environment Variables (Only available for Stdio Version)
 
 When using the stdio version of the MCP server, you can configure additional environment variables:
@@ -511,13 +522,20 @@ npm run mcp:call -- get_current_user '{"response_fields":["user.user_guid"]}'
 JSON-RPC stream on stdout).
 
 **`list`, `schema` and `size` need no credentials** — the server builds its tool
-list without calling out. So do any calls rejected by local validation, which is
-a useful way to exercise error paths:
+list without calling out. So does anything the tool's own schema rejects, which
+never reaches a handler:
 
 ```bash
-npm run mcp:call -- create_voicememo_message '{"audio_url":"http://169.254.169.254/"}'
-# -> isError: true, INVALID_AUDIO_URL, with a next_action hint
+npm run mcp:call -- create_voicememo_message '{"audio_url":"not-a-url"}'
+# -> JSON-RPC -32602, "Invalid url" on path audio_url
 ```
+
+The SSRF guard is a different matter. `audio_url` is only fetched after the
+caller is authenticated against cv-api, so a URL like
+`http://169.254.169.254/` returns **401 before the guard is consulted** unless
+credentials are configured — with them, it returns `INVALID_AUDIO_URL`. That
+ordering is deliberate: an unauthenticated caller should not be able to make
+this server fetch anything at all.
 
 Calls that reach the API need stdio credentials: `CARBON_VOICE_PAT`
 (preferred) or `CARBON_VOICE_API_KEY`.

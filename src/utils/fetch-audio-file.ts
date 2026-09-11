@@ -447,7 +447,33 @@ const discardBody = async (response?: Response): Promise<void> => {
 // allowlists the host (see `assertUrlIsFetchable` — TLS makes the rebound
 // address fail certificate validation), and `AUDIO_FETCH_ALLOWED_HOSTS`
 // restricts which hosts are reachable at all.
+/**
+ * In-flight fetches, process-wide.
+ *
+ * `AUDIO_FETCH_MAX_BYTES` bounds ONE fetch; this bounds their sum. The
+ * tool-call queue serializes per session, so concurrency across sessions was
+ * unbounded and each in-flight fetch holds its chunks, the concatenated buffer
+ * and the resulting File alive until the upstream upload finishes.
+ *
+ * Callers over the budget are refused immediately rather than queued: queuing
+ * would hold the request open and let the backlog grow, which is the failure
+ * this exists to prevent.
+ */
+let inFlight = 0;
+
+/** Exported for tests; the counter is module state and must not leak between them. */
+export const _resetAudioFetchConcurrency = (): void => {
+  inFlight = 0;
+};
+
 export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
+  if (inFlight >= env.AUDIO_FETCH_MAX_CONCURRENT) {
+    throw new AudioFetchError(
+      `too many audio downloads in progress (limit ${env.AUDIO_FETCH_MAX_CONCURRENT}); retry shortly`,
+    );
+  }
+  inFlight += 1;
+
   const maxBytes = env.AUDIO_FETCH_MAX_BYTES;
   const deadlineAt = Date.now() + env.AUDIO_FETCH_TIMEOUT_MS;
   const controller = new AbortController();
@@ -547,5 +573,6 @@ export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
     );
   } finally {
     clearTimeout(timeout);
+    inFlight -= 1;
   }
 };

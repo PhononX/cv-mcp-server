@@ -53,11 +53,13 @@ const Environment = z.object({
    * Personal Access Token for the stdio transport, as an alternative to
    * CARBON_VOICE_API_KEY. Sent as `Authorization: Bearer <pat>`, which is what
    * cv-api's PatTokenStrategy reads; it recognises PATs by their `cv_pat_`
-   * prefix and applies the token's own scopes.
+   * prefix.
    *
-   * Preferred over an API key where available: a PAT is scoped (cv:read /
-   * cv:write), expires, is revocable, and is self-service via `POST /pats` —
-   * whereas an API key carries the full user identity with no scoping.
+   * Preferred over an API key where available because it expires, is
+   * revocable, and is self-service via `POST /pats`. NOT because it is
+   * narrower: cv-api enforces a PAT's cv:read / cv:write scopes only on the
+   * app subscribe/unsubscribe endpoints, so a cv:read PAT writes like any
+   * other credential. Treat either as full access you can revoke.
    *
    * Takes precedence over CARBON_VOICE_API_KEY when both are set.
    */
@@ -113,6 +115,31 @@ const Environment = z.object({
       const n = Number(s);
       if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
         throw new Error('AUDIO_FETCH_MAX_BYTES must be a positive integer');
+      }
+      return n;
+    }),
+  /**
+   * How many `audio_url` fetches may be in flight across the WHOLE process.
+   *
+   * AUDIO_FETCH_MAX_BYTES caps one fetch; nothing capped their sum. The
+   * tool-call queue serializes per SESSION (`queueBySessionId`), so one caller
+   * with several sessions gets that many concurrent fetches, each holding its
+   * chunks, the concatenated buffer, and the resulting File alive through the
+   * upstream upload. At the 60 requests/minute the HTTP limiter allows, that
+   * is gigabytes of transient memory and an out-of-memory kill.
+   *
+   * 4 x 25 MiB, roughly doubled by the concat, bounds it near 200 MiB.
+   */
+  AUDIO_FETCH_MAX_CONCURRENT: z
+    .string()
+    .optional()
+    .default('4')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'AUDIO_FETCH_MAX_CONCURRENT must be a positive integer',
+        );
       }
       return n;
     }),
