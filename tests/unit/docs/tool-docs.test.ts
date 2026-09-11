@@ -90,6 +90,48 @@ describe('renderToolDoc', () => {
     expect(out).not.toContain('ERROR ');
   });
 
+  // A prerequisite whose source depends on another parameter must say so.
+  // `list_action_items` takes a conversation id OR a folder id depending on
+  // `container_type`, and naming one source unconditionally sends an agent to
+  // the wrong tool for the other — a lookup that fails rather than a wrong
+  // answer, but only because the ids happen not to collide.
+  it('renders a conditional prerequisite with its condition', () => {
+    const out = renderToolDoc({
+      ...minimal,
+      prerequisites: [
+        {
+          field: 'container_id',
+          fromTool: 'get_root_folders',
+          fromField: 'results[].id',
+          when: '`container_type` is `folder`',
+        },
+      ],
+    });
+
+    expect(out).toContain(
+      'FIRST: `container_id` comes from `get_root_folders` (field `results[].id`) ' +
+        'when `container_type` is `folder`',
+    );
+  });
+
+  it('renders an unconditional prerequisite without a dangling "when"', () => {
+    const out = renderToolDoc({
+      ...minimal,
+      prerequisites: [
+        {
+          field: 'id',
+          fromTool: 'list_conversations',
+          fromField: 'results[].id',
+        },
+      ],
+    });
+
+    expect(out).toContain(
+      'FIRST: `id` comes from `list_conversations` (field `results[].id`) — call it first',
+    );
+    expect(out).not.toContain('when ');
+  });
+
   it('renders the example as valid JSON an agent can copy', () => {
     const line = renderToolDoc(minimal)
       .split('\n')

@@ -42,7 +42,20 @@ describe('isBlockedAddress', () => {
     ['169.254.169.254', 'link-local cloud metadata'],
     ['0.0.0.0', 'this-network'],
     ['100.64.0.1', 'carrier-grade NAT'],
+    ['100.127.255.254', 'carrier-grade NAT upper bound'],
     ['224.0.0.1', 'multicast'],
+    ['255.255.255.255', 'limited broadcast'],
+    ['240.0.0.1', 'reserved 240/4'],
+    // TEST-NET and 6to4 relay space: not routable on the public internet, but
+    // deployments do route them internally, which is exactly what makes them
+    // reachable targets. All four were classified public before the CIDR table.
+    ['192.0.2.1', 'TEST-NET-1'],
+    ['198.51.100.5', 'TEST-NET-2'],
+    ['203.0.113.9', 'TEST-NET-3'],
+    ['192.88.99.1', 'deprecated 6to4 relay anycast'],
+    ['192.0.0.1', 'IETF protocol assignments'],
+    ['198.18.0.1', 'benchmarking'],
+    ['198.19.255.254', 'benchmarking upper bound'],
     ['::1', 'IPv6 loopback'],
     ['fe80::1', 'IPv6 link-local'],
     ['fd00::1', 'IPv6 unique-local'],
@@ -62,6 +75,21 @@ describe('isBlockedAddress', () => {
     ['172.32.0.1', 'just above the private 172.31 range'],
     ['192.167.0.1', 'just below 192.168'],
     ['93.184.216.34', 'ordinary public host'],
+    ['100.63.255.255', 'just below the carrier-grade NAT range'],
+    ['100.128.0.1', 'just above the carrier-grade NAT range'],
+    ['198.17.255.255', 'just below the benchmarking range'],
+    ['198.20.0.1', 'just above the benchmarking range'],
+    ['223.255.255.255', 'just below multicast'],
+    // A /1../31 mask is a negative int32 in JS. Without the unsigned coercion
+    // in `inIpv4Block`, every address at or above 128.0.0.0 is misjudged.
+    ['129.0.0.1', 'above 128.0.0.0, where a signed mask would misjudge'],
+    // The registry marks these globally reachable despite sitting among the
+    // special-purpose blocks, so the table must not sweep them up.
+    ['192.31.196.1', 'AS112-v4, globally reachable'],
+    ['192.175.48.1', 'direct delegation AS112, globally reachable'],
+    // The old octet check blocked all of 192.0.0.0/16 as a side effect of
+    // testing only the first two octets. Only /24s inside it are reserved.
+    ['192.0.1.1', 'inside 192.0/16 but not a reserved /24'],
     ['2606:4700::1111', 'public IPv6'],
   ])('allows %s (%s)', (ip) => {
     expect(isBlockedAddress(ip)).toBe(false);

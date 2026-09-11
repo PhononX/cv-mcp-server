@@ -141,6 +141,50 @@ export const ipv6ToBytes = (input: string): number[] | null => {
 };
 
 /**
+ * IPv4 blocks that are not globally reachable, from IANA's IPv4 Special-Purpose
+ * Address Registry, plus multicast and the reserved top of the space.
+ *
+ * Written as CIDRs rather than octet comparisons deliberately. The previous
+ * form (`a === 198 && (b === 18 || b === 19)`) read as a list of special cases
+ * with no way to tell what was missing, and it was missing three: TEST-NET-2,
+ * TEST-NET-3 and the deprecated 6to4 relay anycast prefix, any of which a
+ * deployment may route internally. This form can be diffed against the
+ * registry line by line.
+ *
+ * The AS112 and AMT blocks inside 192.0.0.0/24's neighbourhood (192.31.196.0/24,
+ * 192.52.193.0/24, 192.175.48.0/24) are marked globally reachable by the
+ * registry and are deliberately NOT here.
+ */
+const BLOCKED_IPV4_BLOCKS: ReadonlyArray<readonly [string, number]> = [
+  ['0.0.0.0', 8], // "this network"
+  ['10.0.0.0', 8], // private
+  ['100.64.0.0', 10], // carrier-grade NAT (shared address space)
+  ['127.0.0.0', 8], // loopback
+  ['169.254.0.0', 16], // link-local, incl. cloud metadata at 169.254.169.254
+  ['172.16.0.0', 12], // private
+  ['192.0.0.0', 24], // IETF protocol assignments
+  ['192.0.2.0', 24], // TEST-NET-1
+  ['192.88.99.0', 24], // deprecated 6to4 relay anycast
+  ['192.168.0.0', 16], // private
+  ['198.18.0.0', 15], // benchmarking
+  ['198.51.100.0', 24], // TEST-NET-2
+  ['203.0.113.0', 24], // TEST-NET-3
+  ['224.0.0.0', 4], // multicast
+  ['240.0.0.0', 4], // reserved, incl. 255.255.255.255 broadcast
+];
+
+const ipv4ToInt = (ip: string): number =>
+  ip.split('.').reduce((acc, octet) => acc * 256 + Number(octet), 0);
+
+const inIpv4Block = (ip: string, prefix: string, bits: number): boolean => {
+  // `>>> 0` keeps the mask unsigned: a /1../31 mask built with `<<` is a
+  // negative int32 in JS, and comparing it against an unsigned address would
+  // misjudge everything at or above 128.0.0.0.
+  const mask = bits === 0 ? 0 : (-1 << (32 - bits)) >>> 0;
+  return (ipv4ToInt(ip) & mask) >>> 0 === (ipv4ToInt(prefix) & mask) >>> 0;
+};
+
+/**
  * True when an IP sits in address space that should never be reachable from a
  * user-supplied URL — loopback, private ranges, link-local (which covers cloud
  * metadata endpoints such as 169.254.169.254), and unspecified/reserved blocks.
@@ -158,17 +202,9 @@ export const isBlockedAddress = (ip: string): boolean => {
   }
 
   if (version === 4) {
-    const parts = ip.split('.').map(Number);
-    const [a, b] = parts;
-    if (a === 0 || a === 10 || a === 127) return true; // this-network, private, loopback
-    if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
-    if (a === 172 && b >= 16 && b <= 31) return true; // private
-    if (a === 192 && b === 168) return true; // private
-    if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
-    if (a === 192 && b === 0) return true; // IETF protocol assignments
-    if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
-    if (a >= 224) return true; // multicast and reserved
-    return false;
+    return BLOCKED_IPV4_BLOCKS.some(([prefix, bits]) =>
+      inIpv4Block(ip, prefix, bits),
+    );
   }
 
   const bytes = ipv6ToBytes(ip);

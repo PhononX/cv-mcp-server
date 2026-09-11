@@ -23,8 +23,9 @@ export const renderToolDoc = (doc: ToolDoc): string => {
   }
 
   doc.prerequisites?.forEach((p) => {
+    const condition = p.when ? ` when ${p.when}` : '';
     lines.push(
-      `FIRST: \`${p.field}\` comes from \`${p.fromTool}\` (field \`${p.fromField}\`) — call it first if you don't have one.`,
+      `FIRST: \`${p.field}\` comes from \`${p.fromTool}\` (field \`${p.fromField}\`)${condition} — call it first if you don't have one.`,
     );
   });
 

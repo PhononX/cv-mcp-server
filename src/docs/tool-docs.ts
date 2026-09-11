@@ -263,8 +263,10 @@ export const TOOL_DOCS: ToolDocRegistry = {
       'List action items belonging to one container — a conversation, a folder, or home.',
     whenToUse:
       'You have a `container_id` and want its action items. `container_type` is ' +
-      '`channel` for a conversation, `folder` for a folder, or `home`. ' +
-      'Filter by `status` or `assigned_to` (pass the string `null` for unassigned).',
+      '`channel` for a conversation, `folder` for a folder, or `home`. A ' +
+      'conversation id is NOT a folder id — resolve `container_id` with the tool ' +
+      'matching your `container_type`. Filter by `status` or `assigned_to` ' +
+      '(pass the string `null` for unassigned).',
     whenNotToUse:
       '`list_my_action_items` for everything assigned to you regardless of where it lives.',
     prerequisites: [
@@ -272,6 +274,13 @@ export const TOOL_DOCS: ToolDocRegistry = {
         field: 'container_id',
         fromTool: 'list_conversations',
         fromField: 'results[].id',
+        when: '`container_type` is `channel`',
+      },
+      {
+        field: 'container_id',
+        fromTool: 'get_root_folders',
+        fromField: 'results[].id',
+        when: '`container_type` is `folder`',
       },
     ],
     example: {

@@ -29,6 +29,15 @@ export interface ToolPrerequisite {
   fromTool: string;
   /** Field on that tool's response holding the value, e.g. `id`. */
   fromField: string;
+  /**
+   * Condition under which THIS source is the right one, e.g.
+   * '`container_type` is `folder`'. Set it whenever another parameter selects
+   * between sources: `list_action_items` takes a conversation id or a folder
+   * id depending on `container_type`, and stating one source unconditionally
+   * sends an agent to the wrong tool for the other. Omit when the source is
+   * unconditional, which is the usual case.
+   */
+  when?: string;
 }
 
 /** A likely error and the single next step that resolves it. */
