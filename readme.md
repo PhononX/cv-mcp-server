@@ -445,8 +445,8 @@ Restart the client after editing. Name it `carbon-voice-dev` so it can sit
 alongside the published `Carbon Voice` entry and you can compare the two.
 
 > Either credential works in the `env` block — `CARBON_VOICE_PAT` is shown
-> because it is scoped and self-service; `CARBON_VOICE_API_KEY` behaves the
-> same way. See the credential comparison further down.
+> because it expires and is self-service; `CARBON_VOICE_API_KEY` behaves the
+> same way. Both grant full access. See the credential comparison further down.
 
 > **The `env` block is mandatory — `.env` is NOT read here.** `env-cmd` only
 > wraps the npm scripts, and `scripts/mcp-client.mjs` parses `.env` itself; the
@@ -516,6 +516,10 @@ tool descriptions tell an agent to — workspace id, then conversation id, then
 message id — so a broken prerequisite shows up as a failed step instead of an
 agent quietly guessing. Add `--verbose` to dump each payload.
 
+Read-only is a property of the script, which calls no create, update or delete
+tool — not of the credential. Whatever you put in `.env` can write; see the
+credential comparison above.
+
 Every read is called twice: bare, and with the `response_fields` set its own
 description recommends. The report shows the byte delta per tool and in total,
 so the projection claim is measured on your data rather than on a fixture.
@@ -542,14 +546,23 @@ code:
 >
 > | | API key | PAT |
 > | --- | --- | --- |
-> | Scopes | none — full user identity | `cv:read` / `cv:write` |
+> | Access | full user identity | full user identity |
 > | Expiry | long-lived | max 2 years, revocable |
 > | Getting one | email devsupport@phononx.com | self-service: `POST /pats` |
 >
+> **A PAT is not a least-privilege credential.** It carries `cv:read` /
+> `cv:write` scopes and is issued with both by default, but cv-api enforces
+> them in exactly one place — the app subscribe/unsubscribe endpoints
+> (`user-app.service.ts`). Nothing in `/simplified/*` reads them, so a
+> `cv:read` PAT can send messages and delete folders like any other credential.
+> Do not hand one to an untrusted client expecting read-only access. The PAT is
+> better because you can expire and revoke it, not because it is narrower.
+>
 > When both are set the PAT wins **and `x-api-key` is suppressed entirely**.
 > That matters: cv-api tries `api-key` before `pat-token` in its strategy
-> chain, so sending both would let the API key win and silently discard the
-> PAT's scopes.
+> chain, so sending both would authenticate the request as the long-lived key
+> rather than the PAT you configured — losing its expiry, its revocability and
+> its identity in the audit trail.
 >
 > Neither is used by the HTTP transport, which authenticates with OAuth.
 

@@ -151,3 +151,101 @@ describe('compactValidationErrors', () => {
     expect(compactValidationErrors([{ property: 'x' }])).toBeUndefined();
   });
 });
+
+// Exercises the real 400 path end to end — the error handler is not exported,
+// and the defect being guarded (nested `target` dumps surviving) only shows up
+// in the shape that actually reaches the caller.
+describe('validation errors through mutator', () => {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const http = require('node:http');
+  let server: import('node:http').Server;
+
+  // A nested DTO failure: every node carries its own `target` with the whole
+  // request object on it, which is what made these payloads enormous.
+  const NESTED_VALIDATION_400 = {
+    statusCode: 400,
+    message: [
+      {
+        property: 'to',
+        target: { to: { user_ids: 'travis' }, transcript: 'hi' },
+        children: [
+          {
+            property: 'user_ids',
+            value: 'travis',
+            target: { user_ids: 'travis' },
+            constraints: { isArray: 'user_ids must be an array' },
+            children: [
+              {
+                property: 'deep',
+                target: { user_ids: 'travis' },
+                constraints: { isString: 'deep must be a string' },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  beforeAll(async () => {
+    server = http.createServer(
+      (_req: unknown, res: import('node:http').ServerResponse) => {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(NESTED_VALIDATION_400));
+      },
+    );
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const { port } = server.address() as { port: number };
+    process.env.CARBON_VOICE_BASE_URL = `http://127.0.0.1:${port}`;
+    process.env.CARBON_VOICE_API_KEY = 'test-key';
+    // This sandbox routes outbound HTTP through an agent proxy that rejects
+    // plain-http absolute-form requests; loopback must bypass it.
+    process.env.NO_PROXY = '127.0.0.1,localhost';
+    process.env.no_proxy = '127.0.0.1,localhost';
+    // The axios instance is built at module load, so it captured the default
+    // base URL before this ran. Drop it and let the lazy require below build a
+    // fresh one against the local server.
+    jest.resetModules();
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  const failedCall = async () => {
+    const { mutator } = require('../../../src/utils/axios-instance');
+    return mutator({ url: '/anything', method: 'GET' }).catch(
+      (e: unknown) => e,
+    );
+  };
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  it('strips every target, including nested children', async () => {
+    const error = await failedCall();
+
+    // Any surviving `target` means a full request dump is still on the wire.
+    expect(JSON.stringify(error)).not.toContain('"target"');
+  });
+
+  it('keeps the useful parts of a nested failure', async () => {
+    const error = await failedCall();
+    const serialized = JSON.stringify(error);
+
+    expect(serialized).toContain('user_ids must be an array');
+    expect(serialized).toContain('deep must be a string');
+  });
+
+  it('flattens the nested messages into readable one-liners, with the path', async () => {
+    const error = await failedCall();
+
+    // The dotted path is the point: `to.user_ids` tells an agent WHICH field of
+    // which sub-object to fix, which the raw nested blob buried.
+    expect(error.body.error.message).toBe(
+      'to.user_ids: user_ids must be an array; to.user_ids.deep: deep must be a string',
+    );
+    expect(error.body.error.validation).toEqual([
+      'to.user_ids: user_ids must be an array',
+      'to.user_ids.deep: deep must be a string',
+    ]);
+  });
+});

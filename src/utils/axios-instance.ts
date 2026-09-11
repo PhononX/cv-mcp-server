@@ -154,7 +154,29 @@ export const compactValidationErrors = (
   return out.length ? out : undefined;
 };
 
-/** Strips the request dumps class-validator attaches to each error. */
+/**
+ * Strips the request dumps class-validator attaches to each error.
+ *
+ * Recurses through `children`: a nested DTO failure produces a tree of errors
+ * and EVERY node carries its own `target` with the whole request object on it.
+ * Stripping only the top level left the dumps in place for exactly the nested
+ * cases that produce the biggest payloads.
+ */
+const stripValidationTarget = (entry: unknown): unknown => {
+  if (!entry || typeof entry !== 'object') {
+    return entry;
+  }
+  const rest: Record<string, unknown> = {};
+  Object.entries(entry as Record<string, unknown>).forEach(([k, v]) => {
+    if (k === 'target') {
+      return;
+    }
+    rest[k] =
+      k === 'children' && Array.isArray(v) ? v.map(stripValidationTarget) : v;
+  });
+  return rest;
+};
+
 const withoutValidationTargets = (data: unknown): unknown => {
   if (!data || typeof data !== 'object') {
     return data;
@@ -165,20 +187,7 @@ const withoutValidationTargets = (data: unknown): unknown => {
   }
   return {
     ...body,
-    message: body.message.map((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return entry;
-      }
-      // Drop `target` — class-validator attaches the whole request DTO to
-      // every error, which is what made these payloads unreadable.
-      const rest: Record<string, unknown> = {};
-      Object.entries(entry as Record<string, unknown>).forEach(([k, v]) => {
-        if (k !== 'target') {
-          rest[k] = v;
-        }
-      });
-      return rest;
-    }),
+    message: body.message.map(stripValidationTarget),
   };
 };
 
