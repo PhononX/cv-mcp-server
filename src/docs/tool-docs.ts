@@ -245,10 +245,15 @@ export const TOOL_DOCS: ToolDocRegistry = {
       'container_id?, container_type?, source_message_id?, creator_id, ...}], ' +
       'total?, results_count?, has_more?, next_cursor?, filters?}`. ' +
       'Keep paging while `has_more` is true, passing `next_cursor` as `starting_after`.',
+    // `assigned_to` is not optional here the way it is on other tools: the
+    // guidance above tells the agent to check it before calling an item the
+    // user's own commitment, so a projection that strips it makes the tool's
+    // own instruction impossible to follow.
     recommendedFields: [
       'results.id',
       'results.title',
       'results.status',
+      'results.assigned_to',
       'results.due_date',
     ],
   },

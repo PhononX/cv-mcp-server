@@ -13,6 +13,12 @@
  * to you OR unassigned ones you created — a wrong answer to "what do I owe?".
  * The integration suite checks that every documented example is callable, but
  * nothing can check prose against behaviour except reading the contract.
+ *
+ * And keep a doc consistent with ITSELF. `recommendedFields` is a projection an
+ * agent will actually apply, so any field the prose tells it to inspect has to
+ * survive that projection — `list_my_action_items` told the agent to check
+ * `assigned_to` while recommending a projection that stripped it, which makes
+ * the tool's own instruction impossible to follow.
  */
 
 /** An ID this tool requires that another tool produces. */
