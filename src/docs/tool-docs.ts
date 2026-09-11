@@ -524,9 +524,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
       'Create a voice memo, either from text (spoken via text-to-speech) or from an audio file at a URL.',
     whenToUse:
       'Pass `transcript` (2-5000 chars) to have Carbon Voice speak the text, ' +
-      'or `audio_url` to upload existing audio, which overrides `transcript`. ' +
-      'File it with `folder_id`, whose folder type must match, or place it in a ' +
-      'workspace with `workspace_id`.',
+      'or an https `audio_url` to upload audio, which wins over `transcript`. ' +
+      'File it with `folder_id`, whose type must match, or a `workspace_id`.',
     whenNotToUse:
       '`create_conversation_message` to post into an existing conversation, or ' +
       '`create_direct_message` to send to specific people. A voice memo is ' +
@@ -541,10 +540,10 @@ export const TOOL_DOCS: ToolDocRegistry = {
       {
         code: 'INVALID_AUDIO_URL',
         meaning:
-          '`audio_url` is unreachable, too large, timed out, or resolves to a ' +
-          'private address.',
+          '`audio_url` is not https, unreachable, too large, timed out, ' +
+          'embeds credentials, or resolves to a private address.',
         nextAction:
-          'The message gives the reason. Use a public URL, or pass ' +
+          'The message gives the reason. Use a public https URL, or pass ' +
           '`transcript` instead.',
       },
       {

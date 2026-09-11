@@ -344,11 +344,12 @@ function registerCarbonVoiceTools(server: McpServer): void {
         .url()
         .optional()
         .describe(
-          'Public http(s) URL to an audio file to upload. Supported formats: ' +
+          'Public **https** URL to an audio file to upload. Supported formats: ' +
             '.mp3, .m4a, .wav, .aac, .ogg, .flac, .wma, .opus, .webm. ' +
             'Overrides `transcript` when provided. The server fetches this URL, ' +
             'so it must be publicly reachable — private, loopback and link-local ' +
-            'addresses are refused.',
+            'addresses are refused, and plain http only works for hosts the ' +
+            'operator has allowlisted.',
         ),
     });
 
