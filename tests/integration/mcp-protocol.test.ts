@@ -87,6 +87,7 @@ const aIResponseControllerCreateResponse = jest.fn();
 // the wire-format test below exercises.
 const actionItemControllerCreateSuggestionsFromMessages = jest.fn();
 const createActionItemSuggestionsFromMessage = jest.fn();
+const getAllConversations = jest.fn();
 
 jest.mock('../../src/generated', () => {
   const explicit: Record<string, unknown> = {};
@@ -103,6 +104,7 @@ jest.mock('../../src/generated', () => {
           if (prop === 'actionItemControllerCreateSuggestionsFromMessages') {
             return actionItemControllerCreateSuggestionsFromMessages;
           }
+          if (prop === 'getAllConversations') return getAllConversations;
           return jest.fn().mockResolvedValue({});
         },
       }),
@@ -157,6 +159,19 @@ beforeAll(async () => {
   createActionItemSuggestionsFromMessage.mockResolvedValue([
     { id: 'ai_1', title: 'Send the deck', status: 'suggested' },
   ]);
+  getAllConversations.mockResolvedValue({
+    results_count: 3,
+    results: [
+      { id: 'c1', name: 'Fred', workspace_id: 'w1', type: 'directMessage' },
+      {
+        id: 'c2',
+        name: 'Project X',
+        workspace_id: 'w1',
+        type: 'namedConversation',
+      },
+      { id: 'c3', name: 'Standup', workspace_id: 'w1', type: 'asyncMeeting' },
+    ],
+  });
 
   // Required (not dynamically imported) after the mocks are registered:
   // this Jest config runs without --experimental-vm-modules, so `await
@@ -517,5 +532,60 @@ describe('void endpoints over the protocol', () => {
     expect(jsonOf(result as never)).toEqual([
       { id: 'ai_1', title: 'Send the deck', status: 'suggested' },
     ]);
+  });
+});
+
+// `types` is an MCP-side filter: the upstream endpoint has no such parameter
+// and no paging, so the filtering has to happen here, and the parameter must
+// not be forwarded as an unknown query string.
+describe('list_conversations type filter over the protocol', () => {
+  it('returns every conversation when types is omitted', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: {},
+    });
+
+    expect(jsonOf(result as never).results).toHaveLength(3);
+  });
+
+  it('narrows to the requested type and recomputes results_count', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: { user_ids: ['u_fred'], types: ['directMessage'] },
+    });
+
+    const body = jsonOf(result as never);
+    expect(body.results).toEqual([
+      { id: 'c1', name: 'Fred', workspace_id: 'w1', type: 'directMessage' },
+    ]);
+    expect(body.results_count).toBe(1);
+  });
+
+  it('never forwards types to the upstream API', async () => {
+    getAllConversations.mockClear();
+
+    await client.callTool({
+      name: 'list_conversations',
+      arguments: { user_ids: ['u_fred'], types: ['directMessage'] },
+    });
+
+    expect(getAllConversations).toHaveBeenCalledWith(
+      { user_ids: ['u_fred'] },
+      expect.anything(),
+    );
+  });
+
+  it('composes with response_fields', async () => {
+    const result = await client.callTool({
+      name: 'list_conversations',
+      arguments: {
+        types: ['namedConversation'],
+        response_fields: ['results.id', 'results.name'],
+      },
+    });
+
+    const body = jsonOf(result as never);
+    expect(body.results).toEqual([{ id: 'c2', name: 'Project X' }]);
+    expect(body.results_count).toBe(1);
   });
 });

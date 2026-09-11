@@ -779,18 +779,21 @@ export const TOOL_DOCS: ToolDocRegistry = {
 
   list_conversations: {
     purpose:
-      'List your conversations from the last 6 months, optionally filtered by participants.',
+      'List your conversations from the last 6 months, optionally filtered by participants and type.',
     whenToUse:
-      'Finding a `conversation_id`. Filter with `user_ids` plus `match` (`any` = ' +
-      'union, `all` = intersection).',
+      'Finding a `conversation_id`. Filter with `user_ids` plus `match`, and ' +
+      'narrow to `types` — YOUR DM with someone is ' +
+      '`user_ids: ["<their id>"], types: ["directMessage"]`. You are always an ' +
+      'implicit participant, so never pass your own ID.',
     whenNotToUse:
       '`get_conversation` when you already have an ID and want full detail — this ' +
       'returns only id, name, workspace_id and type.',
-    example: { user_ids: ['user-abc'], match: 'any' },
+    example: { user_ids: ['user-abc'], types: ['directMessage'] },
     responseShape:
       '`{results_count, results: [{id, name, workspace_id, type}]}` where type is ' +
       '`directMessage` | `customerConversation` | `namedConversation` | `asyncMeeting`. ' +
-      'No paging: `results_count` is the whole set.',
+      'No paging: `results_count` is the size of what is returned, after `types`. ' +
+      'An empty `results` is a real answer — no such conversation — not an error.',
   },
 
   get_conversation: {

@@ -95,7 +95,9 @@ import {
   updateActionItemBodyShape,
 } from './schemas';
 import {
+  ConversationTypeFilter,
   fetchAudioFile,
+  filterConversationsByType,
   formatToMCPToolResponse,
   logger,
   redactUrlForLog,
@@ -624,9 +626,29 @@ function registerCarbonVoiceTools(server: McpServer): void {
         'more than one candidate for a name, ask the caller which person they meant instead of guessing.',
     ),
     match: getAllConversationsQueryParams.shape.match.describe(
-      'Match mode: `any` (union, default) or `all` (intersection). `any` returns conversations with ' +
-        'at least one of the given users; `all` returns conversations with all of them.',
+      'Match mode for `user_ids`: `any` (union, default) or `all` (intersection). YOU are always ' +
+        'included implicitly — `user_ids: ["u1"]` already means conversations containing you and u1, ' +
+        'so never pass your own ID. Doing so under `any` matches every conversation you are in and ' +
+        'silently discards the filter.',
     ),
+    // MCP-side filter. The upstream endpoint has no `type` parameter, but every
+    // result carries `type`, so filtering here keeps non-matching rows out of
+    // the agent's context — which is the expensive half.
+    types: z
+      .array(
+        z.enum([
+          'directMessage',
+          'customerConversation',
+          'namedConversation',
+          'asyncMeeting',
+        ]),
+      )
+      .optional()
+      .describe(
+        'Keep only these conversation types. `directMessage` is the 1:1 with ' +
+          'someone — combine with `user_ids` to find your DM with a person. ' +
+          '`namedConversation` is a conversation somebody named. Omit for all types.',
+      ),
   });
 
   server.registerTool(
@@ -643,10 +665,13 @@ function registerCarbonVoiceTools(server: McpServer): void {
       },
     },
     async (
-      input: GetAllConversationsParams & { response_fields?: string[] },
+      input: GetAllConversationsParams & {
+        types?: ConversationTypeFilter[];
+        response_fields?: string[];
+      },
       { authInfo },
     ): Promise<McpToolResponse> => {
-      const { response_fields, ...args } = input;
+      const { response_fields, types, ...args } = input;
       const params: GetAllConversationsParams = {};
       if (args.user_ids?.length) {
         params.user_ids = args.user_ids;
@@ -656,9 +681,12 @@ function registerCarbonVoiceTools(server: McpServer): void {
       }
       try {
         return formatToMCPToolResponse(
-          await simplifiedApi.getAllConversations(
-            params,
-            setCarbonVoiceAuthHeader(authInfo?.token),
+          filterConversationsByType(
+            await simplifiedApi.getAllConversations(
+              params,
+              setCarbonVoiceAuthHeader(authInfo?.token),
+            ),
+            types,
           ),
           { responseFields: response_fields },
         );

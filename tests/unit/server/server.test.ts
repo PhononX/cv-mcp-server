@@ -1338,12 +1338,22 @@ describe('MCP Server', () => {
       });
 
       it('should accept user_ids and match query params via inputSchema', () => {
-        // Every upstream query param is still exposed; response_fields is
-        // added on top for projection.
+        // Every upstream query param is still exposed, plus the two the MCP
+        // server adds itself: `types` filters rows, `response_fields` narrows
+        // columns. Neither is forwarded upstream.
         expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual([
           ...Object.keys(getAllConversationsQueryParams.shape),
+          'types',
           'response_fields',
         ]);
+      });
+
+      it('should expose types as an enum of the four conversation kinds', () => {
+        const types = listConversationsCall[1].inputSchema.types;
+
+        expect(types).toBeDefined();
+        expect(types.isOptional()).toBe(true);
+        expect(types.description).toContain('directMessage');
       });
 
       it('should document user_ids as filtering by ID, not username', () => {
