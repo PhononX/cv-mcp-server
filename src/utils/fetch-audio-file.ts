@@ -183,15 +183,36 @@ export const isBlockedAddress = (ip: string): boolean => {
   // Any address embedding an IPv4 address is decided by that address.
   const isIpv4Mapped = zeros(0, 10) && bytes[10] === 0xff && bytes[11] === 0xff;
   const isIpv4Compatible = zeros(0, 12);
-  const isNat64 =
+  // The well-known NAT64 prefix, RFC 6052 — 64:ff9b::/96, embedded IPv4 in the
+  // last 32 bits.
+  const isWellKnownNat64 =
     bytes[0] === 0x00 &&
     bytes[1] === 0x64 &&
     bytes[2] === 0xff &&
     bytes[3] === 0x9b &&
     zeros(4, 12);
 
-  if (isIpv4Mapped || isIpv4Compatible || isNat64) {
+  if (isIpv4Mapped || isIpv4Compatible || isWellKnownNat64) {
     return isBlockedAddress(bytes.slice(12).join('.'));
+  }
+
+  // 64:ff9b:1::/48 — RFC 8215's LOCAL-USE NAT64 range. Behind DNS64 an internal
+  // hostname can resolve to a synthesized address in here whose embedded IPv4
+  // is private or link-local. Unlike the well-known prefix above, the embedded
+  // address can sit at several offsets (RFC 6052 allows /32, /40, /48, /56,
+  // /64 and /96 network-specific prefixes) and we cannot know which the local
+  // network uses — so rather than guess where to look, refuse the whole range.
+  // It is reserved for local use, so nothing reachable through it is a
+  // legitimate public audio source.
+  if (
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    bytes[4] === 0x00 &&
+    bytes[5] === 0x01
+  ) {
+    return true;
   }
 
   if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
@@ -218,8 +239,15 @@ const isHostAllowlisted = (hostname: string): boolean => {
   if (allowed.length === 0) {
     return true;
   }
-  const host = hostname.toLowerCase();
-  return allowed.some((entry) => host === entry || host.endsWith(`.${entry}`));
+  // Compare bare hostnames. `url.hostname` keeps the brackets on an IPv6
+  // literal, so without this an allowlisted IPv6 origin never matches its own
+  // entry and is refused. Entries are normalized too, since an operator may
+  // reasonably write either form.
+  const host = bareHostname(hostname).toLowerCase();
+  return allowed.some((raw) => {
+    const entry = bareHostname(raw).toLowerCase();
+    return host === entry || host.endsWith(`.${entry}`);
+  });
 };
 
 /**

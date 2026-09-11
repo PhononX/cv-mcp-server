@@ -83,6 +83,22 @@ describe('SSRF guard through real URL parsing', () => {
     ['http://[ff02::1]/a.mp3', 'IPv6 multicast'],
     ['http://127.0.0.1/a.mp3', 'IPv4 loopback'],
     ['http://169.254.169.254/a.mp3', 'IPv4 cloud metadata'],
+    // RFC 8215 local-use NAT64. Behind DNS64 an internal hostname resolves to a
+    // synthesized address in this range; the embedded IPv4 can sit at several
+    // offsets depending on the network's prefix length, so the whole /48 is
+    // refused rather than guessing where to look.
+    ['https://[64:ff9b:1::7f00:1]/a.mp3', 'NAT64 local-use, loopback embedded'],
+    [
+      'https://[64:ff9b:1::a9fe:a9fe]/a.mp3',
+      'NAT64 local-use, metadata embedded',
+    ],
+    ['https://[64:ff9b:1:0:0:0:a00:1]/a.mp3', 'NAT64 local-use, private 10/8'],
+    [
+      'https://[64:ff9b:1::1]/a.mp3',
+      'NAT64 local-use, any address in the range',
+    ],
+    // The well-known prefix stays decided by its embedded IPv4.
+    ['https://[64:ff9b::7f00:1]/a.mp3', 'NAT64 well-known, loopback embedded'],
   ])('blocks %s (%s)', (url) => {
     expect(blockedViaUrl(url)).toBe(true);
   });
