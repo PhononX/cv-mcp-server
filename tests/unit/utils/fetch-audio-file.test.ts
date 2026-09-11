@@ -171,7 +171,7 @@ describe('fetchAudioFile', () => {
     global.fetch = fetchSpy as any;
 
     await expect(
-      fetchAudioFile('http://127.0.0.1/internal.mp3'),
+      fetchAudioFile('https://127.0.0.1/internal.mp3'),
     ).rejects.toThrow(/non-public address/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -181,7 +181,7 @@ describe('fetchAudioFile', () => {
     global.fetch = fetchSpy as any;
 
     await expect(
-      fetchAudioFile('http://169.254.169.254/latest/meta-data/'),
+      fetchAudioFile('https://169.254.169.254/latest/meta-data/'),
     ).rejects.toThrow(/non-public address/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -254,7 +254,7 @@ describe('fetchAudioFile', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 302,
-      headers: new Headers({ location: 'http://169.254.169.254/latest/' }),
+      headers: new Headers({ location: 'https://169.254.169.254/latest/' }),
       arrayBuffer: async () => new ArrayBuffer(0),
     }) as any;
 
@@ -461,6 +461,37 @@ describe('fetchAudioFile', () => {
       /HTTP 404/,
     );
     expect(cancel).toHaveBeenCalled();
+  });
+
+  // The address checks are a time-of-check/time-of-use pair — fetch resolves
+  // the hostname again when it connects — so a caller controlling DNS can
+  // rebind between the two. TLS closes that in practice (the rebound internal
+  // host cannot present a certificate for the attacker's hostname), which is
+  // why plain http needs an explicit allowlist entry.
+  it('refuses plain http when no allowlist is configured', async () => {
+    const spy = jest.fn();
+    global.fetch = spy as any;
+
+    const error = await fetchAudioFile('http://example.com/a.mp3').catch(
+      (e) => e,
+    );
+
+    expect(error).toBeInstanceOf(AudioFetchError);
+    expect(error.message).toMatch(/must use https/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('still accepts https when no allowlist is configured', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'audio/mpeg' }),
+      arrayBuffer: async () => Buffer.from('ID3audio').buffer,
+    }) as any;
+
+    await expect(
+      fetchAudioFile('https://8.8.8.8/a.mp3'),
+    ).resolves.toBeInstanceOf(File);
   });
 
   it('throws AudioFetchError, whose name server.ts narrows on', async () => {

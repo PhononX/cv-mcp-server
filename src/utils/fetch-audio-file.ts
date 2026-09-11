@@ -255,6 +255,30 @@ const assertUrlIsFetchable = async (
     );
   }
 
+  // Plain http is refused unless the host is explicitly allowlisted.
+  //
+  // The address checks below are a time-of-check/time-of-use pair: we resolve
+  // the hostname and validate what comes back, then `fetch` resolves it AGAIN
+  // on its own. A caller who controls the hostname's DNS can answer our lookup
+  // with a public address and fetch's lookup with an internal one, and the
+  // guard never sees it (DNS rebinding).
+  //
+  // TLS is what closes that in practice: on https, the rebound internal host
+  // has to present a certificate valid for the ATTACKER'S hostname, which an
+  // internal service will not have, so the handshake fails before any request
+  // is sent. On plain http there is no such check, which is why the bypass is
+  // an http-only attack and why http now needs an explicit allowlist entry —
+  // at which point rebinding requires controlling DNS for a host the operator
+  // named.
+  //
+  // This narrows the window rather than closing it; pinning the connection to
+  // the validated address is the complete fix. See the note in fetchAudioFile.
+  if (url.protocol === 'http:' && env.AUDIO_FETCH_ALLOWED_HOSTS.length === 0) {
+    throw new AudioFetchError(
+      'audio_url must use https. Plain http is accepted only for hosts named in AUDIO_FETCH_ALLOWED_HOSTS.',
+    );
+  }
+
   // Reject userinfo HERE rather than letting fetch do it. Node's own rejection
   // reads "Request cannot be constructed from a URL that includes credentials:
   // <the whole URL>", and that message is interpolated into AudioFetchError and
@@ -376,6 +400,21 @@ const discardBody = async (response?: Response): Promise<void> => {
  * client's multipart upload. Throws `AudioFetchError` with an agent-actionable
  * message on any rejection.
  */
+// KNOWN LIMITATION — DNS rebinding.
+//
+// `assertUrlIsFetchable` resolves the hostname and validates every address it
+// gets back, then `fetch` performs its OWN resolution when it connects. Nothing
+// guarantees the two lookups agree, so a caller who controls the hostname's DNS
+// can pass our check with a public address and have fetch connect to a private
+// one. Closing it completely means pinning the connection to the address we
+// validated — supplying a custom `lookup` to the connection layer while keeping
+// the original hostname for the Host header and TLS SNI — which Node's global
+// `fetch` cannot express without an undici dispatcher.
+//
+// Until then two things narrow it: https is required unless the operator
+// allowlists the host (see `assertUrlIsFetchable` — TLS makes the rebound
+// address fail certificate validation), and `AUDIO_FETCH_ALLOWED_HOSTS`
+// restricts which hosts are reachable at all.
 export const fetchAudioFile = async (rawUrl: string): Promise<File> => {
   const maxBytes = env.AUDIO_FETCH_MAX_BYTES;
   const deadlineAt = Date.now() + env.AUDIO_FETCH_TIMEOUT_MS;
