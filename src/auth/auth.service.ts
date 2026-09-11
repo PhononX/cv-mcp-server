@@ -86,8 +86,10 @@ const PAT_PREFIX = 'cv_pat_';
  * `x-api-key` is explicitly cleared on the Bearer paths. The axios instance
  * sets it as a default header, and cv-api tries `api-key` BEFORE `pat-token`
  * in its strategy chain — so leaving both on the request would let a valid API
- * key win and silently discard the PAT's scopes, which is the opposite of why
- * someone configured a PAT.
+ * key win and the request would silently authenticate as the long-lived key
+ * instead of the PAT the operator configured. That defeats the point of the
+ * PAT: its expiry, its revocability, and its own identity in the audit trail.
+ * (Not its scopes — cv-api enforces those only in user-app.)
  */
 export const setCarbonVoiceAuthHeader = (
   token?: string,
@@ -106,7 +108,10 @@ export const setCarbonVoiceAuthHeader = (
     };
   }
 
-  // stdio: prefer a PAT, which is scoped, expiring and revocable.
+  // stdio: prefer a PAT, which expires and is revocable — unlike the API key.
+  // Its cv:read / cv:write scopes are not a restriction today: cv-api enforces
+  // them only in user-app, so a cv:read PAT still writes. The precedence below
+  // is about credential lifetime, not privilege.
   if (env.CARBON_VOICE_PAT) {
     if (!env.CARBON_VOICE_PAT.toLowerCase().startsWith(PAT_PREFIX)) {
       // Not fatal — the API decides — but a value without the prefix will not
