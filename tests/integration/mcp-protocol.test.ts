@@ -138,8 +138,49 @@ type ToolShape = {
     properties?: Record<string, Record<string, unknown>>;
     required?: string[];
   };
-  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+  annotations?: {
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    openWorldHint?: boolean;
+  };
 };
+
+// ---------------------------------------------------------------------------
+// Expected annotation contract.
+//
+// ChatGPT app submission requires all three hints to be present on every tool,
+// and two of the three MCP defaults (`destructiveHint`, `openWorldHint`) are
+// `true` — so an omitted hint is not a neutral omission, it advertises the
+// tool as more dangerous and less contained than it is. These tables are the
+// expected wire values; the assertions below read them off a real
+// `tools/list` response, not off the registration call.
+// ---------------------------------------------------------------------------
+
+/**
+ * The only two tools whose reach leaves the authenticated Carbon Voice
+ * account: `create_direct_message` can address arbitrary email addresses, and
+ * `create_voicememo_message` makes the server fetch an arbitrary
+ * caller-supplied public URL. Every other tool is closed over the caller's own
+ * account and workspaces.
+ */
+const OPEN_WORLD_TOOLS = ['create_direct_message', 'create_voicememo_message'];
+
+/**
+ * Every tool whose `destructiveHint` must be `true` — it deletes, overwrites
+ * an existing field, replaces a current location, or sends a message that no
+ * tool here can withdraw. Anything absent from this list must be `false`.
+ */
+const DESTRUCTIVE_TOOLS = [
+  'create_conversation_message',
+  'create_direct_message',
+  'update_folder_name',
+  'delete_folder',
+  'move_folder',
+  'move_message_to_folder',
+  'update_action_item',
+  'set_action_item_status',
+  'delete_action_item',
+];
 
 let client: Client;
 let tools: ToolShape[];
@@ -204,6 +245,34 @@ describe('tools/list contract', () => {
     expect(tools.map((t) => t.name)).toEqual([...TOOL_NAMES]);
   });
 
+  it('keeps the annotation expectation tables pointed at real tools', () => {
+    // A typo in either table would otherwise pass silently: the per-tool
+    // checks below use `.includes(name)`, so a misspelled entry just never
+    // matches and the tool it was meant to cover quietly asserts `false`.
+    [...OPEN_WORLD_TOOLS, ...DESTRUCTIVE_TOOLS].forEach((name) => {
+      expect(TOOL_NAMES).toContain(name);
+    });
+  });
+
+  it('covers every registered tool with an explicit annotation expectation', () => {
+    // The submission is checked against all 42 tools, so the guard has to be
+    // whole-surface: a tool added without annotations must fail here.
+    expect(
+      tools.filter(
+        (t) =>
+          typeof t.annotations?.readOnlyHint === 'boolean' &&
+          typeof t.annotations?.destructiveHint === 'boolean' &&
+          typeof t.annotations?.openWorldHint === 'boolean',
+      ).length,
+    ).toBe(TOOL_NAMES.length);
+  });
+
+  it('marks exactly the two open-world tools as open-world', () => {
+    expect(
+      tools.filter((t) => t.annotations?.openWorldHint).map((t) => t.name),
+    ).toEqual(OPEN_WORLD_TOOLS);
+  });
+
   it('survives a JSON round trip with nothing lost', () => {
     // A schema containing a function or `undefined` silently loses fields on
     // the wire; comparing against a re-parsed copy catches that.
@@ -218,9 +287,49 @@ describe('tools/list contract', () => {
       expect(tool().inputSchema?.type).toBe('object');
     });
 
-    it('declares read-only and destructive hints as booleans', () => {
-      expect(typeof tool().annotations?.readOnlyHint).toBe('boolean');
-      expect(typeof tool().annotations?.destructiveHint).toBe('boolean');
+    it('declares all three behaviour hints explicitly as booleans', () => {
+      // Presence is asserted with `in`, not truthiness: `destructiveHint` and
+      // `openWorldHint` both DEFAULT to `true`, so a missing key reads to a
+      // host as the dangerous value rather than as "unspecified".
+      const annotations = tool().annotations ?? {};
+      expect({
+        tool: name,
+        keys: ['readOnlyHint', 'destructiveHint', 'openWorldHint'].filter(
+          (k) => k in annotations,
+        ),
+      }).toEqual({
+        tool: name,
+        keys: ['readOnlyHint', 'destructiveHint', 'openWorldHint'],
+      });
+      expect(typeof annotations.readOnlyHint).toBe('boolean');
+      expect(typeof annotations.destructiveHint).toBe('boolean');
+      expect(typeof annotations.openWorldHint).toBe('boolean');
+    });
+
+    it('declares the expected openWorldHint', () => {
+      expect({
+        tool: name,
+        openWorld: tool().annotations?.openWorldHint,
+      }).toEqual({ tool: name, openWorld: OPEN_WORLD_TOOLS.includes(name) });
+    });
+
+    it('declares the expected destructiveHint', () => {
+      expect({
+        tool: name,
+        destructive: tool().annotations?.destructiveHint,
+      }).toEqual({
+        tool: name,
+        destructive: DESTRUCTIVE_TOOLS.includes(name),
+      });
+    });
+
+    it('never marks a read-only tool as destructive or open-world', () => {
+      if (!tool().annotations?.readOnlyHint) return;
+      expect({
+        tool: name,
+        destructive: tool().annotations?.destructiveHint,
+        openWorld: tool().annotations?.openWorldHint,
+      }).toEqual({ tool: name, destructive: false, openWorld: false });
     });
 
     it('gives every parameter a usable JSON Schema type', () => {

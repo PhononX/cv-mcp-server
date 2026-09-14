@@ -795,7 +795,10 @@ describe('MCP Server', () => {
         );
         expect(
           createConversationMessageCall[1].annotations.destructiveHint,
-        ).toBe(false);
+        ).toBe(true);
+        expect(createConversationMessageCall[1].annotations.openWorldHint).toBe(
+          false,
+        );
         expect(createConversationMessageCall[1].description).toBeDefined();
       });
 
@@ -883,8 +886,11 @@ describe('MCP Server', () => {
         expect(createDirectMessageCall[1].annotations).toBeDefined();
         expect(createDirectMessageCall[1].annotations.readOnlyHint).toBe(false);
         expect(createDirectMessageCall[1].annotations.destructiveHint).toBe(
-          false,
+          true,
         );
+        // Recipients can be arbitrary email addresses, so this tool reaches
+        // outside the authenticated Carbon Voice account.
+        expect(createDirectMessageCall[1].annotations.openWorldHint).toBe(true);
         expect(createDirectMessageCall[1].description).toBeDefined();
       });
 
@@ -973,6 +979,10 @@ describe('MCP Server', () => {
         );
         expect(createVoicememoMessageCall[1].annotations.destructiveHint).toBe(
           false,
+        );
+        // `audio_url` makes the server fetch a caller-supplied public URL.
+        expect(createVoicememoMessageCall[1].annotations.openWorldHint).toBe(
+          true,
         );
         expect(createVoicememoMessageCall[1].description).toBeDefined();
       });
@@ -2016,7 +2026,8 @@ describe('MCP Server', () => {
         expect(updateFolderNameCall[1].inputSchema).toBeDefined();
         expect(updateFolderNameCall[1].annotations).toBeDefined();
         expect(updateFolderNameCall[1].annotations.readOnlyHint).toBe(false);
-        expect(updateFolderNameCall[1].annotations.destructiveHint).toBe(false);
+        expect(updateFolderNameCall[1].annotations.destructiveHint).toBe(true);
+        expect(updateFolderNameCall[1].annotations.openWorldHint).toBe(false);
         expect(updateFolderNameCall[1].description).toBeDefined();
       });
 
@@ -2135,7 +2146,8 @@ describe('MCP Server', () => {
         expect(moveFolderCall[1].inputSchema).toBeDefined();
         expect(moveFolderCall[1].annotations).toBeDefined();
         expect(moveFolderCall[1].annotations.readOnlyHint).toBe(false);
-        expect(moveFolderCall[1].annotations.destructiveHint).toBe(false);
+        expect(moveFolderCall[1].annotations.destructiveHint).toBe(true);
+        expect(moveFolderCall[1].annotations.openWorldHint).toBe(false);
         expect(moveFolderCall[1].description).toBeDefined();
       });
 
@@ -2195,6 +2207,9 @@ describe('MCP Server', () => {
         expect(moveMessageToFolderCall[1].annotations).toBeDefined();
         expect(moveMessageToFolderCall[1].annotations.readOnlyHint).toBe(false);
         expect(moveMessageToFolderCall[1].annotations.destructiveHint).toBe(
+          true,
+        );
+        expect(moveMessageToFolderCall[1].annotations.openWorldHint).toBe(
           false,
         );
         expect(moveMessageToFolderCall[1].description).toBeDefined();
@@ -2891,17 +2906,39 @@ describe('MCP Server', () => {
       const findCall = (name: string) =>
         mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
 
-      it('should mark only delete_action_item as destructive', () => {
-        expect(
-          findCall('delete_action_item')[1].annotations.destructiveHint,
-        ).toBe(true);
+      it('should mark the destroying and overwriting item tools as destructive', () => {
+        // `delete_action_item` removes the record; `update_action_item` and
+        // `set_action_item_status` overwrite fields that already have values.
+        // Only `create_action_item` is purely additive.
         [
-          'create_action_item',
+          'delete_action_item',
           'update_action_item',
           'set_action_item_status',
         ].forEach((name) => {
-          expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+          expect(findCall(name)[1].annotations.destructiveHint).toBe(true);
           expect(findCall(name)[1].annotations.readOnlyHint).toBe(false);
+        });
+        expect(
+          findCall('create_action_item')[1].annotations.destructiveHint,
+        ).toBe(false);
+        expect(findCall('create_action_item')[1].annotations.readOnlyHint).toBe(
+          false,
+        );
+      });
+
+      it('should mark every action item tool as closed-world', () => {
+        [
+          'list_my_action_items',
+          'list_action_items',
+          'get_action_item',
+          'create_action_item',
+          'update_action_item',
+          'set_action_item_status',
+          'delete_action_item',
+          'suggest_action_items_from_message',
+          'suggest_action_items_from_messages',
+        ].forEach((name) => {
+          expect(findCall(name)[1].annotations.openWorldHint).toBe(false);
         });
       });
 

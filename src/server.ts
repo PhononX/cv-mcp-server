@@ -141,6 +141,37 @@ const responseFieldsShape = {
 };
 
 /**
+ * Annotation policy. Every tool declares `readOnlyHint`, `destructiveHint` and
+ * `openWorldHint` explicitly rather than relying on the MCP defaults, because
+ * two of those defaults are the unsafe reading: `destructiveHint` and
+ * `openWorldHint` both default to `true`, so an omitted hint tells a host this
+ * tool is more dangerous and less contained than it is.
+ *
+ * `destructiveHint` is the spec's additive/destructive split ("If true, the
+ * tool may perform destructive updates to its environment. If false, the tool
+ * performs only additive updates."), not a reversibility test:
+ *  - `true` for deletes, for updates that overwrite an existing field
+ *    (`update_folder_name`, `update_action_item`, `set_action_item_status`),
+ *    for moves that replace a current location (`move_folder`,
+ *    `move_message_to_folder`), and for sends that put a message in front of
+ *    another person with no tool here to withdraw it
+ *    (`create_conversation_message`, `create_direct_message`).
+ *  - `false` for pure creates that only append (`create_folder`,
+ *    `create_action_item`, `create_voicememo_message`,
+ *    `add_attachments_to_message`, `create_message_share_link`) and for AI
+ *    calls that add a new response record (`run_ai_action`,
+ *    `summarize_conversation`, the `suggest_action_items_*` pair).
+ *
+ * `openWorldHint` is `true` only where the tool's reach leaves the
+ * authenticated Carbon Voice account: `create_direct_message` addresses
+ * arbitrary email addresses, and `create_voicememo_message` makes the server
+ * fetch an arbitrary caller-supplied public URL. Everything else reads or
+ * writes inside the caller's own account and workspaces, so its domain of
+ * interaction is closed. Link params that are merely stored
+ * (`add_attachments_to_message`, `links` on the message tools) do not open the
+ * world: the server never dereferences them.
+ */
+/**
  * Registers all Carbon Voice tools on an MCP server instance.
  * Streamable HTTP stateless mode must use a fresh McpServer per request when
  * handling concurrent clients: the SDK binds a single transport on the protocol
@@ -164,6 +195,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -201,6 +233,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -239,6 +272,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -276,7 +310,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (
@@ -308,7 +343,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       inputSchema: { ...sendDirectMessageBodyShape },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: true,
       },
     },
     async (args: SendDirectMessage, { authInfo }): Promise<McpToolResponse> => {
@@ -362,6 +398,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: true,
       },
     },
     async (
@@ -466,6 +503,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -504,6 +542,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -541,6 +580,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (args: SearchUserParams, { authInfo }): Promise<McpToolResponse> => {
@@ -572,6 +612,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -607,6 +648,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -675,6 +717,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -724,6 +767,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -760,6 +804,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -796,6 +841,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -934,6 +980,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -967,6 +1014,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1002,6 +1050,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1039,6 +1088,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1071,7 +1121,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       inputSchema: updateFolderNameParams.merge(updateFolderNameBody).shape,
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (
@@ -1104,6 +1155,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
@@ -1131,7 +1183,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       inputSchema: moveFolderParams.merge(moveFolderBody).shape,
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (args: MoveFolderInput, { authInfo }): Promise<McpToolResponse> => {
@@ -1160,7 +1213,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       inputSchema: { ...moveMessageToFolderBodyShape },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (
@@ -1193,6 +1247,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (params: unknown, { authInfo }): Promise<McpToolResponse> => {
@@ -1224,6 +1279,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1262,6 +1318,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1298,6 +1355,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1334,6 +1392,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1373,6 +1432,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1409,6 +1469,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1446,6 +1507,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1486,6 +1548,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1528,6 +1591,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1561,6 +1625,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1594,7 +1659,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (
@@ -1629,7 +1695,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
       ).shape,
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (
@@ -1663,6 +1730,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
+        openWorldHint: false,
       },
     },
     async (args: GetByIdParams, { authInfo }): Promise<McpToolResponse> => {
@@ -1697,6 +1765,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1735,6 +1804,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1776,6 +1846,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1812,6 +1883,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (
@@ -1851,6 +1923,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
+        openWorldHint: false,
       },
     },
     async (

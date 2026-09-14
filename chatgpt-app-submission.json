@@ -1,0 +1,724 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-09-14",
+  "app_information": {
+    "name": "Carbon Voice",
+    "slug": "carbon-voice",
+    "tagline": "Voice messaging, conversations and action items from your Carbon Voice workspace.",
+    "description": "Carbon Voice is an asynchronous voice messaging platform. This app lets ChatGPT read and act on the signed-in user's Carbon Voice account: browse conversations and messages, send voice and text messages, organise memos into folders and workspaces, run Carbon Voice AI Actions over message sets, and manage action items. Every call is scoped to the account behind the OAuth token.",
+    "categories": [
+      "productivity",
+      "communication"
+    ],
+    "developer": {
+      "name": "Carbon Voice (PhononX)",
+      "website": "https://getcarbon.app",
+      "support_url": "https://www.getcarbon.app/support",
+      "support_email": "support@carbonvoice.app",
+      "developer_portal": "https://www.developer.carbonvoice.app/"
+    },
+    "legal": {
+      "terms_of_service_url": "https://www.getcarbon.app/usertos",
+      "privacy_policy_url": "https://www.getcarbon.app/privacy"
+    },
+    "mcp_server": {
+      "endpoint": "https://mcp.carbonvoice.app",
+      "transport": "streamable_http",
+      "package": "@carbonvoice/cv-mcp-server",
+      "version": "2.10.0",
+      "source_repository": "https://github.com/PhononX/cv-mcp-server",
+      "upstream_api": "https://api.carbonvoice.app",
+      "api_documentation": "https://api.carbonvoice.app/docs"
+    },
+    "authentication": {
+      "type": "oauth2.1",
+      "notes": "The hosted HTTP transport authenticates with OAuth 2.1; every tool forwards the bearer token upstream and Carbon Voice enforces authorization. No tool accepts a credential as an input parameter."
+    },
+    "components": {
+      "tools": 42,
+      "resources": 0,
+      "prompts": 0,
+      "widgets": 0
+    }
+  },
+  "annotation_policy": {
+    "source_of_truth": "MCP schema 2025-06-18, ToolAnnotations: destructiveHint is \"If true, the tool may perform destructive updates to its environment. If false, the tool performs only additive updates.\"; openWorldHint is \"If true, this tool may interact with an 'open world' of external entities. If false, the tool's domain of interaction is closed.\"",
+    "why_explicit": "destructiveHint and openWorldHint both DEFAULT to true, so an omitted hint advertises a tool as more dangerous and less contained than it is. All three hints are declared explicitly on all 42 tools.",
+    "destructive_rule": "true for deletes, for updates that overwrite an existing field, for moves that replace a current location, and for sends that put a message in front of another person with no tool here to withdraw it. false for creates that only append, including AI calls that add a new response record.",
+    "open_world_rule": "true only where the tool reaches outside the authenticated Carbon Voice account. Link parameters that are merely stored do not open the world, because the server never dereferences them."
+  },
+  "tools": [
+    {
+      "name": "list_messages",
+      "summary": "List messages with filtering by date, conversation, folder, workspace, creator or language.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: it pages the caller's own messages through GET /messages without writing anything, only additive by vacuity, and its domain is the authenticated Carbon Voice account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_message",
+      "summary": "Get one message by ID, optionally expanded with related records.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a single GET by message ID inside the caller's account, with no write path and no external system in reach.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_recent_messages",
+      "summary": "Get up to 10 of the most recent messages, each with its conversation, creator and labels.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a capped GET of the caller's ten most recent messages, mutating nothing and confined to their own account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "create_conversation_message",
+      "summary": "Post a message into an existing conversation, or reply in a thread.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write, and destructive because the posted message is visible to the conversation's other members immediately and no tool in this server can withdraw it; the conversation is one the caller already belongs to, so its domain stays closed.",
+      "has_output_schema": false
+    },
+    {
+      "name": "create_direct_message",
+      "summary": "Send a direct message to one or more people, by user ID or email.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": true
+      },
+      "annotation_justification": "A write, destructive because a sent DM cannot be recalled through any tool here, and open-world because `to.emails` lets it address arbitrary email addresses outside the caller's existing contacts.",
+      "has_output_schema": false
+    },
+    {
+      "name": "create_voicememo_message",
+      "summary": "Create a voice memo, either from text (spoken via text-to-speech) or from an audio file at a URL.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      },
+      "annotation_justification": "A write but purely additive (a standalone memo filed in the caller's own folder or workspace, overwriting nothing), and open-world because an `audio_url` makes the server fetch a caller-supplied public URL.",
+      "has_output_schema": false
+    },
+    {
+      "name": "add_attachments_to_message",
+      "summary": "Attach one or more link URLs to an existing message.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write that only appends link attachments to an existing message, and closed-world because the server stores the URLs without ever dereferencing them.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_user",
+      "summary": "Get a user's full profile by ID — names, languages, voice settings, workspace roles.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: it resolves one user ID to a profile via POST /contacts, which is a batch lookup rather than a mutation, and stays inside the caller's Carbon Voice contact graph.",
+      "has_output_schema": false
+    },
+    {
+      "name": "search_user",
+      "summary": "Find a single user by email, phone or name.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET lookup of a single user by email, phone or name within the caller's Carbon Voice directory.",
+      "has_output_schema": false
+    },
+    {
+      "name": "search_users",
+      "summary": "Resolve several users at once by emails, phones, IDs or names.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a batch directory lookup that writes nothing and resolves only people reachable from the authenticated account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_current_user",
+      "summary": "Get the calling user's own identity, workspaces and settings.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: GET /whoami returns the caller's own profile and settings, with no write and no external reach.",
+      "has_output_schema": false
+    },
+    {
+      "name": "list_conversations",
+      "summary": "List your conversations from the last 6 months, optionally filtered by participants and type.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: it lists the caller's conversations and filters them in-process, changing nothing on the server.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_conversation",
+      "summary": "Get one conversation by ID, with full metadata.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of one conversation the caller is a member of.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_conversation_users",
+      "summary": "List the people in a conversation.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of a conversation's member list, confined to the caller's own workspace.",
+      "has_output_schema": false
+    },
+    {
+      "name": "summarize_conversation",
+      "summary": "Summarize a conversation by running an AI Action over its recent messages.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Not read-only because it persists a new AI response record, but additive (it creates a summary rather than replacing one) and closed-world since it runs a Carbon Voice AI Action over the caller's own messages.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_root_folders",
+      "summary": "List the root folders of a workspace for a given folder type.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of the caller's root folders in their own workspaces.",
+      "has_output_schema": false
+    },
+    {
+      "name": "create_folder",
+      "summary": "Create a folder in a workspace, optionally nested under another.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write that only adds a new folder, overwriting nothing, entirely inside the caller's workspace.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_folder",
+      "summary": "Get one folder's metadata and, optionally, its immediate subfolders.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of one folder the caller can access.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_folder_with_messages",
+      "summary": "Get a folder together with the messages stored directly in it.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of a folder together with its messages, mutating nothing.",
+      "has_output_schema": false
+    },
+    {
+      "name": "update_folder_name",
+      "summary": "Rename a folder.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and destructive under the spec's additive/destructive split, because the new name replaces the existing one and the previous value is not recoverable through this server; the folder is the caller's own, so the domain is closed.",
+      "has_output_schema": false
+    },
+    {
+      "name": "delete_folder",
+      "summary": "Permanently delete a folder, including every nested folder and all their messages.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and unambiguously destructive: it permanently removes the folder and cascades to every nested folder and message, all within the caller's own workspace.",
+      "has_output_schema": false
+    },
+    {
+      "name": "move_folder",
+      "summary": "Move a folder into another folder, or up to a workspace root.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and destructive because the new parent replaces the folder's current location rather than adding to it, and closed-world because both source and destination are the caller's own.",
+      "has_output_schema": false
+    },
+    {
+      "name": "move_message_to_folder",
+      "summary": "Move a message into a folder, or out to a workspace.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and destructive because the message's new placement replaces its current one, with source and destination both inside the caller's account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_workspaces_basic_info",
+      "summary": "List every workspace you belong to, as id and name only.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: it lists the workspaces the caller belongs to, as IDs and names only.",
+      "has_output_schema": false
+    },
+    {
+      "name": "list_ai_actions",
+      "summary": "List the AI Actions (Prompts) available to you — each has an `id` usable as `prompt_id`.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of the AI Action prompts available to the caller.",
+      "has_output_schema": false
+    },
+    {
+      "name": "run_ai_action",
+      "summary": "Run an AI Action (Prompt) against one or more specific messages.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Not read-only because it persists a new AI response, but additive (a new record, nothing overwritten) and closed-world since it runs a Carbon Voice prompt over the caller's own messages.",
+      "has_output_schema": false
+    },
+    {
+      "name": "run_ai_action_for_shared_link",
+      "summary": "Run an AI Action (Prompt) against one or more shared messages, addressed by share link ID.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Not read-only because it persists a new AI response, but additive, and closed-world because the share link it reads is a Carbon Voice resource rather than an arbitrary external URL.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_ai_action_responses",
+      "summary": "Retrieve AI Action results that were generated previously.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of previously generated AI responses in the caller's account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "create_message_share_link",
+      "summary": "Create a shareable link to an existing message (e.g.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write that only creates a new share link and overwrites nothing; the link is a Carbon Voice resource minted inside the caller's account, so the tool's own domain of interaction stays closed.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_message_share_link",
+      "summary": "Look up an existing message share link by its ID, including the message behind it.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of an existing Carbon Voice share link record.",
+      "has_output_schema": false
+    },
+    {
+      "name": "list_my_action_items",
+      "summary": "List your action items across every conversation and folder: those assigned to you, PLUS unassigned ones you created.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of action items assigned to the caller.",
+      "has_output_schema": false
+    },
+    {
+      "name": "list_action_items",
+      "summary": "List action items belonging to one container — a conversation, a folder, or home.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of action items in a container the caller can access.",
+      "has_output_schema": false
+    },
+    {
+      "name": "get_action_item",
+      "summary": "Get one action item by its ID, with full detail.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: a GET of one action item by ID.",
+      "has_output_schema": false
+    },
+    {
+      "name": "create_action_item",
+      "summary": "Create an action item, optionally attached to a conversation or folder.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write that only adds a new action item, overwriting nothing, inside the caller's own conversation or folder.",
+      "has_output_schema": false
+    },
+    {
+      "name": "update_action_item",
+      "summary": "Change an action item's title, notes, assignee, or due date.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and destructive because each supplied field overwrites the action item's existing title, notes, assignee or due date with no way to recover the prior value here; the item is the caller's own, so the domain is closed.",
+      "has_output_schema": false
+    },
+    {
+      "name": "set_action_item_status",
+      "summary": "Move an action item between `suggested`, `todo` and `done`.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and destructive because the new status replaces the current one rather than adding to it, within the caller's own account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "delete_action_item",
+      "summary": "Permanently delete an action item.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "annotation_justification": "A write and destructive: it permanently removes the action item, and the docs explicitly say this cannot be undone.",
+      "has_output_schema": false
+    },
+    {
+      "name": "suggest_action_items_from_message",
+      "summary": "Extract action items from ONE message and return them immediately.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Not read-only because the synchronous endpoint persists the suggestions it returns, but additive (new `suggested` items, nothing overwritten) and confined to one of the caller's own messages.",
+      "has_output_schema": false
+    },
+    {
+      "name": "suggest_action_items_from_messages",
+      "summary": "Queue AI extraction of candidate action items from specific messages.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Not read-only because it enqueues a job that persists new suggestions, but additive, and scoped to messages in the caller's own account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "search_message_ids",
+      "summary": "Find message IDs by notified state, mentions, labels, creator, conversation or workspace — returning IDs plus cursor metadata.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: GET /search/message-ids returns matching IDs and cursor metadata without mutating anything in the caller's account.",
+      "has_output_schema": false
+    },
+    {
+      "name": "search_messages_by_heard_status",
+      "summary": "Find messages by whether you have listened to them, and get per-conversation unheard counts.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only despite using POST /v3/search, because the body carries the query rather than a mutation and the endpoint creates nothing; it searches only the caller's own messages.",
+      "has_output_schema": false
+    },
+    {
+      "name": "list_inbox_notifications",
+      "summary": "List your inbox notifications, with a total unread count.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "annotation_justification": "Read-only: GET /inbox-notifications reads the caller's notification centre without marking anything read or otherwise changing state.",
+      "has_output_schema": false
+    }
+  ],
+  "annotation_summary": {
+    "total_tools": 42,
+    "read_only": 23,
+    "write": 19,
+    "destructive": [
+      "create_conversation_message",
+      "create_direct_message",
+      "update_folder_name",
+      "delete_folder",
+      "move_folder",
+      "move_message_to_folder",
+      "update_action_item",
+      "set_action_item_status",
+      "delete_action_item"
+    ],
+    "open_world": [
+      "create_direct_message",
+      "create_voicememo_message"
+    ],
+    "all_three_hints_declared": true
+  },
+  "test_cases": {
+    "positive": [
+      {
+        "id": "pos-1",
+        "name": "Catch up on recent Carbon Voice messages",
+        "prompt": "What's new in my Carbon Voice inbox today?",
+        "tools_triggered": [
+          "get_recent_messages"
+        ],
+        "expected_behavior": "Returns up to ten of the most recent messages with their conversation and creator pre-joined, and summarises them. Read-only, so nothing in the account changes."
+      },
+      {
+        "id": "pos-2",
+        "name": "Find a person, then find the conversation with them",
+        "prompt": "Find my Carbon Voice conversation with Brett.",
+        "tools_triggered": [
+          "search_users",
+          "list_conversations"
+        ],
+        "expected_behavior": "Resolves \"Brett\" to a user ID with search_users, then calls list_conversations with that user_ids filter and types [\"directMessage\"], and reports the matching conversation. Both tools are read-only."
+      },
+      {
+        "id": "pos-3",
+        "name": "Send a reply into an existing conversation",
+        "prompt": "Reply in my Project X conversation that the deck is ready for review.",
+        "tools_triggered": [
+          "list_conversations",
+          "create_conversation_message"
+        ],
+        "expected_behavior": "Resolves the conversation ID, then posts the message. Because create_conversation_message is annotated readOnlyHint false and destructiveHint true, the client should ask the user to confirm before the irreversible send."
+      },
+      {
+        "id": "pos-4",
+        "name": "Summarise a conversation",
+        "prompt": "Summarise the last 50 messages in my Standup conversation.",
+        "tools_triggered": [
+          "list_conversations",
+          "summarize_conversation"
+        ],
+        "expected_behavior": "Resolves the conversation ID, then runs a Carbon Voice AI Action over its recent messages and returns the summary. The tool persists a new AI response record, which is additive, so no existing data is overwritten."
+      },
+      {
+        "id": "pos-5",
+        "name": "Complete an action item",
+        "prompt": "Mark my \"Send the pricing deck\" action item as done.",
+        "tools_triggered": [
+          "list_my_action_items",
+          "set_action_item_status"
+        ],
+        "expected_behavior": "Finds the item by title, then sets its status to done. set_action_item_status is destructiveHint true because the new status overwrites the current one, so the client should confirm first."
+      }
+    ],
+    "negative": [
+      {
+        "id": "neg-1",
+        "name": "Refuses a non-public or unsafe audio URL",
+        "prompt": "Create a Carbon Voice voice memo from http://192.168.1.10/private/standup.mp3",
+        "tools_triggered": [
+          "create_voicememo_message"
+        ],
+        "expected_behavior": "The tool returns an INVALID_AUDIO_URL error rather than fetching: private, loopback and link-local addresses are refused, and plain http is refused unless the host is operator-allowlisted. The URL is redacted in logs so a presigned signature is never written to disk. No message is created."
+      },
+      {
+        "id": "neg-2",
+        "name": "Refuses to guess a recipient identity",
+        "prompt": "Send a Carbon Voice DM to Alex saying the meeting moved.",
+        "tools_triggered": [
+          "search_users"
+        ],
+        "expected_behavior": "When search_users returns more than one Alex, the model must ask which person is meant instead of calling create_direct_message with a guessed user ID. No message is sent. create_direct_message is both destructiveHint and openWorldHint true, so an unconfirmed send is exactly what must not happen."
+      },
+      {
+        "id": "neg-3",
+        "name": "Does not silently destroy a folder subtree",
+        "prompt": "Clean up my Carbon Voice workspace by deleting the old Q1 folder.",
+        "tools_triggered": [
+          "get_root_folders",
+          "get_folder",
+          "delete_folder"
+        ],
+        "expected_behavior": "delete_folder cascades to every nested folder and message and cannot be undone. The model should check total_nested_messages_count via get_folder and surface it, and the client should require explicit confirmation on the destructiveHint true annotation, before any delete_folder call."
+      }
+    ]
+  },
+  "review": {
+    "blockers": [],
+    "warnings": [
+      {
+        "id": "no-output-schema",
+        "area": "tools",
+        "detail": "None of the 42 tools declares an outputSchema, so responses arrive as unstructured JSON text blocks. This is valid MCP and not a submission blocker, but it means no structuredContent and no machine-checkable response contract. No output schemas were invented for this submission.",
+        "affected_tools": [
+          "list_messages",
+          "get_message",
+          "get_recent_messages",
+          "create_conversation_message",
+          "create_direct_message",
+          "create_voicememo_message",
+          "add_attachments_to_message",
+          "get_user",
+          "search_user",
+          "search_users",
+          "get_current_user",
+          "list_conversations",
+          "get_conversation",
+          "get_conversation_users",
+          "summarize_conversation",
+          "get_root_folders",
+          "create_folder",
+          "get_folder",
+          "get_folder_with_messages",
+          "update_folder_name",
+          "delete_folder",
+          "move_folder",
+          "move_message_to_folder",
+          "get_workspaces_basic_info",
+          "list_ai_actions",
+          "run_ai_action",
+          "run_ai_action_for_shared_link",
+          "get_ai_action_responses",
+          "create_message_share_link",
+          "get_message_share_link",
+          "list_my_action_items",
+          "list_action_items",
+          "get_action_item",
+          "create_action_item",
+          "update_action_item",
+          "set_action_item_status",
+          "delete_action_item",
+          "suggest_action_items_from_message",
+          "suggest_action_items_from_messages",
+          "search_message_ids",
+          "search_messages_by_heard_status",
+          "list_inbox_notifications"
+        ]
+      },
+      {
+        "id": "read-only-over-post",
+        "area": "annotations",
+        "detail": "get_user (POST /contacts) and search_messages_by_heard_status (POST /v3/search) are annotated readOnlyHint true. Reviewed and correct: both use POST to carry a query or a batch of IDs in the body, and neither endpoint creates or modifies state.",
+        "affected_tools": [
+          "get_user",
+          "search_messages_by_heard_status"
+        ]
+      },
+      {
+        "id": "ai-tools-are-writes",
+        "area": "annotations",
+        "detail": "summarize_conversation, run_ai_action, run_ai_action_for_shared_link and the two suggest_action_items_* tools read like read operations but persist a new record, so each is annotated readOnlyHint false with destructiveHint false. The naming is a readability risk, not an annotation error.",
+        "affected_tools": [
+          "summarize_conversation",
+          "run_ai_action",
+          "run_ai_action_for_shared_link",
+          "suggest_action_items_from_message",
+          "suggest_action_items_from_messages"
+        ]
+      },
+      {
+        "id": "share-link-creates-public-url",
+        "area": "data_exposure",
+        "detail": "create_message_share_link mints a URL that exposes a Carbon Voice message outside the workspace. openWorldHint stays false because the tool itself only writes a Carbon Voice record, but the resulting link is a genuine data-exposure step that warrants user confirmation in the client.",
+        "affected_tools": [
+          "create_message_share_link"
+        ]
+      },
+      {
+        "id": "privacy-policy-url-unverified",
+        "area": "app_information.legal",
+        "detail": "The privacy policy URL was supplied by the app owner rather than found in the repository, and outbound access to getcarbon.app is blocked from the build sandbox, so it could not be fetched to confirm it resolves. Verify it loads publicly before submitting."
+      },
+      {
+        "id": "pii-in-recipients",
+        "area": "sensitive_data",
+        "detail": "create_direct_message accepts recipient email addresses (to.emails) and search_user accepts an email or phone number. This is contact data the user supplies for the stated purpose, not credential solicitation; no tool accepts a password, API key or token as a parameter.",
+        "affected_tools": [
+          "create_direct_message",
+          "search_user",
+          "search_users"
+        ]
+      }
+    ],
+    "checks_performed": {
+      "missing_output_schema": "42 of 42 tools — reported as a warning, not a blocker.",
+      "sensitive_data_solicitation": "No tool solicits credentials, payment details or government identifiers. The only credential-adjacent logic is create_voicememo_message actively REJECTING URLs that embed credentials.",
+      "misleading_names_or_descriptions": "Every active registerTool definition was read against its handler. Names and descriptions match behaviour; the only naming risk is the AI tools noted above, which are correctly annotated as writes.",
+      "widget_csp": "Not applicable — the server registers no widgets, no UI resources and no openai/outputTemplate _meta, so there is no widget CSP surface.",
+      "annotation_behavior_consistency": "No readOnlyHint true tool reaches a mutating endpoint, and no readOnlyHint true tool is marked destructive or open-world. Verified against a live tools/list response, not against the source text."
+    }
+  }
+}
