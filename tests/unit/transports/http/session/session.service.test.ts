@@ -678,8 +678,17 @@ describe('Session Service', () => {
     // the remaining budget against one clock reading and `refreshIdleTimer`
     // stamped `expiresAt` from a second one, so the cap was exceeded by
     // whatever elapsed between them. Leaving it to chance is how it hid; here
-    // the clock is forced to tick between the two reads so the old code fails
-    // every run rather than one in a few hundred.
+    // the clock is forced to tick between reads so the old code fails every
+    // run rather than one in a few hundred.
+    //
+    // `jest.spyOn(Date, 'now')` does NOT catch this: `refreshIdleTimer` reads
+    // the clock via `new Date()`, and the `Date` constructor does not call the
+    // static `Date.now` internally, so spying on `.now` never engages and this
+    // test would pass even with the old two-reads bug reintroduced. Instead,
+    // replace the `Date` constructor itself so every zero-arg `new Date()`
+    // ("what time is it right now") ticks the clock by 1ms; constructing from
+    // an explicit value (`new Date(x)`), as `refreshIdleTimer` does when it
+    // stamps `expiresAt` from its own single reading, is left untouched.
     it('never exceeds the wall-clock cap, even if the clock ticks mid-refresh', () => {
       const sessionId = 'clock-tick-session';
       const oneHour = 60 * 60 * 1000;
@@ -706,18 +715,32 @@ describe('Session Service', () => {
       sessionService = new SessionService(sessionManager as any, config);
       (sessionManager.getSession as jest.Mock).mockReturnValue(mockSession);
 
-      // Advance one millisecond on every clock read, so any two readings in the
-      // refresh path are guaranteed to differ.
+      const RealDate = Date;
       let tick = 0;
-      const nowSpy = jest
-        .spyOn(Date, 'now')
-        .mockImplementation(() => base + tick++);
+      class TickingDate extends RealDate {
+        constructor(value?: number | string | Date) {
+          if (value === undefined) {
+            super(base + tick++);
+          } else {
+            super(value as any);
+          }
+        }
+        static now(): number {
+          return base + tick++;
+        }
+      }
+      (global as any).Date = TickingDate;
 
       try {
         sessionService.recordInteraction(sessionId);
       } finally {
-        nowSpy.mockRestore();
+        (global as any).Date = RealDate;
       }
+
+      // Guards against the clock-mocking mechanism itself going stale (as
+      // happened with the `jest.spyOn(Date, 'now')` version): if nothing ever
+      // reads the fake clock, this test is no longer testing anything.
+      expect(tick).toBeGreaterThan(0);
 
       expect(mockSession.metrics.expiresAt.getTime()).toBeLessThanOrEqual(
         createdAt.getTime() + oneHour,
