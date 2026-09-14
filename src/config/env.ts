@@ -18,8 +18,7 @@ const parseLogTransports = (value: string): LogTransport[] => {
   }
 
   const invalidTransports = parsedTransports.filter(
-    (transport) =>
-      !validLogTransports.includes(transport as LogTransport),
+    (transport) => !validLogTransports.includes(transport as LogTransport),
   );
 
   if (invalidTransports.length > 0) {
@@ -50,6 +49,21 @@ const Environment = z.object({
     .optional()
     .transform((val) => val || CV_API_BASE_URL),
   CARBON_VOICE_API_KEY: z.string().optional(),
+  /**
+   * Personal Access Token for the stdio transport, as an alternative to
+   * CARBON_VOICE_API_KEY. Sent as `Authorization: Bearer <pat>`, which is what
+   * cv-api's PatTokenStrategy reads; it recognises PATs by their `cv_pat_`
+   * prefix.
+   *
+   * Preferred over an API key where available because it expires, is
+   * revocable, and is self-service via `POST /pats`. NOT because it is
+   * narrower: cv-api enforces a PAT's cv:read / cv:write scopes only on the
+   * app subscribe/unsubscribe endpoints, so a cv:read PAT writes like any
+   * other credential. Treat either as full access you can revoke.
+   *
+   * Takes precedence over CARBON_VOICE_API_KEY when both are set.
+   */
+  CARBON_VOICE_PAT: z.string().optional(),
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error'])
     .optional()
@@ -64,9 +78,7 @@ const Environment = z.object({
     .url()
     .or(z.string().regex(/^\/.*/, 'Must be an absolute path or URL'))
     .optional()
-    .transform(
-      (val) => val || '/.well-known/oauth-protected-resource',
-    ),
+    .transform((val) => val || '/.well-known/oauth-protected-resource'),
   LOG_TRANSPORT: z
     .string()
     .optional()
@@ -90,6 +102,76 @@ const Environment = z.object({
     .enum(['dev', 'prod'])
     .optional()
     .default(getRunningEnvironment()),
+  /**
+   * Max size (bytes) of an audio file fetched by `create_voicememo_message`
+   * from `audio_url`. Caps memory per request and limits the blast radius of
+   * pointing the server at an enormous file.
+   */
+  AUDIO_FETCH_MAX_BYTES: z
+    .string()
+    .optional()
+    .default(String(25 * 1024 * 1024))
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error('AUDIO_FETCH_MAX_BYTES must be a positive integer');
+      }
+      return n;
+    }),
+  /**
+   * How many `audio_url` fetches may be in flight across the WHOLE process.
+   *
+   * AUDIO_FETCH_MAX_BYTES caps one fetch; nothing capped their sum. The
+   * tool-call queue serializes per SESSION (`queueBySessionId`), so one caller
+   * with several sessions gets that many concurrent fetches, each holding its
+   * chunks, the concatenated buffer, and the resulting File alive through the
+   * upstream upload. At the 60 requests/minute the HTTP limiter allows, that
+   * is gigabytes of transient memory and an out-of-memory kill.
+   *
+   * 4 x 25 MiB, roughly doubled by the concat, bounds it near 200 MiB.
+   */
+  AUDIO_FETCH_MAX_CONCURRENT: z
+    .string()
+    .optional()
+    .default('4')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        throw new Error(
+          'AUDIO_FETCH_MAX_CONCURRENT must be a positive integer',
+        );
+      }
+      return n;
+    }),
+  /** Timeout (ms) for fetching an audio file from `audio_url`. */
+  AUDIO_FETCH_TIMEOUT_MS: z
+    .string()
+    .optional()
+    .default('30000')
+    .transform((s) => {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error('AUDIO_FETCH_TIMEOUT_MS must be a positive number');
+      }
+      return n;
+    }),
+  /**
+   * Optional comma-separated hostname allowlist for `audio_url`. When set,
+   * only these hosts (and their subdomains) may be fetched — the strongest
+   * available control against using this server as an SSRF proxy. When unset,
+   * any public host is allowed but private/loopback/link-local address space
+   * is still blocked. Set this in production.
+   */
+  AUDIO_FETCH_ALLOWED_HOSTS: z
+    .string()
+    .optional()
+    .default('')
+    .transform((val) =>
+      val
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   /** Idle TTL (ms): session is destroyed after this long without activity; refreshed on each interaction. */
   MCP_SESSION_TTL_MS: z
     .string()
@@ -109,9 +191,7 @@ const Environment = z.object({
     .transform((s) => {
       const n = Number(s);
       if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
-        throw new Error(
-          'MCP_SESSION_MAX_SESSIONS must be a positive integer',
-        );
+        throw new Error('MCP_SESSION_MAX_SESSIONS must be a positive integer');
       }
       return n;
     }),

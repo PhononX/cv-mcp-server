@@ -4,3 +4,4 @@ dist/*
 logs/*
 .DS_Store
 .cursor
+coverage/

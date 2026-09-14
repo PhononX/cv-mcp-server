@@ -27,7 +27,15 @@ jobs:
           cache: 'npm'
 
       - run: npm ci
-      - run: npm run test:unit && npm run test:e2e
+      # Split into separate steps so a red build names the suite that broke,
+      # rather than one chained command whose log has to be read to find out.
+      #
+      # `test:integration` is on this gate because it was not: a broken test in
+      # that suite rode five commits on one branch while unit and e2e stayed
+      # green, so CI reported success the whole time.
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run test:e2e
       - run: npm run build
 
   deploy-dev:

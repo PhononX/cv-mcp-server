@@ -62,6 +62,25 @@ const NOT_LOG_ROUTES = ['/health'];
  * instead of axios's default bracket notation (`user_ids[]=a&user_ids[]=b`).
  * The Carbon Voice API's array query params (e.g. `user_ids`) are dropped when
  * sent with unencoded brackets, so this matches the format confirmed to work.
+ *
+ * A SINGLE-ELEMENT array is emitted twice — `user_ids=a&user_ids=a`.
+ *
+ * Why: repeated keys only parse back as an array when the key repeats. Express
+ * turns `?user_ids=a` into the STRING `'a'` (verified under both the `simple`
+ * and `extended` query parsers), and the upstream DTOs validate these fields
+ * with `@IsArray()` and no coercing `@Transform` — so filtering by exactly one
+ * id returned `400 BAD_REQUEST` naming that property, while two or more ids
+ * worked. That made "messages from one person", the most natural form of the
+ * query, always fail. Bracket and indexed notations are not an option here:
+ * they are the encoding the API drops.
+ *
+ * This is safe because every array query param the API takes is a filter SET
+ * (`user_ids`, `creator_ids`, `tagged_user_ids`, `conversation_ids`,
+ * `workspace_ids`, `label_ids`), where a duplicate is a no-op. A future array
+ * param whose meaning depends on length or order would need excluding here.
+ *
+ * The durable fix belongs upstream: a `@Transform` that wraps a scalar into an
+ * array, which `MessageIdSearchParameters` already does and these DTOs do not.
  */
 export const serializeParams = (params: Record<string, unknown>): string => {
   const searchParams = new URLSearchParams();
@@ -70,6 +89,14 @@ export const serializeParams = (params: Record<string, unknown>): string => {
       return;
     }
     if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return;
+      }
+      if (value.length === 1) {
+        searchParams.append(key, String(value[0]));
+        searchParams.append(key, String(value[0]));
+        return;
+      }
       value.forEach((item) => searchParams.append(key, String(item)));
     } else {
       searchParams.append(key, String(value));
@@ -78,13 +105,99 @@ export const serializeParams = (params: Record<string, unknown>): string => {
   return searchParams.toString();
 };
 
+/**
+ * cv-api returns class-validator failures as an ARRAY of error objects, each
+ * carrying a `target` that is a full dump of the request DTO. Passing that
+ * through means a single "must be an array" becomes a deeply nested blob an
+ * agent has to mine for the one useful sentence — and it is repeated inside
+ * `details.data` as well.
+ *
+ * This flattens it to `["user_ids: user_ids must be an array"]`, walking
+ * `children` so nested DTO failures survive.
+ */
+export const compactValidationErrors = (
+  message: unknown,
+): string[] | undefined => {
+  if (!Array.isArray(message)) {
+    return undefined;
+  }
+
+  const out: string[] = [];
+  const walk = (entries: unknown[], path: string[]): void => {
+    entries.forEach((entry) => {
+      if (typeof entry === 'string') {
+        out.push(entry);
+        return;
+      }
+      if (typeof entry !== 'object' || entry === null) {
+        return;
+      }
+      const node = entry as {
+        property?: string;
+        constraints?: Record<string, string>;
+        children?: unknown[];
+      };
+      const here = node.property ? [...path, node.property] : path;
+      const constraints = node.constraints
+        ? Object.values(node.constraints)
+        : [];
+      constraints.forEach((text) =>
+        out.push(here.length ? `${here.join('.')}: ${text}` : text),
+      );
+      if (Array.isArray(node.children) && node.children.length) {
+        walk(node.children, here);
+      }
+    });
+  };
+
+  walk(message, []);
+  return out.length ? out : undefined;
+};
+
+/**
+ * Strips the request dumps class-validator attaches to each error.
+ *
+ * Recurses through `children`: a nested DTO failure produces a tree of errors
+ * and EVERY node carries its own `target` with the whole request object on it.
+ * Stripping only the top level left the dumps in place for exactly the nested
+ * cases that produce the biggest payloads.
+ */
+const stripValidationTarget = (entry: unknown): unknown => {
+  if (!entry || typeof entry !== 'object') {
+    return entry;
+  }
+  const rest: Record<string, unknown> = {};
+  Object.entries(entry as Record<string, unknown>).forEach(([k, v]) => {
+    if (k === 'target') {
+      return;
+    }
+    rest[k] =
+      k === 'children' && Array.isArray(v) ? v.map(stripValidationTarget) : v;
+  });
+  return rest;
+};
+
+const withoutValidationTargets = (data: unknown): unknown => {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  const body = data as { message?: unknown };
+  if (!Array.isArray(body.message)) {
+    return data;
+  }
+  return {
+    ...body,
+    message: body.message.map(stripValidationTarget),
+  };
+};
+
 const serializeAxiosError = (error: AxiosError): Record<string, unknown> => {
   return {
     message: error.message,
     code: error.code,
     status: error.response?.status,
     statusText: error.response?.statusText,
-    data: error.response?.data,
+    data: withoutValidationTargets(error.response?.data),
     url: error.config?.url,
     method: error.config?.method?.toUpperCase(),
     timeout: error.config?.timeout,
@@ -256,18 +369,27 @@ function handleAxiosError(error: AxiosError): ApiError | NetworkError {
     const errorData = error.response.data as ErrorResponseData;
     // Handle different HTTP status codes
     switch (statusCode) {
-      case 400:
+      case 400: {
+        const validation = compactValidationErrors(errorData?.message);
         return {
           statusCode,
           body: {
             error: {
               code: 'BAD_REQUEST',
-              message: errorData?.message || 'Invalid request parameters',
+              // A readable one-liner per failed constraint beats the raw
+              // class-validator array, which buries it under request dumps.
+              message:
+                validation?.join('; ') ||
+                (typeof errorData?.message === 'string'
+                  ? errorData.message
+                  : 'Invalid request parameters'),
+              ...(validation ? { validation } : {}),
               details: serializedError,
             },
             traceId,
           },
         };
+      }
       case 401:
         return {
           statusCode,
@@ -379,14 +501,25 @@ export async function mutator<T>(
   { url, method, params, data, headers }: AxiosRequestConfig,
   options?: AxiosRequestConfig,
 ): Promise<T> {
+  // MERGE the two header sets rather than letting `options` replace them.
+  // `options` carries the auth header; the generated request carries the
+  // content type. Spreading `...options` wholesale dropped
+  // `Content-Type: multipart/form-data` from the voicememo upload, leaving the
+  // instance default of `application/json` in force — and axios responds to a
+  // FormData body under a JSON content type by running it through
+  // `formDataToJSON`, so the File serialized to `{}` and the audio never left
+  // the process. Callers keep the ability to override a header (that is how
+  // `x-api-key: undefined` suppresses the instance default), they just no
+  // longer clear the ones they did not set.
+  const { headers: optionHeaders, ...restOptions } = options ?? {};
   try {
     const response = await axiosInstance({
       url,
       method,
       params,
       data,
-      headers,
-      ...options,
+      ...restOptions,
+      headers: { ...headers, ...optionHeaders },
     });
 
     return response.data as T;

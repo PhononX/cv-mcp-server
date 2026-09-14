@@ -1,6 +1,6 @@
 {
   "name": "@carbonvoice/cv-mcp-server",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "description": "Server implementation for integrating with Carbon Voice's API, providing tools and endpoints for voice messaging, conversations, and workspace management through MCP (Model Context Protocol)",
   "author": "Carbon Voice",
   "license": "ISC",
@@ -39,10 +39,16 @@
     "version:patch": "npm version patch && git push origin develop",
     "version:minor": "npm version minor && git push origin develop",
     "version:major": "npm version major && git push origin develop",
-    "release:patch": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && npm version patch && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
-    "release:minor": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && npm version minor && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
-    "release:major": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && npm version major && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
-    "deploy:release": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:e2e && npm run build && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop"
+    "release:patch": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:integration && npm run test:e2e && npm run build && npm version patch && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "release:minor": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:integration && npm run test:e2e && npm run build && npm version minor && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "release:major": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:integration && npm run test:e2e && npm run build && npm version major && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "deploy:release": "git checkout develop && git pull origin develop && npm run test:unit && npm run test:integration && npm run test:e2e && npm run build && git push origin develop && git checkout main && git merge develop && git push origin main && git checkout develop",
+    "measure:payloads": "ts-node scripts/measure-payloads.ts",
+    "mcp:list": "node scripts/mcp-client.mjs list",
+    "mcp:schema": "node scripts/mcp-client.mjs schema",
+    "mcp:call": "node scripts/mcp-client.mjs call",
+    "mcp:size": "node scripts/mcp-client.mjs size",
+    "mcp:smoke": "node scripts/mcp-smoke.mjs"
   },
   "files": [
     "dist"

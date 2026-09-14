@@ -26,16 +26,25 @@ export class SessionService implements ISessionService {
 
   /**
    * Next idle window (ms) capped by optional max wall-clock lifetime from {@link SessionMetrics.createdAt}.
+   *
+   * `nowMs` is passed in rather than read here so that the caller stamps
+   * `expiresAt` from the SAME instant this budget was computed against.
+   * Reading the clock twice let `expiresAt` land past the wall-clock deadline
+   * by however long elapsed between the two reads: `remaining` is measured
+   * from instant A, then added to instant B, so the cap overshoots by B - A.
+   * Usually 0ms, occasionally 1ms — but the cap is the one thing this function
+   * exists to enforce, so it should not be able to be exceeded at all.
    */
   private computeEffectiveIdleTtlMs(
     createdAt: Date,
     requestedTtlMs: number,
+    nowMs: number,
   ): number {
     if (this.config.maxWallClockAgeMs <= 0) {
       return requestedTtlMs;
     }
     const deadline = createdAt.getTime() + this.config.maxWallClockAgeMs;
-    const remaining = deadline - Date.now();
+    const remaining = deadline - nowMs;
     if (remaining <= 0) {
       return 0;
     }
@@ -54,9 +63,11 @@ export class SessionService implements ISessionService {
       return false;
     }
 
+    const now = new Date();
     const effectiveMs = this.computeEffectiveIdleTtlMs(
       session.metrics.createdAt,
       requestedTtlMs,
+      now.getTime(),
     );
 
     if (effectiveMs <= 0) {
@@ -67,7 +78,6 @@ export class SessionService implements ISessionService {
 
     clearTimeout(session.timeout);
 
-    const now = new Date();
     session.metrics.expiresAt = new Date(now.getTime() + effectiveMs);
     session.metrics.lastActivityAt = now;
 
@@ -111,7 +121,11 @@ export class SessionService implements ISessionService {
 
     const userId = req.auth.extra.user.id;
     const now = new Date();
-    const initialIdleMs = this.computeEffectiveIdleTtlMs(now, this.config.ttlMs);
+    const initialIdleMs = this.computeEffectiveIdleTtlMs(
+      now,
+      this.config.ttlMs,
+      now.getTime(),
+    );
     if (initialIdleMs <= 0) {
       throw new Error(
         'Cannot create session: MCP_SESSION_MAX_AGE_MS does not allow any remaining lifetime',

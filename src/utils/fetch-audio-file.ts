@@ -1,0 +1,759 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { File } from 'node:buffer';
+import dns from 'node:dns/promises';
+import net from 'node:net';
+import path from 'node:path';
+
+import { logger } from './logger';
+
+import { env } from '../config';
+
+/**
+ * Fetches an audio file from a caller-supplied URL so it can be forwarded to
+ * the Carbon Voice multipart upload endpoint.
+ *
+ * MCP is JSON-RPC, so an agent can never hand us a `File`. Accepting a URL and
+ * fetching it server-side is the only way to make audio upload reachable — but
+ * it also turns this server into a fetcher of arbitrary URLs, so every request
+ * is constrained:
+ *
+ *  - scheme must be http/https
+ *  - every hop's host is DNS-resolved and rejected if it lands in private,
+ *    loopback, link-local, multicast or otherwise reserved address space
+ *  - redirects are followed manually, re-validating each hop
+ *  - an optional hostname allowlist (`AUDIO_FETCH_ALLOWED_HOSTS`) can restrict
+ *    fetches to known-good origins entirely
+ *  - size is capped both by `content-length` and while streaming
+ *  - the whole operation is bounded by a timeout
+ *
+ * Residual risk: between validating a resolved IP and connecting by hostname
+ * there is a DNS-rebinding window. Closing it fully means pinning the socket to
+ * the validated IP. Set `AUDIO_FETCH_ALLOWED_HOSTS` in production to remove the
+ * exposure instead.
+ */
+
+const MAX_REDIRECTS = 3;
+
+/**
+ * Rejects if `work` outlives `ms`.
+ *
+ * `dns.lookup` takes no AbortSignal, so aborting the fetch controller does
+ * nothing to a stalled resolver — a caller-supplied hostname could hold a tool
+ * call well past AUDIO_FETCH_TIMEOUT_MS, and past it again on every redirect
+ * hop. The deadline has to cover resolution too, not just the transfer.
+ */
+const withDeadline = async <T>(
+  work: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new AudioFetchError(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
+
+/** Extensions the upstream endpoint documents as supported. */
+const SUPPORTED_EXTENSIONS = [
+  '.mp3',
+  '.m4a',
+  '.wav',
+  '.aac',
+  '.ogg',
+  '.flac',
+  '.wma',
+  '.opus',
+  '.webm',
+];
+
+export class AudioFetchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AudioFetchError';
+  }
+}
+
+/**
+ * Expands an IPv6 address to its 16 bytes, or null if it does not parse.
+ *
+ * Needed because string prefix matching is not sound against the forms WHATWG
+ * URL actually produces: `http://[::ffff:127.0.0.1]/` canonicalizes to
+ * `::ffff:7f00:1`, so a regex looking for dotted-decimal never fires and the
+ * address reads as ordinary public space. Byte comparison has no such blind
+ * spot.
+ */
+export const ipv6ToBytes = (input: string): number[] | null => {
+  let addr = input.split('%')[0].toLowerCase();
+
+  // A trailing dotted quad (`::ffff:127.0.0.1`) is legal syntax; fold it into
+  // two hex groups so the rest of the parse is uniform.
+  const dotted = addr.match(/^(.*:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (dotted) {
+    const octets = dotted[2].split('.').map(Number);
+    if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+      return null;
+    }
+    const hi = ((octets[0] << 8) | octets[1]).toString(16);
+    const lo = ((octets[2] << 8) | octets[3]).toString(16);
+    addr = `${dotted[1]}${hi}:${lo}`;
+  }
+
+  const halves = addr.split('::');
+  if (halves.length > 2) {
+    return null;
+  }
+
+  const head = halves[0] ? halves[0].split(':').filter(Boolean) : [];
+  let groups: string[];
+  if (halves.length === 1) {
+    groups = head;
+  } else {
+    const tail = halves[1] ? halves[1].split(':').filter(Boolean) : [];
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) {
+      return null;
+    }
+    groups = [...head, ...Array(missing).fill('0'), ...tail];
+  }
+
+  if (groups.length !== 8) {
+    return null;
+  }
+
+  const bytes: number[] = [];
+  for (const group of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(group)) {
+      return null;
+    }
+    const value = parseInt(group, 16);
+    bytes.push(value >> 8, value & 0xff);
+  }
+  return bytes;
+};
+
+/**
+ * IPv4 blocks that are not globally reachable, from IANA's IPv4 Special-Purpose
+ * Address Registry, plus multicast and the reserved top of the space.
+ *
+ * Written as CIDRs rather than octet comparisons deliberately. The previous
+ * form (`a === 198 && (b === 18 || b === 19)`) read as a list of special cases
+ * with no way to tell what was missing, and it was missing three: TEST-NET-2,
+ * TEST-NET-3 and the deprecated 6to4 relay anycast prefix, any of which a
+ * deployment may route internally. This form can be diffed against the
+ * registry line by line.
+ *
+ * The AS112 and AMT blocks inside 192.0.0.0/24's neighbourhood (192.31.196.0/24,
+ * 192.52.193.0/24, 192.175.48.0/24) are marked globally reachable by the
+ * registry and are deliberately NOT here.
+ */
+const BLOCKED_IPV4_BLOCKS: ReadonlyArray<readonly [string, number]> = [
+  ['0.0.0.0', 8], // "this network"
+  ['10.0.0.0', 8], // private
+  ['100.64.0.0', 10], // carrier-grade NAT (shared address space)
+  ['127.0.0.0', 8], // loopback
+  ['169.254.0.0', 16], // link-local, incl. cloud metadata at 169.254.169.254
+  ['172.16.0.0', 12], // private
+  ['192.0.0.0', 24], // IETF protocol assignments
+  ['192.0.2.0', 24], // TEST-NET-1
+  ['192.88.99.0', 24], // deprecated 6to4 relay anycast
+  ['192.168.0.0', 16], // private
+  ['198.18.0.0', 15], // benchmarking
+  ['198.51.100.0', 24], // TEST-NET-2
+  ['203.0.113.0', 24], // TEST-NET-3
+  ['224.0.0.0', 4], // multicast
+  ['240.0.0.0', 4], // reserved, incl. 255.255.255.255 broadcast
+];
+
+const ipv4ToInt = (ip: string): number =>
+  ip.split('.').reduce((acc, octet) => acc * 256 + Number(octet), 0);
+
+const inIpv4Block = (ip: string, prefix: string, bits: number): boolean => {
+  // `>>> 0` keeps the mask unsigned: a /1../31 mask built with `<<` is a
+  // negative int32 in JS, and comparing it against an unsigned address would
+  // misjudge everything at or above 128.0.0.0.
+  const mask = bits === 0 ? 0 : (-1 << (32 - bits)) >>> 0;
+  return (ipv4ToInt(ip) & mask) >>> 0 === (ipv4ToInt(prefix) & mask) >>> 0;
+};
+
+/**
+ * IPv6 prefixes that are not globally reachable, from IANA's IPv6
+ * Special-Purpose Address Registry. The byte tests below cover the ranges with
+ * simple bit patterns (link-local, site-local, unique-local, multicast); these
+ * are the rest, which have no such pattern and were each classified as public.
+ *
+ * The specific sub-prefixes are listed rather than the enclosing
+ * `2001::/23` ("IETF Protocol Assignments") precisely so the two AS112 ranges
+ * inside it — `2001:4:112::/48` and `2620:4f:8000::/48`, both marked globally
+ * reachable — keep working without needing a carve-out.
+ *
+ * `2001::/32` (Teredo) is refused deliberately. The registry no longer marks it
+ * globally reachable, and a Teredo address embeds an IPv4 address that may be
+ * internal. Nothing serves audio over Teredo, so the cost of being wrong here
+ * is a refused fetch rather than a reachable internal service.
+ */
+const BLOCKED_IPV6_BLOCKS: ReadonlyArray<readonly [number[], number, string]> =
+  (
+    [
+      ['100::', 64, 'discard-only'],
+      ['2001::', 32, 'Teredo'],
+      ['2001:2::', 48, 'benchmarking'],
+      ['2001:10::', 28, 'ORCHID, deprecated'],
+      ['2001:20::', 28, 'ORCHIDv2'],
+      ['2001:30::', 28, 'drone remote ID'],
+      ['2001:db8::', 32, 'documentation'],
+      ['3ffe::', 16, '6bone, returned to IANA'],
+      ['3fff::', 20, 'documentation'],
+      ['5f00::', 16, 'SRv6 SIDs'],
+    ] as ReadonlyArray<readonly [string, number, string]>
+  ).map(([prefix, bits, label]) => {
+    const parsed = ipv6ToBytes(prefix);
+    if (!parsed) {
+      // A typo here would silently disable one row, so fail at module load
+      // rather than leave a hole that only an SSRF attempt would reveal.
+      throw new Error(`Unparseable blocked IPv6 prefix: ${prefix}`);
+    }
+    return [parsed, bits, label] as const;
+  });
+
+const inIpv6Block = (
+  bytes: number[],
+  prefixBytes: number[],
+  bits: number,
+): boolean => {
+  const wholeBytes = bits >> 3;
+  for (let i = 0; i < wholeBytes; i++) {
+    if (bytes[i] !== prefixBytes[i]) {
+      return false;
+    }
+  }
+  const leftoverBits = bits & 7;
+  if (leftoverBits === 0) {
+    return true;
+  }
+  const mask = (0xff << (8 - leftoverBits)) & 0xff;
+  return (bytes[wholeBytes] & mask) === (prefixBytes[wholeBytes] & mask);
+};
+
+/**
+ * True when an IP sits in address space that should never be reachable from a
+ * user-supplied URL — loopback, private ranges, link-local (which covers cloud
+ * metadata endpoints such as 169.254.169.254), and unspecified/reserved blocks.
+ *
+ * IPv6 is judged on bytes rather than string prefixes, and any address that
+ * embeds an IPv4 address — IPv4-mapped (`::ffff:0:0/96`), the deprecated
+ * IPv4-compatible (`::/96`), or NAT64 (`64:ff9b::/96`) — is re-judged on the
+ * embedded IPv4. Without that, `[::ffff:169.254.169.254]` reaches the metadata
+ * service through a guard that believes it is public.
+ */
+export const isBlockedAddress = (ip: string): boolean => {
+  const version = net.isIP(ip);
+  if (version === 0) {
+    return true;
+  }
+
+  if (version === 4) {
+    return BLOCKED_IPV4_BLOCKS.some(([prefix, bits]) =>
+      inIpv4Block(ip, prefix, bits),
+    );
+  }
+
+  const bytes = ipv6ToBytes(ip);
+  if (!bytes) {
+    // Validated as IPv6 by net.isIP but unparseable here: refuse rather than
+    // guess.
+    return true;
+  }
+
+  const zeros = (from: number, to: number) =>
+    bytes.slice(from, to).every((byte) => byte === 0);
+
+  // Any address embedding an IPv4 address is decided by that address.
+  const isIpv4Mapped = zeros(0, 10) && bytes[10] === 0xff && bytes[11] === 0xff;
+  const isIpv4Compatible = zeros(0, 12);
+  // The well-known NAT64 prefix, RFC 6052 — 64:ff9b::/96, embedded IPv4 in the
+  // last 32 bits.
+  const isWellKnownNat64 =
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    zeros(4, 12);
+
+  if (isIpv4Mapped || isIpv4Compatible || isWellKnownNat64) {
+    return isBlockedAddress(bytes.slice(12).join('.'));
+  }
+
+  // 2002::/16 — 6to4. Unlike the forms above, the embedded IPv4 sits at bytes
+  // 2-5, not 12-15: 2002:WWXX:YYZZ::/48 carries WW.XX.YY.ZZ. Left undecoded,
+  // `2002:a9fe:a9fe::1` reaches 169.254.169.254 — the cloud metadata endpoint,
+  // the highest-value SSRF target there is — through a URL that looks purely
+  // IPv6. Re-judged rather than blanket-refused, because a 6to4 address
+  // wrapping a public IPv4 (2002:0808:0808:: is 8.8.8.8) is legitimately
+  // reachable; it is the embedded target that decides.
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+    return isBlockedAddress(bytes.slice(2, 6).join('.'));
+  }
+
+  // 64:ff9b:1::/48 — RFC 8215's LOCAL-USE NAT64 range. Behind DNS64 an internal
+  // hostname can resolve to a synthesized address in here whose embedded IPv4
+  // is private or link-local. Unlike the well-known prefix above, the embedded
+  // address can sit at several offsets (RFC 6052 allows /32, /40, /48, /56,
+  // /64 and /96 network-specific prefixes) and we cannot know which the local
+  // network uses — so rather than guess where to look, refuse the whole range.
+  // It is reserved for local use, so nothing reachable through it is a
+  // legitimate public audio source.
+  if (
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    bytes[4] === 0x00 &&
+    bytes[5] === 0x01
+  ) {
+    return true;
+  }
+
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  // fec0::/10 site-local. Deprecated by RFC 3879 and so easy to leave out, but
+  // plenty of networks still route it internally — which is exactly what makes
+  // it worth reaching for.
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0) return true;
+  if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
+  if (bytes[0] === 0xff) return true; // ff00::/8 multicast
+
+  // 2000::/3 is the only range IANA has allocated for global unicast, so
+  // anything outside it is special-purpose or simply unallocated — 4000::,
+  // 6000::, 8000::, c000::, e000:: and f000:: all reached the public branch
+  // before this test.
+  //
+  // This is the positive classification the review asked for three times, and
+  // twice I answered that for a fixed registry a deny-list and a positive
+  // classifier describe the same set. That is roughly true of IPv4, which is
+  // essentially fully allocated. It is false of IPv6: most of the space is
+  // unallocated and therefore appears in no special-purpose registry at all,
+  // so no enumeration of special-purpose prefixes can ever cover it. The
+  // enumerated table below is still needed for the prefixes that sit INSIDE
+  // 2000::/3.
+  //
+  // The embedded-IPv4 forms are deliberately resolved before this point:
+  // ::ffff:0:0/96, ::/96 and 64:ff9b::/96 all lie outside 2000::/3, and
+  // `::ffff:8.8.8.8` must stay reachable on the merit of its embedded address.
+  if ((bytes[0] & 0xe0) !== 0x20) {
+    return true;
+  }
+
+  // Residual gap, stated rather than papered over: within 2000::/3 only the
+  // prefixes below are refused. IANA has allocated a subset of 2000::/3 to the
+  // RIRs, so unallocated space inside it (2100::, 2300::, 2500::…) still
+  // passes. Enumerating the RIR /12s would close that, at the cost of refusing
+  // any host in a /12 allocated after this table was written — a silent
+  // breakage traded for a narrow gain, so it is not done here.
+  return BLOCKED_IPV6_BLOCKS.some(([prefixBytes, bits]) =>
+    inIpv6Block(bytes, prefixBytes, bits),
+  );
+};
+
+/**
+ * WHATWG `URL.hostname` keeps the square brackets on an IPv6 literal, so
+ * `https://[2606:4700::1111]/a.mp3` yields `[2606:4700::1111]`. Left as-is,
+ * `net.isIP` returns 0, the value is treated as a DNS name, the lookup fails,
+ * and every public IPv6-literal URL is rejected. Brackets belong in the URL,
+ * not in an address we are about to test or resolve.
+ */
+const bareHostname = (hostname: string): string =>
+  hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname;
+
+const isHostAllowlisted = (hostname: string): boolean => {
+  const allowed = env.AUDIO_FETCH_ALLOWED_HOSTS;
+  if (allowed.length === 0) {
+    return true;
+  }
+  // Compare bare hostnames. `url.hostname` keeps the brackets on an IPv6
+  // literal, so without this an allowlisted IPv6 origin never matches its own
+  // entry and is refused. Entries are normalized too, since an operator may
+  // reasonably write either form.
+  const host = bareHostname(hostname).toLowerCase();
+  return allowed.some((raw) => {
+    const entry = bareHostname(raw).toLowerCase();
+    return host === entry || host.endsWith(`.${entry}`);
+  });
+};
+
+/**
+ * Strips `user:password@` out of any URL embedded in an upstream error message.
+ *
+ * `assertUrlIsFetchable` rejects credential-bearing URLs before fetch sees
+ * them, so the known leak is already closed; this is the backstop for any other
+ * upstream message that quotes the URL, because these messages are interpolated
+ * into `AudioFetchError` and logged.
+ */
+const stripUrlCredentials = (message: string): string =>
+  message.replace(
+    /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/\s:@]+(?::[^/\s@]*)?@/g,
+    '$1<credentials redacted>@',
+  );
+
+const assertUrlIsFetchable = async (
+  raw: string,
+  deadlineAt: number,
+): Promise<URL> => {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    // Deliberately does not echo `raw`: it may be a presigned URL, and this
+    // message reaches the logs.
+    throw new AudioFetchError('audio_url is not a valid URL');
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new AudioFetchError(
+      `audio_url must use http or https, got "${url.protocol}"`,
+    );
+  }
+
+  // Plain http is refused unless the host is explicitly allowlisted.
+  //
+  // The address checks below are a time-of-check/time-of-use pair: we resolve
+  // the hostname and validate what comes back, then `fetch` resolves it AGAIN
+  // on its own. A caller who controls the hostname's DNS can answer our lookup
+  // with a public address and fetch's lookup with an internal one, and the
+  // guard never sees it (DNS rebinding).
+  //
+  // TLS is what closes that in practice: on https, the rebound internal host
+  // has to present a certificate valid for the ATTACKER'S hostname, which an
+  // internal service will not have, so the handshake fails before any request
+  // is sent. On plain http there is no such check, which is why the bypass is
+  // an http-only attack and why http now needs an explicit allowlist entry —
+  // at which point rebinding requires controlling DNS for a host the operator
+  // named.
+  //
+  // This narrows the window rather than closing it; pinning the connection to
+  // the validated address is the complete fix. See the note in fetchAudioFile.
+  if (url.protocol === 'http:' && env.AUDIO_FETCH_ALLOWED_HOSTS.length === 0) {
+    throw new AudioFetchError(
+      'audio_url must use https. Plain http is accepted only for hosts named in AUDIO_FETCH_ALLOWED_HOSTS.',
+    );
+  }
+
+  // Reject userinfo HERE rather than letting fetch do it. Node's own rejection
+  // reads "Request cannot be constructed from a URL that includes credentials:
+  // <the whole URL>", and that message is interpolated into AudioFetchError and
+  // logged as `reason` — so deferring to fetch would put the password in the
+  // logs, defeating the URL redaction. The message below names neither.
+  if (url.username || url.password) {
+    throw new AudioFetchError(
+      'audio_url must not embed credentials (user:password@); use a presigned URL or a plain link',
+    );
+  }
+
+  if (!isHostAllowlisted(url.hostname)) {
+    throw new AudioFetchError(
+      `audio_url host "${url.hostname}" is not in the configured allowlist`,
+    );
+  }
+
+  // A literal IP needs no lookup; a hostname must be resolved and every
+  // returned address checked, since one bad answer is enough to reach
+  // internal infrastructure.
+  const host = bareHostname(url.hostname);
+  const literal = net.isIP(host);
+  const remaining = deadlineAt - Date.now();
+  if (remaining <= 0) {
+    throw new AudioFetchError('audio_url fetch timed out before resolution');
+  }
+  const addresses = literal
+    ? [host]
+    : (
+        await withDeadline(
+          dns.lookup(host, { all: true }),
+          remaining,
+          `audio_url host resolution timed out after ${env.AUDIO_FETCH_TIMEOUT_MS}ms`,
+        )
+      ).map((a) => a.address);
+
+  if (addresses.length === 0) {
+    throw new AudioFetchError(
+      `audio_url host "${url.hostname}" could not be resolved`,
+    );
+  }
+
+  const blocked = addresses.find(isBlockedAddress);
+  if (blocked) {
+    throw new AudioFetchError(
+      `audio_url host "${url.hostname}" resolves to a non-public address (${blocked}) and will not be fetched`,
+    );
+  }
+
+  return url;
+};
+
+const deriveFilename = (url: URL): string => {
+  const base = path.basename(url.pathname) || 'audio';
+  const ext = path.extname(base).toLowerCase();
+  if (SUPPORTED_EXTENSIONS.includes(ext)) {
+    return base;
+  }
+  return `${base.replace(/\.[^.]*$/, '') || 'audio'}.mp3`;
+};
+
+/**
+ * Reads a response body, aborting as soon as the accumulated size exceeds
+ * `maxBytes`. Bounds peak memory to roughly the cap regardless of what the
+ * server claims in `content-length`.
+ */
+const readCapped = async (
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer> => {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // No readable stream (e.g. a 204). Fall back, bounded by the same cap.
+    const fallback = Buffer.from(await response.arrayBuffer());
+    if (fallback.byteLength > maxBytes) {
+      throw new AudioFetchError(
+        `audio_url is ${fallback.byteLength} bytes, above the ${maxBytes}-byte limit`,
+      );
+    }
+    return fallback;
+  }
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (value) {
+      total += value.byteLength;
+      if (total > maxBytes) {
+        // Stop pulling bytes we have already decided to reject.
+        await reader.cancel().catch(() => undefined);
+        throw new AudioFetchError(
+          `audio_url exceeds the ${maxBytes}-byte limit (aborted after ${total} bytes)`,
+        );
+      }
+      chunks.push(Buffer.from(value));
+    }
+  }
+  return Buffer.concat(chunks);
+};
+
+/**
+ * Releases a response body we have decided not to read.
+ *
+ * Throwing without consuming or cancelling leaves undici holding the
+ * connection open until GC, and the abort timer is cleared in `finally`, so
+ * nothing else will close it. Repeated oversized or error responses would
+ * accumulate sockets and stall later fetches.
+ */
+const discardBody = async (response?: Response): Promise<void> => {
+  await response?.body?.cancel().catch(() => undefined);
+};
+
+/**
+ * Fetches `audio_url` and returns it as a `File` suitable for the generated
+ * client's multipart upload. Throws `AudioFetchError` with an agent-actionable
+ * message on any rejection.
+ */
+// KNOWN LIMITATION — DNS rebinding.
+//
+// `assertUrlIsFetchable` resolves the hostname and validates every address it
+// gets back, then `fetch` performs its OWN resolution when it connects. Nothing
+// guarantees the two lookups agree, so a caller who controls the hostname's DNS
+// can pass our check with a public address and have fetch connect to a private
+// one. Closing it completely means pinning the connection to the address we
+// validated — supplying a custom `lookup` to the connection layer while keeping
+// the original hostname for the Host header and TLS SNI — which Node's global
+// `fetch` cannot express without an undici dispatcher.
+//
+// Until then two things narrow it: https is required unless the operator
+// allowlists the host (see `assertUrlIsFetchable` — TLS makes the rebound
+// address fail certificate validation), and `AUDIO_FETCH_ALLOWED_HOSTS`
+// restricts which hosts are reachable at all.
+/**
+ * Held permits, process-wide.
+ *
+ * `AUDIO_FETCH_MAX_BYTES` bounds ONE download; this bounds their sum.
+ * The tool-call queue serializes per session, so concurrency across sessions
+ * is otherwise unbounded.
+ *
+ * Callers over the budget are refused immediately rather than queued: queuing
+ * would hold the request open and let the backlog grow, which is the failure
+ * this exists to prevent.
+ */
+let inFlight = 0;
+
+/**
+ * Marks the async context of a held permit, so a nested `fetchAudioFile` joins
+ * the caller's permit instead of taking a second one. A counter or boolean
+ * cannot do this — concurrent operations would see each other's state — but an
+ * AsyncLocalStorage store is visible only to the continuations of the `run`
+ * that entered it.
+ */
+const permitHeld = new AsyncLocalStorage<true>();
+
+/** Exported for tests; the counter is module state and must not leak between them. */
+export const _resetAudioFetchConcurrency = (): void => {
+  inFlight = 0;
+};
+
+/**
+ * Runs `fn` holding one audio permit.
+ *
+ * The memory a download costs is not released when the download ends: the
+ * concatenated buffer lives on inside the returned `File` until the upstream
+ * multipart upload has consumed it, and that upload is the slower half. A
+ * permit scoped to the download alone would bound the cheap part and leave the
+ * expensive part unbounded, which is the whole failure this guards against —
+ * so the operation that OWNS the File decides when the permit ends.
+ *
+ * `fetchAudioFile` takes a permit itself when it is not already inside one, so
+ * a caller that forgets to wrap is still bounded (just more loosely). Wrapping
+ * the fetch AND the upload together is the correct usage; see the
+ * `create_voicememo_message` handler.
+ */
+export const withAudioFetchPermit = async <T>(
+  fn: () => Promise<T>,
+): Promise<T> => {
+  // Already inside a permit: reuse it. Taking a second would charge one
+  // operation twice and deadlock the budget against itself at limit 1.
+  if (permitHeld.getStore()) {
+    return fn();
+  }
+
+  if (inFlight >= env.AUDIO_FETCH_MAX_CONCURRENT) {
+    throw new AudioFetchError(
+      `too many audio downloads in progress (limit ${env.AUDIO_FETCH_MAX_CONCURRENT}); retry shortly`,
+    );
+  }
+
+  // Claimed last, with nothing between it and the `try` that releases it: a
+  // leaked permit is worse than the memory it bounds, since nothing short of a
+  // restart recovers one.
+  inFlight += 1;
+
+  try {
+    return await permitHeld.run(true, fn);
+  } finally {
+    inFlight -= 1;
+  }
+};
+
+export const fetchAudioFile = (rawUrl: string): Promise<File> =>
+  withAudioFetchPermit(() => downloadAudioFile(rawUrl));
+
+const downloadAudioFile = async (rawUrl: string): Promise<File> => {
+  const maxBytes = env.AUDIO_FETCH_MAX_BYTES;
+  const deadlineAt = Date.now() + env.AUDIO_FETCH_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    env.AUDIO_FETCH_TIMEOUT_MS,
+  );
+
+  try {
+    let target = await assertUrlIsFetchable(rawUrl, deadlineAt);
+    let response: Response | undefined;
+
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      response = await fetch(target, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: { accept: 'audio/*,application/octet-stream;q=0.9,*/*;q=0.8' },
+      });
+
+      if (response.status < 300 || response.status >= 400) {
+        break;
+      }
+
+      const location = response.headers.get('location');
+      if (!location) {
+        await discardBody(response);
+        throw new AudioFetchError(
+          `audio_url returned ${response.status} with no redirect target`,
+        );
+      }
+      if (hop === MAX_REDIRECTS) {
+        await discardBody(response);
+        throw new AudioFetchError(
+          `audio_url exceeded ${MAX_REDIRECTS} redirects`,
+        );
+      }
+      // The redirect response itself is finished with; the next hop opens its
+      // own.
+      await discardBody(response);
+      // Re-validate every hop: a public URL is free to redirect inward.
+      target = await assertUrlIsFetchable(
+        new URL(location, target).toString(),
+        deadlineAt,
+      );
+    }
+
+    if (!response || !response.ok) {
+      await discardBody(response);
+      throw new AudioFetchError(
+        `audio_url could not be fetched (HTTP ${response?.status ?? 'unknown'})`,
+      );
+    }
+
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      await discardBody(response);
+      throw new AudioFetchError(
+        `audio_url is ${declaredLength} bytes, above the ${maxBytes}-byte limit`,
+      );
+    }
+
+    // content-length can lie or be absent, so enforce the cap on real bytes —
+    // and do it WHILE reading. Buffering the whole body first (arrayBuffer())
+    // and checking afterwards means an unbounded chunked response can exhaust
+    // the heap before the check ever runs, which makes the limit decorative.
+    const buffer = await readCapped(response, maxBytes);
+    if (buffer.byteLength === 0) {
+      throw new AudioFetchError('audio_url returned an empty file');
+    }
+
+    const contentType =
+      response.headers.get('content-type')?.split(';')[0].trim() ||
+      'application/octet-stream';
+    const filename = deriveFilename(target);
+
+    logger.debug('Fetched audio file for voicememo upload', {
+      host: target.hostname,
+      bytes: buffer.byteLength,
+      contentType,
+      filename,
+    });
+
+    return new File([buffer], filename, { type: contentType });
+  } catch (error) {
+    if (error instanceof AudioFetchError) {
+      throw error;
+    }
+    if ((error as Error)?.name === 'AbortError') {
+      throw new AudioFetchError(
+        `audio_url fetch timed out after ${env.AUDIO_FETCH_TIMEOUT_MS}ms`,
+      );
+    }
+    throw new AudioFetchError(
+      `audio_url could not be fetched: ${stripUrlCredentials(
+        (error as Error)?.message ?? 'unknown error',
+      )}`,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+};

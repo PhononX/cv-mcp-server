@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { setCarbonVoiceAuthHeader } from '../../../src/auth';
 import { getCarbonVoiceAPI } from '../../../src/cv-api';
+import { TOOL_NAMES } from '../../../src/docs';
 import { getCarbonVoiceSimplifiedAPI } from '../../../src/generated';
 import { formatToMCPToolResponse, logger } from '../../../src/utils';
 import {
@@ -24,6 +25,9 @@ jest.mock('../../../src/auth', () => ({
 jest.mock('../../../src/cv-api', () => {
   const cvApiMock = {
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
+    searchMessageIds: jest.fn(),
+    searchMessagesByHeardStatus: jest.fn(),
+    listInboxNotifications: jest.fn(),
   };
   return {
     getCarbonVoiceAPI: jest.fn(() => cvApiMock),
@@ -60,6 +64,16 @@ jest.mock('../../../src/generated', () => {
     aIResponseControllerCreateResponse: jest.fn(),
     createShareLinkAIResponse: jest.fn(),
     aIResponseControllerGetAllResponses: jest.fn(),
+    simplifiedMessageShareLinkControllerCreate: jest.fn(),
+    simplifiedMessageShareLinkControllerGetMessageShareLink: jest.fn(),
+    actionItemControllerListMyActionItems: jest.fn(),
+    actionItemControllerList: jest.fn(),
+    actionItemControllerGetById: jest.fn(),
+    actionItemControllerCreate: jest.fn(),
+    actionItemControllerUpdate: jest.fn(),
+    actionItemControllerSetStatus: jest.fn(),
+    actionItemControllerDelete: jest.fn(),
+    actionItemControllerCreateSuggestionsFromMessages: jest.fn(),
   };
   return {
     getCarbonVoiceSimplifiedAPI: jest.fn(() => simplifiedApiMock),
@@ -69,6 +83,12 @@ jest.mock('../../../src/generated', () => {
 // Mock the utils module
 jest.mock('../../../src/utils', () => ({
   formatToMCPToolResponse: jest.fn(),
+  fetchAudioFile: jest.fn(),
+  withAudioFetchPermit: jest.fn(async (fn: () => Promise<unknown>) => fn()),
+  // Real implementation: the point of the assertion below is that redaction
+  // actually happens, not that a stub was called.
+  redactUrlForLog: jest.requireActual('../../../src/utils/redact-url.util')
+    .redactUrlForLog,
   logger: {
     error: jest.fn(),
     info: jest.fn(),
@@ -95,6 +115,13 @@ describe('MCP Server', () => {
   const cvApiMock = {
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
     getContacts: jest.fn(),
+    searchMessageIds: jest.fn().mockResolvedValue({ ids: [], has_more: false }),
+    searchMessagesByHeardStatus: jest
+      .fn()
+      .mockResolvedValue({ messages: [], unheard_counts_by_channel: {} }),
+    listInboxNotifications: jest
+      .fn()
+      .mockResolvedValue({ results: [], total_results: 0, total_unread: 0 }),
   };
 
   const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
@@ -135,6 +162,34 @@ describe('MCP Server', () => {
     aIResponseControllerGetAllResponses: jest
       .fn()
       .mockResolvedValue({ responses: [] }),
+    simplifiedMessageShareLinkControllerCreate: jest
+      .fn()
+      .mockResolvedValue({ id: 'share-1', link: 'https://cv/s/share-1' }),
+    simplifiedMessageShareLinkControllerGetMessageShareLink: jest
+      .fn()
+      .mockResolvedValue({ id: 'share-1', link: 'https://cv/s/share-1' }),
+    actionItemControllerListMyActionItems: jest
+      .fn()
+      .mockResolvedValue({ results: [], has_more: false }),
+    actionItemControllerList: jest
+      .fn()
+      .mockResolvedValue({ results: [], has_more: false }),
+    actionItemControllerGetById: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't', status: 'todo' }),
+    actionItemControllerCreate: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't', status: 'todo' }),
+    actionItemControllerUpdate: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't2', status: 'todo' }),
+    actionItemControllerSetStatus: jest
+      .fn()
+      .mockResolvedValue({ id: 'ai-1', title: 't', status: 'done' }),
+    actionItemControllerDelete: jest.fn().mockResolvedValue({ success: true }),
+    actionItemControllerCreateSuggestionsFromMessages: jest
+      .fn()
+      .mockResolvedValue([{ id: 'ai-2', status: 'suggested' }]),
     getWhoAmI: jest.fn().mockResolvedValue({ user: {} }),
   };
 
@@ -151,7 +206,28 @@ describe('MCP Server', () => {
   // Mock the logger
   const mockLogger = {
     error: jest.fn(),
+    warn: jest.fn(),
   };
+
+  // Mock the audio fetcher used by create_voicememo_message's audio_url path
+  const mockFetchAudioFile = jest.fn();
+  /**
+   * Records when the permit is entered and left so a test can assert the
+   * upload happens INSIDE it. The permit exists to bound memory held by
+   * concurrent uploads; one released at the end of the download would bound
+   * only the cheaper half.
+   */
+  const permitEvents: string[] = [];
+  const mockWithAudioFetchPermit = jest.fn(
+    async (fn: () => Promise<unknown>) => {
+      permitEvents.push('acquire');
+      try {
+        return await fn();
+      } finally {
+        permitEvents.push('release');
+      }
+    },
+  );
 
   // Mock the setCarbonVoiceAuthHeader function
   const mockSetCarbonVoiceAuthHeader = jest.fn().mockReturnValue({
@@ -173,6 +249,11 @@ describe('MCP Server', () => {
 
     jest.doMock('../../../src/utils', () => ({
       formatToMCPToolResponse: mockFormatToMCPToolResponse,
+      fetchAudioFile: mockFetchAudioFile,
+      withAudioFetchPermit: mockWithAudioFetchPermit,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      redactUrlForLog: require('../../../src/utils/redact-url.util')
+        .redactUrlForLog,
       logger: mockLogger,
     }));
 
@@ -186,6 +267,257 @@ describe('MCP Server', () => {
 
     // Import the server module after mocks are set up
     require('../../../src/server');
+  });
+
+  describe('Constraint descriptions', () => {
+    // Phase 3: rules that previously cost a failed call to discover, or that
+    // upstream documented incorrectly. Each was read out of the cv-api handler,
+    // so these assertions pin behaviour, not guesses.
+    const findCall = (name: string) =>
+      mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+    it('get_folder documents the include_first_level_tree gate on BOTH date and direction', () => {
+      // Upstream only ever documented it on `date`, so `direction` silently
+      // no-op'd with nothing to warn the agent.
+      const schema = findCall('get_folder')[1].inputSchema;
+      expect(schema.direction.description).toContain(
+        'include_first_level_tree',
+      );
+      expect(schema.date.description).toContain('include_first_level_tree');
+    });
+
+    it('create_voicememo_message no longer carries the incoherent workspace_id text', () => {
+      // Upstream reads: "not allowed when folder_id specified is different
+      // from the folder_id" — a copy-paste of the folder_id text describing a
+      // rule the handler does not enforce.
+      const schema = findCall('create_voicememo_message')[1].inputSchema;
+      expect(schema.workspace_id.description).not.toContain(
+        'different from the folder_id',
+      );
+      expect(schema.transcript.description).toContain('2-5000');
+      expect(schema.links.description).toContain('100');
+    });
+
+    it('move_message_to_folder states that exactly one destination is required', () => {
+      const schema = findCall('move_message_to_folder')[1].inputSchema;
+      expect(schema.folder_id.description).toContain('exactly one');
+      expect(schema.workspace_id.description).toContain('exactly one');
+    });
+
+    it('move_message_to_folder states the message/folder type-match rule', () => {
+      // Enforced by FolderService.validateMessageToBeAddedToFolder and
+      // documented nowhere upstream.
+      const schema = findCall('move_message_to_folder')[1].inputSchema;
+      expect(schema.message_id.description).toContain('must match');
+      expect(schema.message_id.description).toContain('creator');
+    });
+
+    it('create_conversation_message puts the transcript-or-links rule on the params', () => {
+      const schema = findCall('create_conversation_message')[1].inputSchema;
+      expect(schema.transcript.description).toContain('required');
+      expect(schema.links.description).toContain('required');
+    });
+  });
+
+  describe('Response projection (response_fields)', () => {
+    const findCall = (name: string) =>
+      mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+    const PROJECTED_TOOLS = [
+      'list_messages',
+      'get_message',
+      'get_recent_messages',
+      'get_user',
+      'search_users',
+      'get_current_user',
+      'list_conversations',
+      'get_conversation',
+      'get_conversation_users',
+      'summarize_conversation',
+      'get_root_folders',
+      'get_folder',
+      'get_folder_with_messages',
+      'list_ai_actions',
+      'run_ai_action',
+      'run_ai_action_for_shared_link',
+      'get_ai_action_responses',
+      'create_message_share_link',
+      'get_message_share_link',
+      'list_my_action_items',
+      'list_action_items',
+      'get_action_item',
+      'search_message_ids',
+      'search_messages_by_heard_status',
+      'list_inbox_notifications',
+    ];
+
+    it.each(PROJECTED_TOOLS)('%s exposes response_fields', (tool) => {
+      expect(Object.keys(findCall(tool)[1].inputSchema)).toContain(
+        'response_fields',
+      );
+    });
+
+    it('does not add response_fields to tools that return only a confirmation', () => {
+      // Every param costs description weight in tools/list, so projection is
+      // only offered where there is a payload worth narrowing.
+      ['delete_folder', 'delete_action_item', 'move_message_to_folder'].forEach(
+        (tool) => {
+          expect(Object.keys(findCall(tool)[1].inputSchema)).not.toContain(
+            'response_fields',
+          );
+        },
+      );
+    });
+
+    it('never forwards response_fields to the upstream API', async () => {
+      // The whole point of destructuring it out: the API would see an unknown
+      // query param, and existing param assertions would break.
+      await findCall('list_messages')[2](
+        { workspace_id: 'ws-1', response_fields: ['results.id'] },
+        mockContext,
+      );
+
+      expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+        { workspace_id: 'ws-1' },
+        { headers: { Authorization: 'Bearer test-token' } },
+      );
+      expect(
+        simplifiedApiMock.listMessages.mock.calls[0][0],
+      ).not.toHaveProperty('response_fields');
+    });
+
+    it('strips response_fields even when the handler re-destructures args', async () => {
+      // get_message splits `id` off the query params; response_fields must not
+      // survive into the query either.
+      await findCall('get_message')[2](
+        { id: 'm-1', language: 'english', response_fields: ['message.id'] },
+        mockContext,
+      );
+
+      expect(simplifiedApiMock.getMessageById).toHaveBeenCalledWith(
+        'm-1',
+        { language: 'english' },
+        { headers: { Authorization: 'Bearer test-token' } },
+      );
+    });
+
+    it('passes the requested fields to the formatter', async () => {
+      await findCall('get_current_user')[2](
+        { response_fields: ['user.user_guid'] },
+        mockContext,
+      );
+
+      expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+        expect.anything(),
+        { responseFields: ['user.user_guid'] },
+      );
+    });
+
+    it('passes undefined when the caller omits projection', async () => {
+      await findCall('get_current_user')[2]({}, mockContext);
+
+      expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+        expect.anything(),
+        { responseFields: undefined },
+      );
+    });
+  });
+
+  describe('Error responses', () => {
+    // F2 from the review: success and failure previously returned an identical
+    // envelope, so an agent could not tell a failed call from a successful one
+    // without parsing the body for an `error` key.
+    //
+    // Sampled across tool families rather than all 41: the point is that the
+    // catch blocks carry the flag and the tool name, not that every API method
+    // can reject. Each case rejects only its own method, with `...Once`, so
+    // nothing leaks into later tests.
+    const cases: Array<[string, 'simplified' | 'cv', string, any]> = [
+      ['list_messages', 'simplified', 'listMessages', {}],
+      ['get_current_user', 'cv', 'getWhoAmI', {}],
+      [
+        'run_ai_action',
+        'simplified',
+        'aIResponseControllerCreateResponse',
+        { prompt_id: 'p', message_ids: ['m'] },
+      ],
+      [
+        'create_message_share_link',
+        'simplified',
+        'simplifiedMessageShareLinkControllerCreate',
+        { shared_message_id: 'm' },
+      ],
+      [
+        'list_my_action_items',
+        'simplified',
+        'actionItemControllerListMyActionItems',
+        {},
+      ],
+      ['search_message_ids', 'cv', 'searchMessageIds', {}],
+    ];
+
+    it.each(cases)(
+      '%s marks its failure with isError and its own tool name',
+      async (tool, target, method, args) => {
+        const mocks: any = target === 'cv' ? cvApiMock : simplifiedApiMock;
+        mocks[method].mockRejectedValueOnce(new Error(`boom-${tool}`));
+
+        const call = mockRegisterTool.mock.calls.find(
+          (c: any) => c[0] === tool,
+        );
+        expect(call).toBeDefined();
+
+        await call[2](args, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.anything(),
+          { isError: true, tool },
+        );
+      },
+    );
+  });
+
+  describe('Tool inventory', () => {
+    const registeredNames = () =>
+      mockRegisterTool.mock.calls.map((call: any) => call[0]);
+
+    // Guards the documentation contract: TOOL_NAMES is the single source of
+    // truth used by tests/unit/docs/tool-docs.test.ts to validate that every
+    // declared prerequisite points at a tool that exists. A tool registered
+    // without being added there — or removed without being taken out — fails
+    // here rather than silently breaking those cross-references.
+    it('registers exactly the tools listed in TOOL_NAMES', () => {
+      expect([...registeredNames()].sort()).toEqual([...TOOL_NAMES].sort());
+    });
+
+    // Prompt-cache stability. Tool definitions render at position 0 of the
+    // prompt — ahead of the system prompt and the conversation — so the
+    // `tools/list` payload is the most valuable cacheable prefix we have. Any
+    // change to it, INCLUDING REORDERING, invalidates the whole cache for
+    // every downstream turn. Registration order is currently just the order of
+    // the calls in server.ts, which nothing else enforces; this pins it so a
+    // reordering during a refactor fails here instead of silently costing
+    // every session its cache hits.
+    it('registers tools in exactly the TOOL_NAMES order, for cache stability', () => {
+      expect(registeredNames()).toEqual([...TOOL_NAMES]);
+    });
+
+    it('registers no tool twice', () => {
+      const registered = registeredNames();
+      expect(new Set(registered).size).toBe(registered.length);
+    });
+
+    it('exposes a deterministic tool order across repeated registrations', () => {
+      // A second server built in the same process must produce the identical
+      // order — catches anything order-dependent creeping into registration
+      // (a Set/Map iteration, a conditional, a date-seeded branch).
+      const first = registeredNames();
+      mockRegisterTool.mockClear();
+      jest.isolateModules(() => {
+        require('../../../src/server');
+      });
+      expect(registeredNames()).toEqual(first);
+    });
   });
 
   describe('Tool Registration', () => {
@@ -263,7 +595,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -343,7 +678,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -426,7 +764,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -516,7 +857,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -600,7 +944,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -685,7 +1032,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -780,7 +1130,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -858,7 +1211,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -936,7 +1292,10 @@ describe('MCP Server', () => {
         );
 
         // Verify formatToMCPToolResponse was called with the error
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
 
         // Verify the result is defined (the formatted error response)
         expect(result).toBeDefined();
@@ -998,19 +1357,33 @@ describe('MCP Server', () => {
       });
 
       it('should accept user_ids and match query params via inputSchema', () => {
-        expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual(
-          Object.keys(getAllConversationsQueryParams.shape),
-        );
+        // Every upstream query param is still exposed, plus the two the MCP
+        // server adds itself: `types` filters rows, `response_fields` narrows
+        // columns. Neither is forwarded upstream.
+        expect(Object.keys(listConversationsCall[1].inputSchema)).toEqual([
+          ...Object.keys(getAllConversationsQueryParams.shape),
+          'types',
+          'response_fields',
+        ]);
+      });
+
+      it('should expose types as an enum of the four conversation kinds', () => {
+        const types = listConversationsCall[1].inputSchema.types;
+
+        expect(types).toBeDefined();
+        expect(types.isOptional()).toBe(true);
+        expect(types.description).toContain('directMessage');
       });
 
       it('should document user_ids as filtering by ID, not username', () => {
-        expect(listConversationsCall[1].inputSchema.user_ids.description).toContain(
-          'IDs, not usernames',
-        );
+        expect(
+          listConversationsCall[1].inputSchema.user_ids.description,
+        ).toContain('IDs, not usernames');
       });
 
       it('should document match options and default', () => {
-        const description = listConversationsCall[1].inputSchema.match.description;
+        const description =
+          listConversationsCall[1].inputSchema.match.description;
         expect(description).toContain('any');
         expect(description).toContain('all');
         expect(description).toContain('default');
@@ -1059,7 +1432,10 @@ describe('MCP Server', () => {
           'Error listing conversations:',
           { params: {}, error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
 
@@ -1159,7 +1535,10 @@ describe('MCP Server', () => {
           'Error getting conversation by id:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1214,7 +1593,10 @@ describe('MCP Server', () => {
           'Error getting conversation users:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1250,20 +1632,110 @@ describe('MCP Server', () => {
           conversation_id: 'test-conversation-id',
           prompt_id: 'test-prompt-id',
           language: 'en',
+          limit: 40,
         };
 
         await expect(
           toolHandler(testParams, mockContext),
         ).resolves.not.toThrow();
 
+        // Only listMessages-accepted params are forwarded, and this tool's
+        // `limit` is translated to the upstream `size`. Previously `args` was
+        // passed wholesale, so `limit` was silently dropped (capping summaries
+        // at the default page of 20) and `prompt_id` leaked upstream.
         expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
-          testParams,
+          {
+            conversation_id: 'test-conversation-id',
+            size: 40,
+            language: 'en',
+          },
           { headers: { Authorization: 'Bearer test-token' } },
         );
+        const forwarded = simplifiedApiMock.listMessages.mock.calls[0][0];
+        expect(forwarded).not.toHaveProperty('prompt_id');
+        expect(forwarded).not.toHaveProperty('limit');
         expect(
           simplifiedApiMock.aIResponseControllerCreateResponse,
         ).toHaveBeenCalled();
         expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
+      });
+
+      it('should default size to the 50-message cap when limit is omitted', async () => {
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1' },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 50 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should floor a fractional limit and never send size below 1', async () => {
+        // Codex finding on PR #6: the schema accepted 0, negatives and
+        // fractions, and the handler now forwards limit as `size`. Upstream
+        // validates size >= 1 and integral, so those values became failed
+        // calls — where the old code dropped `limit` entirely and they were
+        // harmless. The schema now rejects them (.int().positive()); this
+        // pins the handler's defence for anything that gets past it.
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1', limit: 7.9 },
+          mockContext,
+        );
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 7 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+
+        simplifiedApiMock.listMessages.mockClear();
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1', limit: 0 },
+          mockContext,
+        );
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 1 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should clamp limit to the upstream page cap of 50 rather than failing', async () => {
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          { conversation_id: 'conv-1', prompt_id: 'prompt-1', limit: 500 },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.listMessages).toHaveBeenCalledWith(
+          { conversation_id: 'conv-1', size: 50 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should not call listMessages when message_ids are supplied', async () => {
+        const toolHandler = summarizeConversationCall[2];
+
+        await toolHandler(
+          {
+            conversation_id: 'conv-1',
+            prompt_id: 'prompt-1',
+            message_ids: ['m1', 'm2'],
+          },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.listMessages).not.toHaveBeenCalled();
+        expect(
+          simplifiedApiMock.aIResponseControllerCreateResponse,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({ message_ids: ['m1', 'm2'] }),
+          expect.anything(),
+        );
       });
 
       it('should handle errors when API call fails', async () => {
@@ -1281,7 +1753,10 @@ describe('MCP Server', () => {
           'Error summarizing conversation:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1340,7 +1815,10 @@ describe('MCP Server', () => {
           'Error listing root folders:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1396,7 +1874,10 @@ describe('MCP Server', () => {
           'Error creating folder:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1453,7 +1934,10 @@ describe('MCP Server', () => {
           'Error getting folder by id:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1510,7 +1994,10 @@ describe('MCP Server', () => {
           'Error getting folder with messages:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1570,7 +2057,10 @@ describe('MCP Server', () => {
           'Error updating folder name:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1623,7 +2113,10 @@ describe('MCP Server', () => {
           'Error deleting folder:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1679,7 +2172,10 @@ describe('MCP Server', () => {
         expect(mockLogger.error).toHaveBeenCalledWith('Error moving folder:', {
           error: apiError,
         });
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1745,7 +2241,10 @@ describe('MCP Server', () => {
           'Error moving message to folder:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1803,7 +2302,10 @@ describe('MCP Server', () => {
           'Error getting workspaces basic info:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1864,7 +2366,10 @@ describe('MCP Server', () => {
           'Error listing ai actions:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1926,7 +2431,10 @@ describe('MCP Server', () => {
           'Error running ai action:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -1992,7 +2500,10 @@ describe('MCP Server', () => {
           'Error running ai action for shared link:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });
@@ -2028,12 +2539,13 @@ describe('MCP Server', () => {
           toolHandler({ id: 'user-123' }, mockContext),
         ).resolves.not.toThrow();
 
-        expect(cvApiMock.getContacts).toHaveBeenCalledWith(
-          ['user-123'],
-          { headers: { Authorization: 'Bearer test-token' } },
-        );
+        expect(cvApiMock.getContacts).toHaveBeenCalledWith(['user-123'], {
+          headers: { Authorization: 'Bearer test-token' },
+        });
 
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(matchingUser, {
+          responseFields: undefined,
+        });
       });
 
       it('should fall back to first entry when no entry matches id', async () => {
@@ -2044,7 +2556,9 @@ describe('MCP Server', () => {
 
         await toolHandler({ id: 'user-123' }, mockContext);
 
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(firstUser);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(firstUser, {
+          responseFields: undefined,
+        });
       });
 
       it('should throw user not found error when contacts is empty', async () => {
@@ -2059,6 +2573,7 @@ describe('MCP Server', () => {
         );
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
           expect.objectContaining({ message: 'user not found' }),
+          expect.objectContaining({ isError: true }),
         );
         expect(result).toBeDefined();
       });
@@ -2074,6 +2589,557 @@ describe('MCP Server', () => {
         const callArg = mockFormatToMCPToolResponse.mock.calls[0][0];
         expect(Array.isArray(callArg)).toBe(false);
         expect(callArg).toEqual(user);
+      });
+    });
+
+    describe('create_voicememo_message audio handling', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+      it('should not expose audio_file, which no JSON-RPC client can supply', () => {
+        // Upstream types audio_file as zod.instanceof(File): it renders as an
+        // untyped {} in JSON Schema while advertising audio formats, then
+        // rejects every value an agent can send.
+        const schema = findCall('create_voicememo_message')[1].inputSchema;
+        expect(Object.keys(schema)).not.toContain('audio_file');
+        expect(Object.keys(schema)).toContain('audio_url');
+        expect(Object.keys(schema)).toContain('transcript');
+      });
+
+      it('should send transcript straight through when no audio_url is given', async () => {
+        await findCall('create_voicememo_message')[2](
+          { transcript: 'hello there' },
+          mockContext,
+        );
+
+        expect(mockFetchAudioFile).not.toHaveBeenCalled();
+        expect(simplifiedApiMock.createVoiceMemoMessage).toHaveBeenCalledWith(
+          { transcript: 'hello there' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should fetch audio_url and forward it as audio_file', async () => {
+        const file = { name: 'memo.mp3' };
+        mockFetchAudioFile.mockResolvedValueOnce(file);
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3', workspace_id: 'ws-1' },
+          mockContext,
+        );
+
+        expect(mockFetchAudioFile).toHaveBeenCalledWith(
+          'https://example.com/memo.mp3',
+        );
+        expect(simplifiedApiMock.createVoiceMemoMessage).toHaveBeenCalledWith(
+          { workspace_id: 'ws-1', audio_file: file },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+        // audio_url is ours, not the API's — it must not leak upstream.
+        expect(
+          simplifiedApiMock.createVoiceMemoMessage.mock.calls[0][0],
+        ).not.toHaveProperty('audio_url');
+      });
+
+      // The fetched bytes stay resident inside `audio_file` until the multipart
+      // upload consumes them, and the upload is the slower half — so the permit
+      // must still be held when it runs. Released at the end of the download it
+      // would bound only downloads, leaving concurrent uploads holding
+      // unbounded audio in memory, which is the failure it exists to prevent.
+      it('should hold the audio permit across the upload, not just the download', async () => {
+        permitEvents.length = 0;
+        mockFetchAudioFile.mockImplementationOnce(async () => {
+          permitEvents.push('download');
+          return { name: 'memo.mp3' };
+        });
+        simplifiedApiMock.createVoiceMemoMessage.mockImplementationOnce(
+          async () => {
+            permitEvents.push('upload');
+            return {};
+          },
+        );
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3' },
+          mockContext,
+        );
+
+        expect(permitEvents).toEqual([
+          'acquire',
+          'download',
+          'upload',
+          'release',
+        ]);
+      });
+
+      // No audio means no bytes to bound, so the permit must not be taken at
+      // all — charging a transcript-only call would shrink the budget for the
+      // calls that actually need it.
+      it('should not take an audio permit for a transcript-only message', async () => {
+        permitEvents.length = 0;
+
+        await findCall('create_voicememo_message')[2](
+          { transcript: 'hello there' },
+          mockContext,
+        );
+
+        expect(permitEvents).toEqual([]);
+      });
+
+      // The HTTP transport's `createOAuthTokenVerifier` only DECODES the bearer
+      // token; nothing checks its signature. cv-api is therefore the sole
+      // authority on whether the caller is real, and this is the one tool with
+      // a side effect in front of the upstream call — so the order matters.
+      it('should authenticate with cv-api before fetching a caller-supplied URL', async () => {
+        mockFetchAudioFile.mockResolvedValueOnce({ name: 'memo.mp3' });
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3' },
+          mockContext,
+        );
+
+        expect(cvApiMock.getWhoAmI).toHaveBeenCalledWith({
+          headers: { Authorization: 'Bearer test-token' },
+        });
+        expect(cvApiMock.getWhoAmI.mock.invocationCallOrder[0]).toBeLessThan(
+          mockFetchAudioFile.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('should not fetch at all when cv-api rejects the credentials', async () => {
+        cvApiMock.getWhoAmI.mockRejectedValueOnce({
+          statusCode: 401,
+          body: { error: { code: 'UNAUTHORIZED', message: 'invalid token' } },
+        });
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/memo.mp3' },
+          mockContext,
+        );
+
+        expect(mockFetchAudioFile).not.toHaveBeenCalled();
+        expect(simplifiedApiMock.createVoiceMemoMessage).not.toHaveBeenCalled();
+      });
+
+      it('should skip the preflight when there is no audio_url to fetch', async () => {
+        await findCall('create_voicememo_message')[2](
+          { transcript: 'no audio here' },
+          mockContext,
+        );
+
+        expect(cvApiMock.getWhoAmI).not.toHaveBeenCalled();
+      });
+
+      it('should return an actionable INVALID_AUDIO_URL instead of a bare failure', async () => {
+        const rejection = new Error('audio_url returned an empty file');
+        rejection.name = 'AudioFetchError';
+        mockFetchAudioFile.mockRejectedValueOnce(rejection);
+
+        await findCall('create_voicememo_message')[2](
+          { audio_url: 'https://example.com/empty.mp3' },
+          mockContext,
+        );
+
+        // Never reaches the API, and the agent gets the specific reason.
+        expect(simplifiedApiMock.createVoiceMemoMessage).not.toHaveBeenCalled();
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            statusCode: 400,
+            body: {
+              error: {
+                code: 'INVALID_AUDIO_URL',
+                message: 'audio_url returned an empty file',
+              },
+            },
+          },
+          { isError: true, tool: 'create_voicememo_message' },
+        );
+        // The URL is redacted before logging: an audio_url is commonly
+        // presigned, so the raw value would put a reusable credential into
+        // log files and CloudWatch.
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          'Rejected audio_url for voicememo message',
+          {
+            audio_url: 'https://example.com/empty.mp3',
+            reason: 'audio_url returned an empty file',
+          },
+        );
+      });
+
+      it('should still report ordinary API errors normally', async () => {
+        const apiError = new Error('upstream boom');
+        simplifiedApiMock.createVoiceMemoMessage.mockRejectedValueOnce(
+          apiError,
+        );
+
+        const result = await findCall('create_voicememo_message')[2](
+          { transcript: 'hi' },
+          mockContext,
+        );
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
+        expect(result).toBeDefined();
+      });
+    });
+
+    describe('search and notification tools', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+      it('should register all three as read-only', () => {
+        [
+          'search_message_ids',
+          'search_messages_by_heard_status',
+          'list_inbox_notifications',
+        ].forEach((name) => {
+          const call = findCall(name);
+          expect(call).toBeDefined();
+          expect(call[1].annotations.readOnlyHint).toBe(true);
+          expect(call[1].annotations.destructiveHint).toBe(false);
+          expect(call[1].description).toBeDefined();
+        });
+      });
+
+      it('should route through cvApi, not the generated simplified client', async () => {
+        // These endpoints are on the full API and have no generated client.
+        await findCall('search_message_ids')[2](
+          { notified_status: 'notified', limit: 10 },
+          mockContext,
+        );
+
+        expect(cvApiMock.searchMessageIds).toHaveBeenCalledWith(
+          { notified_status: 'notified', limit: 10 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+      });
+
+      it('should expose notified_status so notified messages are findable', () => {
+        const schema = findCall('search_message_ids')[1].inputSchema;
+        expect(Object.keys(schema)).toEqual(
+          expect.arrayContaining([
+            'notified_status',
+            'tagged_user_ids',
+            'has_notes',
+            'next_cursor',
+          ]),
+        );
+      });
+
+      it('should expose heardStatus as the unread filter', () => {
+        const schema = findCall('search_messages_by_heard_status')[1]
+          .inputSchema;
+        expect(Object.keys(schema)).toContain('heardStatus');
+        // begin_date/end_date are deliberately absent: the upstream DTO
+        // validates them with @IsDate() and no @Type(() => Date), so an ISO
+        // string fails and a Date cannot cross JSON-RPC.
+        expect(Object.keys(schema)).not.toContain('begin_date');
+        expect(Object.keys(schema)).not.toContain('end_date');
+      });
+
+      it('should expose the mentions category on inbox notifications', () => {
+        const schema = findCall('list_inbox_notifications')[1].inputSchema;
+        expect(Object.keys(schema)).toEqual(
+          expect.arrayContaining(['category', 'skip', 'limit']),
+        );
+      });
+
+      it('should surface errors from each tool', async () => {
+        const cases: Array<[string, keyof typeof cvApiMock, string, any]> = [
+          [
+            'search_message_ids',
+            'searchMessageIds',
+            'Error searching message ids:',
+            { limit: 5 },
+          ],
+          [
+            'search_messages_by_heard_status',
+            'searchMessagesByHeardStatus',
+            'Error searching messages by heard status:',
+            { heardStatus: 'unheard' },
+          ],
+          [
+            'list_inbox_notifications',
+            'listInboxNotifications',
+            'Error listing inbox notifications:',
+            { category: 'mentions' },
+          ],
+        ];
+
+        for (const [tool, apiMethod, logMessage, args] of cases) {
+          const apiError = new Error(`boom-${tool}`);
+          (cvApiMock[apiMethod] as jest.Mock).mockRejectedValueOnce(apiError);
+
+          const result = await findCall(tool)[2](args, mockContext);
+
+          expect(mockLogger.error).toHaveBeenCalledWith(logMessage, {
+            args,
+            error: apiError,
+          });
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+            apiError,
+            expect.objectContaining({ isError: true }),
+          );
+          expect(result).toBeDefined();
+        }
+      });
+    });
+
+    describe('action item tools', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+
+      it('should mark only delete_action_item as destructive', () => {
+        expect(
+          findCall('delete_action_item')[1].annotations.destructiveHint,
+        ).toBe(true);
+        [
+          'create_action_item',
+          'update_action_item',
+          'set_action_item_status',
+        ].forEach((name) => {
+          expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+          expect(findCall(name)[1].annotations.readOnlyHint).toBe(false);
+        });
+      });
+
+      it('should mark the action item read tools as read-only', () => {
+        [
+          'list_my_action_items',
+          'list_action_items',
+          'get_action_item',
+        ].forEach((name) => {
+          expect(findCall(name)[1].annotations.readOnlyHint).toBe(true);
+          expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+        });
+      });
+
+      it('list_action_items should split container path params from query params', async () => {
+        // The generated client takes containerType and containerId
+        // positionally; only the remaining params belong in the query.
+        await findCall('list_action_items')[2](
+          {
+            container_type: 'channel',
+            container_id: 'conv-1',
+            status: 'todo',
+            limit: 10,
+          },
+          mockContext,
+        );
+
+        expect(simplifiedApiMock.actionItemControllerList).toHaveBeenCalledWith(
+          'channel',
+          'conv-1',
+          { status: 'todo', limit: 10 },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+        const query =
+          simplifiedApiMock.actionItemControllerList.mock.calls[0][2];
+        expect(query).not.toHaveProperty('container_type');
+        expect(query).not.toHaveProperty('container_id');
+      });
+
+      it('update_action_item should send id positionally and keep it out of the body', async () => {
+        await findCall('update_action_item')[2](
+          { id: 'ai-1', title: 'new title', due_date: '2026-10-01' },
+          mockContext,
+        );
+
+        expect(
+          simplifiedApiMock.actionItemControllerUpdate,
+        ).toHaveBeenCalledWith(
+          'ai-1',
+          { title: 'new title', due_date: '2026-10-01' },
+          { headers: { Authorization: 'Bearer test-token' } },
+        );
+        expect(
+          simplifiedApiMock.actionItemControllerUpdate.mock.calls[0][1],
+        ).not.toHaveProperty('id');
+      });
+
+      it('set_action_item_status should send only status in the body', async () => {
+        await findCall('set_action_item_status')[2](
+          { id: 'ai-1', status: 'done' },
+          mockContext,
+        );
+
+        expect(
+          simplifiedApiMock.actionItemControllerSetStatus,
+        ).toHaveBeenCalledWith(
+          'ai-1',
+          { status: 'done' },
+          {
+            headers: { Authorization: 'Bearer test-token' },
+          },
+        );
+      });
+
+      it('should surface errors from each action item tool', async () => {
+        const cases: Array<
+          [string, keyof typeof simplifiedApiMock, string, any]
+        > = [
+          [
+            'list_my_action_items',
+            'actionItemControllerListMyActionItems',
+            'Error listing my action items:',
+            {},
+          ],
+          [
+            'get_action_item',
+            'actionItemControllerGetById',
+            'Error getting action item:',
+            { id: 'ai-1' },
+          ],
+          [
+            'delete_action_item',
+            'actionItemControllerDelete',
+            'Error deleting action item:',
+            { id: 'ai-1' },
+          ],
+          [
+            'suggest_action_items_from_messages',
+            'actionItemControllerCreateSuggestionsFromMessages',
+            'Error suggesting action items:',
+            { message_ids: ['m1'] },
+          ],
+        ];
+
+        for (const [tool, apiMethod, logMessage, args] of cases) {
+          const apiError = new Error(`boom-${tool}`);
+          (simplifiedApiMock[apiMethod] as jest.Mock).mockRejectedValueOnce(
+            apiError,
+          );
+
+          const result = await findCall(tool)[2](args, mockContext);
+
+          expect(mockLogger.error).toHaveBeenCalledWith(logMessage, {
+            args,
+            error: apiError,
+          });
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+            apiError,
+            expect.objectContaining({ isError: true }),
+          );
+          expect(result).toBeDefined();
+        }
+      });
+    });
+
+    describe('create_message_share_link tool', () => {
+      let call: any;
+      beforeEach(() => {
+        call = mockRegisterTool.mock.calls.find(
+          (c: any) => c[0] === 'create_message_share_link',
+        );
+      });
+
+      it('should register create_message_share_link as a non-destructive write', () => {
+        expect(call).toBeDefined();
+        expect(call[1].inputSchema).toBeDefined();
+        expect(call[1].annotations.readOnlyHint).toBe(false);
+        expect(call[1].annotations.destructiveHint).toBe(false);
+        expect(call[1].description).toBeDefined();
+      });
+
+      it('should accept the share link fields the API requires', () => {
+        // Guards against the schema drifting away from the upstream body.
+        expect(Object.keys(call[1].inputSchema)).toEqual(
+          expect.arrayContaining([
+            'shared_message_id',
+            'share_type',
+            'access_type',
+          ]),
+        );
+      });
+
+      it('should forward the body to the simplified API', async () => {
+        const testParams = {
+          shared_message_id: 'msg-1',
+          share_type: 'link',
+          access_type: 'public',
+        };
+
+        await expect(call[2](testParams, mockContext)).resolves.not.toThrow();
+
+        expect(
+          simplifiedApiMock.simplifiedMessageShareLinkControllerCreate,
+        ).toHaveBeenCalledWith(testParams, {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalled();
+      });
+
+      it('should handle errors when API call fails', async () => {
+        const apiError = new Error('API error');
+        simplifiedApiMock.simplifiedMessageShareLinkControllerCreate.mockRejectedValueOnce(
+          apiError,
+        );
+
+        const result = await call[2](
+          { shared_message_id: 'msg-1' },
+          mockContext,
+        );
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error creating message share link:',
+          { args: { shared_message_id: 'msg-1' }, error: apiError },
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
+        expect(result).toBeDefined();
+      });
+    });
+
+    describe('get_message_share_link tool', () => {
+      let call: any;
+      beforeEach(() => {
+        call = mockRegisterTool.mock.calls.find(
+          (c: any) => c[0] === 'get_message_share_link',
+        );
+      });
+
+      it('should register get_message_share_link as read-only', () => {
+        expect(call).toBeDefined();
+        expect(call[1].inputSchema).toBeDefined();
+        expect(call[1].annotations.readOnlyHint).toBe(true);
+        expect(call[1].annotations.destructiveHint).toBe(false);
+        expect(call[1].description).toBeDefined();
+      });
+
+      it('should pass share_link_id as the positional argument', async () => {
+        // The generated client takes the id positionally, not as an object.
+        await expect(
+          call[2]({ share_link_id: 'share-1' }, mockContext),
+        ).resolves.not.toThrow();
+
+        expect(
+          simplifiedApiMock.simplifiedMessageShareLinkControllerGetMessageShareLink,
+        ).toHaveBeenCalledWith('share-1', {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+      });
+
+      it('should handle errors when API call fails', async () => {
+        const apiError = new Error('API error');
+        simplifiedApiMock.simplifiedMessageShareLinkControllerGetMessageShareLink.mockRejectedValueOnce(
+          apiError,
+        );
+
+        const result = await call[2]({ share_link_id: 'nope' }, mockContext);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error getting message share link:',
+          { args: { share_link_id: 'nope' }, error: apiError },
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
+        expect(result).toBeDefined();
       });
     });
 
@@ -2135,7 +3201,10 @@ describe('MCP Server', () => {
           'Error getting ai action responses:',
           { error: apiError },
         );
-        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(apiError);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          apiError,
+          expect.objectContaining({ isError: true }),
+        );
         expect(result).toBeDefined();
       });
     });

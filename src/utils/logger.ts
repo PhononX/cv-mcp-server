@@ -123,9 +123,7 @@ const getLogTransports = (): winston.transport[] => {
     createLogDir(logDir);
   }
 
-  return configuredTransports.flatMap(
-    (transport) => transports[transport],
-  );
+  return configuredTransports.flatMap((transport) => transports[transport]);
 };
 
 // Add colors to winston
