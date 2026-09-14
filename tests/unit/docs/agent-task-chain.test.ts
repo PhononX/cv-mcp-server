@@ -42,6 +42,60 @@ const CANONICAL_TASK: Hop[] = [
   },
 ];
 
+/**
+ * A hop's `recommendedFields` is a projection agents really apply. If it strips
+ * a field a LATER hop needs and this hop is the one that supplies it, following
+ * the advice forces the agent to repeat the call unprojected — the projection
+ * defeats the chain it is documented to serve.
+ *
+ * This is the third finding of that shape on this branch (after
+ * `list_my_action_items` stripping `assigned_to`, and the unread search
+ * stripping its own messages), so it is asserted rather than re-audited by
+ * hand: an earlier manual audit checked `recommendedFields` against each doc's
+ * own prose and did not think to check it against the NEXT tool's inputs.
+ */
+describe('recommended projections do not break the chain', () => {
+  CANONICAL_TASK.forEach((hop, index) => {
+    const later = CANONICAL_TASK.slice(index + 1);
+    const doc = TOOL_DOCS[hop.tool as keyof typeof TOOL_DOCS] as any;
+    if (!doc?.recommendedFields || later.length === 0) return;
+
+    later.forEach((next) => {
+      const nextDoc = TOOL_DOCS[next.tool as keyof typeof TOOL_DOCS] as any;
+
+      next.needs.forEach((need) => {
+        // The consuming tool's PARAM name is not the producing tool's RESPONSE
+        // field name — `summarize_conversation.prompt_id` comes from
+        // `list_ai_actions.id`. The prerequisite records that mapping, so
+        // resolve through it; matching on the param name reports
+        // `list_ai_actions` as stripping a field it never returns.
+        const link = (nextDoc?.prerequisites ?? []).find(
+          (p: any) => p.field === need.field && p.fromTool === hop.tool,
+        );
+
+        // When this hop is the DECLARED source, its prerequisite names the
+        // response field authoritatively. Otherwise the hop may still supply
+        // the value under the parameter's own name — `summarize_conversation`
+        // declares `conversation_id` as coming from `list_conversations`, yet
+        // `list_messages` returns it too, and that is the path an agent
+        // following this chain actually takes. Requiring a declared link here
+        // made the guard pass vacuously on exactly the case it was written for.
+        const responseField = link
+          ? link.fromField.split('.').pop()
+          : need.field;
+        if (!doc.responseShape.includes(responseField)) return;
+
+        it(`${hop.tool} keeps ${responseField} for ${next.tool}.${need.field}`, () => {
+          const kept = doc.recommendedFields.some(
+            (f: string) => f.split('.').pop() === responseField,
+          );
+          expect(kept).toBe(true);
+        });
+      });
+    });
+  });
+});
+
 describe('canonical multi-step task is completable from the descriptions alone', () => {
   it.each(CANONICAL_TASK.map((h) => h.tool))('%s is registered', (tool) => {
     expect(TOOL_NAMES as readonly string[]).toContain(tool);

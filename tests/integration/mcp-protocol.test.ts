@@ -196,6 +196,48 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Prerequisites must match optionality
+// ---------------------------------------------------------------------------
+
+/**
+ * A `FIRST:` line tells the agent to go call another tool before this one. When
+ * the field is REQUIRED that is right. When it is OPTIONAL and the line is
+ * unconditional, every agent lacking the value makes a guaranteed-wasted call —
+ * and may then narrow its results for no reason, because the doc implied it had
+ * to supply the value.
+ *
+ * `ToolPrerequisite.when` exists to state the condition. This asserts the two
+ * stay consistent, because an earlier hand sweep of these prerequisites asked
+ * only whether a field's SOURCE was conditional and missed that a field's
+ * NECESSITY can be too.
+ */
+describe('prerequisite optionality', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { TOOL_DOCS } = require('../../src/docs');
+
+  it('states a condition for every prerequisite on an optional field', () => {
+    const unconditionalOnOptional: string[] = [];
+
+    Object.entries(TOOL_DOCS as Record<string, any>).forEach(([name, doc]) => {
+      const tool = tools.find((t) => t.name === name);
+      if (!tool) return;
+      const required = tool.inputSchema?.required ?? [];
+
+      (doc.prerequisites ?? []).forEach((p: any) => {
+        // `to.user_ids` and similar: optionality is decided by the top-level
+        // property the caller actually passes.
+        const topLevel = p.field.split('.')[0];
+        if (!required.includes(topLevel) && !p.when) {
+          unconditionalOnOptional.push(`${name}.${p.field}`);
+        }
+      });
+    });
+
+    expect(unconditionalOnOptional).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 1. tools/list contract
 // ---------------------------------------------------------------------------
 

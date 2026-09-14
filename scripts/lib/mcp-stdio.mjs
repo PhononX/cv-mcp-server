@@ -100,6 +100,8 @@ export const connect = ({
     // the dev commands looked hung rather than broken — the timeout message
     // would also have blamed the wrong thing.
     let exitError = null;
+    // close() kills the child on purpose; that exit is not a failure.
+    let closedDeliberately = false;
     const failAllPending = (err) => {
       exitError = err;
       for (const [id, entry] of [...pending]) {
@@ -114,8 +116,13 @@ export const connect = ({
     });
 
     child.on('exit', (code, signal) => {
-      // A clean exit after close() is not a failure; only unresolved work is.
-      if (pending.size === 0) {
+      // Record EVERY unexpected exit, not only one that catches a call in
+      // flight. Gating on `pending.size` left the window between two calls
+      // unrecorded: the server could answer `initialize`, die, and the next
+      // call() would write to a dead stdin and wait out the full timeout or
+      // surface a bare EPIPE. `failAllPending` sets `exitError` before it
+      // iterates, so an empty map still arms the fast failure.
+      if (closedDeliberately) {
         return;
       }
       const how = signal ? `signal ${signal}` : `code ${code}`;
@@ -166,7 +173,13 @@ export const connect = ({
             method: 'notifications/initialized',
           }) + '\n',
         );
-        resolve({ call, close: () => child.kill('SIGKILL') });
+        resolve({
+          call,
+          close: () => {
+            closedDeliberately = true;
+            child.kill('SIGKILL');
+          },
+        });
       })
       .catch(reject);
   });

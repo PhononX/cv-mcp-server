@@ -591,21 +591,21 @@ export const TOOL_DOCS: ToolDocRegistry = {
 
   list_messages: {
     purpose:
-      'List messages with filtering by date, conversation, folder, workspace, creator or language.',
+      'List messages, filtering by date, conversation, folder, workspace, creator or language.',
     whenToUse:
       'The general-purpose message reader; full bodies incl. transcript and AI ' +
-      'summary. Max date span 183 days. `user_ids` filters by SENDER — for ' +
-      'messages exchanged WITH someone, pass `conversation_id` from ' +
-      '`list_conversations`. Use presigned URLs as-is.',
+      'summary. All filters optional. Max date span 183 days. `user_ids` filters ' +
+      'by SENDER — for messages exchanged WITH someone, pass `conversation_id` ' +
+      'from `list_conversations`. Use presigned URLs as-is.',
     whenNotToUse:
-      '`get_recent_messages` for a quick look at the latest few (hard-capped at ' +
-      '10, no paging). `search_message_ids` for filters this cannot express — ' +
-      'notified state, mentions or labels.',
+      '`get_recent_messages` for the latest few (capped at 10, no paging). ' +
+      '`search_message_ids` for notified state, mentions or labels.',
     prerequisites: [
       {
         field: 'workspace_id',
         fromTool: 'get_workspaces_basic_info',
         fromField: 'id',
+        when: 'restricting to one workspace',
       },
     ],
     example: {
@@ -617,11 +617,12 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`{page, size, sort_direction, total, results_count, has_next_page, ' +
       'filters, results: [{id, transcript?, ai_summary?, audio_url?, creator_id, ' +
       'conversation_id?, duration_ms, reply_count, status, type, created_at, ' +
-      '...}]}`. Page on `has_next_page`/`total` — do not guess.',
+      '...}]}`. Page on `has_next_page`/`total`.',
     recommendedFields: [
       'total',
       'has_next_page',
       'results.id',
+      'results.conversation_id',
       'results.transcript',
       'results.created_at',
     ],
