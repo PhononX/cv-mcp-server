@@ -16,7 +16,11 @@ A Model Context Protocol (MCP) server implementation for integrating with [Carbo
 - **Folder Operations**: Create, organize, move, and manage folders and their contents
 - **Workspace Administration**: Get workspace information
 - **AI Actions**: Run AI prompts and retrieve AI-generated responses
+- **Action Items**: Create, assign, and track action items, including AI extraction from messages
+- **Search & Notifications**: Find messages by notified or heard state, and read the inbox with its unread count
+- **Message Share Links**: Create and look up shareable links to messages
 - **Attachment Support**: Add link attachments to messages
+- **Response Narrowing**: An optional `response_fields` projection on most read tools, to keep unwanted payload out of the agent's context
 
 ## Security & Compliance
 
@@ -287,7 +291,7 @@ The server will create two log files in this directory:
 
 ### Messages
 
-- **`list_messages`** - List messages with date filtering (max 31-day range)
+- **`list_messages`** - List messages, filtered by date (max 183-day span), conversation, folder, workspace, creator, or language
 - **`get_message`** - Retrieve a specific message by ID
 - **`get_recent_messages`** - Get the 10 most recent messages with full context
 - **`create_conversation_message`** - Send a message to a conversation
@@ -314,7 +318,7 @@ The server will create two log files in this directory:
 
 ### Conversations
 
-- **`list_conversations`** - Get all conversations from the last 6 months, with optional filtering by user IDs
+- **`list_conversations`** - Get all conversations from the last 6 months, with optional filtering by user IDs, `types`, and `name` (case-insensitive substring). All three narrow the response here rather than upstream, so they compose freely. A `name`-filtered response also carries `unfiltered_count` — the count before the name match — so "no conversation by that name" can be told apart from "no conversations at all"
 - **`get_conversation`** - Retrieve conversation details by ID
 - **`get_conversation_users`** - Get all users in a conversation
 
@@ -352,7 +356,7 @@ The server will create two log files in this directory:
 
 ### Action Items
 
-- **`list_my_action_items`** - Your action items across all conversations: those assigned to you, **plus unassigned ones you created**. Check `assigned_to` before treating an item as someone's personal commitment
+- **`list_my_action_items`** - Your action items across every conversation and folder: those assigned to you, **plus unassigned ones you created**. Check `assigned_to` before treating an item as someone's personal commitment
 - **`list_action_items`** - List action items in one conversation, folder, or home
 - **`get_action_item`** - Get a single action item by ID
 - **`create_action_item`** - Create an action item
@@ -372,7 +376,9 @@ The server will create two log files in this directory:
 Most read tools accept an optional `response_fields` array — a dot-path allowlist
 that shrinks the response before it reaches the agent's context. Paths traverse
 arrays element-wise, and pagination fields (`total`, `has_next_page`, `has_more`,
-`next_cursor`, …) are always kept so the "is there more?" signal survives.
+`next_cursor`, …) are always kept so the "is there more?" signal survives. So is
+`list_conversations`'s `unfiltered_count`, for the same reason: a projection that
+stripped it would leave an empty result looking like "no such conversation".
 
 ```json
 { "response_fields": ["total", "has_next_page", "results.id", "results.transcript"] }
