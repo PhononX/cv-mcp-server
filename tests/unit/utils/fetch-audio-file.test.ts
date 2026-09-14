@@ -78,6 +78,15 @@ describe('isBlockedAddress', () => {
     ['5f00::1', 'SRv6 SIDs'],
     ['5f00:ffff::1', 'SRv6 SIDs /16 upper bound'],
     ['2001::1', 'Teredo — refused deliberately; it embeds an IPv4'],
+    // 6to4 embeds its IPv4 at bytes 2-5 (2002:WWXX:YYZZ::/48 is WW.XX.YY.ZZ),
+    // not 12-15 like the mapped/compatible/NAT64 forms. Undecoded, these
+    // reached internal targets through a URL that looks purely IPv6 — the
+    // metadata case below is the one that matters.
+    ['2002:a9fe:a9fe::1', '6to4 embedding 169.254.169.254, cloud metadata'],
+    ['2002:7f00:0001::1', '6to4 embedding 127.0.0.1'],
+    ['2002:0a00:0001::1', '6to4 embedding 10.0.0.1'],
+    ['2002:c0a8:0101::1', '6to4 embedding 192.168.1.1'],
+    ['2002::1', '6to4 embedding 0.0.0.0'],
     ['::ffff:127.0.0.1', 'IPv4-mapped loopback'],
     ['::ffff:169.254.169.254', 'IPv4-mapped metadata'],
     ['not-an-ip', 'unparseable input'],
@@ -121,7 +130,10 @@ describe('isBlockedAddress', () => {
     ['2001:40::1', 'just above the ORCHIDv2 /28'],
     ['101::1', 'just above the discard-only /64'],
     ['5f01::1', 'just above the SRv6 /16'],
-    ['2002::1', '6to4, left reachable'],
+    // 6to4 is re-judged on its embedded IPv4, not blanket-refused: one
+    // wrapping a public address stays reachable.
+    ['2002:0808:0808::1', '6to4 embedding 8.8.8.8'],
+    ['2002:5db8:d822::1', '6to4 embedding 93.184.216.34'],
   ])('allows %s (%s)', (ip) => {
     expect(isBlockedAddress(ip)).toBe(false);
   });

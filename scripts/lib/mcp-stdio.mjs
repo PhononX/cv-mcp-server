@@ -47,10 +47,19 @@ export const readDotEnv = () => {
   return out;
 };
 
-export const connect = ({ timeoutMs = 60_000 } = {}) =>
+/**
+ * `serverPath` is injectable so the child-exit path can be tested against a
+ * script that exits on purpose. Production callers use the default.
+ */
+export const connect = ({
+  timeoutMs = 60_000,
+  serverPath = SERVER_PATH,
+} = {}) =>
   new Promise((resolve, reject) => {
-    assertBuilt();
-    const child = spawn('node', [SERVER_PATH], {
+    if (serverPath === SERVER_PATH) {
+      assertBuilt();
+    }
+    const child = spawn('node', [serverPath], {
       env: {
         ...readDotEnv(),
         ...process.env,
@@ -77,26 +86,68 @@ export const connect = ({ timeoutMs = 60_000 } = {}) =>
         } catch {
           continue; // not protocol traffic
         }
-        const resolver = pending.get(msg.id);
-        if (resolver) {
+        const entry = pending.get(msg.id);
+        if (entry) {
           pending.delete(msg.id);
-          resolver(msg);
+          entry.settle(msg);
         }
       }
     });
 
-    child.on('error', reject);
+    // The server calls process.exit(1) on invalid configuration (see
+    // src/config/env.ts), so a mistyped .env makes the child spawn fine and
+    // then die. Without this the pending promise sat until the 60s timeout and
+    // the dev commands looked hung rather than broken — the timeout message
+    // would also have blamed the wrong thing.
+    let exitError = null;
+    const failAllPending = (err) => {
+      exitError = err;
+      for (const [id, entry] of [...pending]) {
+        pending.delete(id);
+        entry.fail(err);
+      }
+    };
+
+    child.on('error', (err) => {
+      failAllPending(err);
+      reject(err);
+    });
+
+    child.on('exit', (code, signal) => {
+      // A clean exit after close() is not a failure; only unresolved work is.
+      if (pending.size === 0) {
+        return;
+      }
+      const how = signal ? `signal ${signal}` : `code ${code}`;
+      failAllPending(
+        new Error(
+          `MCP server exited (${how}) before answering. It exits on invalid ` +
+            `configuration — check .env, and re-run with MCP_DEBUG=1 to see ` +
+            `its stderr.`,
+        ),
+      );
+    });
 
     const call = (method, params = {}) =>
       new Promise((res, rej) => {
+        if (exitError) {
+          rej(exitError);
+          return;
+        }
         const id = nextId++;
         const timer = setTimeout(() => {
           pending.delete(id);
           rej(new Error(`timeout waiting for ${method}`));
         }, timeoutMs);
-        pending.set(id, (m) => {
-          clearTimeout(timer);
-          res(m);
+        pending.set(id, {
+          settle: (m) => {
+            clearTimeout(timer);
+            res(m);
+          },
+          fail: (err) => {
+            clearTimeout(timer);
+            rej(err);
+          },
         });
         child.stdin.write(
           JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n',

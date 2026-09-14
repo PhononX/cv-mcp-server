@@ -291,6 +291,17 @@ export const isBlockedAddress = (ip: string): boolean => {
     return isBlockedAddress(bytes.slice(12).join('.'));
   }
 
+  // 2002::/16 — 6to4. Unlike the forms above, the embedded IPv4 sits at bytes
+  // 2-5, not 12-15: 2002:WWXX:YYZZ::/48 carries WW.XX.YY.ZZ. Left undecoded,
+  // `2002:a9fe:a9fe::1` reaches 169.254.169.254 — the cloud metadata endpoint,
+  // the highest-value SSRF target there is — through a URL that looks purely
+  // IPv6. Re-judged rather than blanket-refused, because a 6to4 address
+  // wrapping a public IPv4 (2002:0808:0808:: is 8.8.8.8) is legitimately
+  // reachable; it is the embedded target that decides.
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+    return isBlockedAddress(bytes.slice(2, 6).join('.'));
+  }
+
   // 64:ff9b:1::/48 — RFC 8215's LOCAL-USE NAT64 range. Behind DNS64 an internal
   // hostname can resolve to a synthesized address in here whose embedded IPv4
   // is private or link-local. Unlike the well-known prefix above, the embedded
