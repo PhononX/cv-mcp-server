@@ -61,6 +61,23 @@ describe('isBlockedAddress', () => {
     ['fd00::1', 'IPv6 unique-local'],
     ['fec0::1', 'IPv6 site-local, deprecated but still routed internally'],
     ['feff::1', 'IPv6 site-local upper bound'],
+    // IANA IPv6 special-purpose prefixes with no simple bit pattern. Every one
+    // of these was classified public until the CIDR table was added — the IPv4
+    // sweep fixed its own half and left this one as ad-hoc byte checks.
+    ['2001:db8::1', 'documentation, RFC 3849'],
+    ['2001:db8:ffff:ffff::1', 'documentation, upper bound'],
+    ['3fff::1', 'documentation, RFC 9637'],
+    ['3fff:0fff:ffff::1', 'documentation /20 upper bound'],
+    ['100::1', 'discard-only'],
+    ['100:0:0:0:ffff::1', 'discard-only /64 upper bound'],
+    ['2001:2::1', 'benchmarking'],
+    ['2001:10::1', 'ORCHID, deprecated'],
+    ['2001:1f:ffff::1', 'ORCHID /28 upper bound'],
+    ['2001:20::1', 'ORCHIDv2'],
+    ['2001:30::1', 'drone remote ID'],
+    ['5f00::1', 'SRv6 SIDs'],
+    ['5f00:ffff::1', 'SRv6 SIDs /16 upper bound'],
+    ['2001::1', 'Teredo — refused deliberately; it embeds an IPv4'],
     ['::ffff:127.0.0.1', 'IPv4-mapped loopback'],
     ['::ffff:169.254.169.254', 'IPv4-mapped metadata'],
     ['not-an-ip', 'unparseable input'],
@@ -91,6 +108,20 @@ describe('isBlockedAddress', () => {
     // testing only the first two octets. Only /24s inside it are reserved.
     ['192.0.1.1', 'inside 192.0/16 but not a reserved /24'],
     ['2606:4700::1111', 'public IPv6'],
+    // Marked globally reachable by the registry despite sitting among the
+    // special-purpose ranges. Listing the specific blocked sub-prefixes rather
+    // than the enclosing 2001::/23 is what keeps these working.
+    ['2001:4:112::1', 'AS112-v6, globally reachable'],
+    ['2620:4f:8000::1', 'direct delegation AS112, globally reachable'],
+    // Just outside each blocked prefix — these prove the masks are the right
+    // width rather than merely blocking something.
+    ['3fff:1000::1', 'just above the documentation /20'],
+    ['3ffe:ffff::1', 'just below the documentation /20'],
+    ['2001:f::1', 'just below the ORCHID /28'],
+    ['2001:40::1', 'just above the ORCHIDv2 /28'],
+    ['101::1', 'just above the discard-only /64'],
+    ['5f01::1', 'just above the SRv6 /16'],
+    ['2002::1', '6to4, left reachable'],
   ])('allows %s (%s)', (ip) => {
     expect(isBlockedAddress(ip)).toBe(false);
   });

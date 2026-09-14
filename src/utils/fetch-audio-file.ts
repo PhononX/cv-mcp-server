@@ -185,6 +185,64 @@ const inIpv4Block = (ip: string, prefix: string, bits: number): boolean => {
 };
 
 /**
+ * IPv6 prefixes that are not globally reachable, from IANA's IPv6
+ * Special-Purpose Address Registry. The byte tests below cover the ranges with
+ * simple bit patterns (link-local, site-local, unique-local, multicast); these
+ * are the rest, which have no such pattern and were each classified as public.
+ *
+ * The specific sub-prefixes are listed rather than the enclosing
+ * `2001::/23` ("IETF Protocol Assignments") precisely so the two AS112 ranges
+ * inside it — `2001:4:112::/48` and `2620:4f:8000::/48`, both marked globally
+ * reachable — keep working without needing a carve-out.
+ *
+ * `2001::/32` (Teredo) is refused deliberately. The registry no longer marks it
+ * globally reachable, and a Teredo address embeds an IPv4 address that may be
+ * internal. Nothing serves audio over Teredo, so the cost of being wrong here
+ * is a refused fetch rather than a reachable internal service.
+ */
+const BLOCKED_IPV6_BLOCKS: ReadonlyArray<readonly [number[], number, string]> =
+  (
+    [
+      ['100::', 64, 'discard-only'],
+      ['2001::', 32, 'Teredo'],
+      ['2001:2::', 48, 'benchmarking'],
+      ['2001:10::', 28, 'ORCHID, deprecated'],
+      ['2001:20::', 28, 'ORCHIDv2'],
+      ['2001:30::', 28, 'drone remote ID'],
+      ['2001:db8::', 32, 'documentation'],
+      ['3fff::', 20, 'documentation'],
+      ['5f00::', 16, 'SRv6 SIDs'],
+    ] as ReadonlyArray<readonly [string, number, string]>
+  ).map(([prefix, bits, label]) => {
+    const parsed = ipv6ToBytes(prefix);
+    if (!parsed) {
+      // A typo here would silently disable one row, so fail at module load
+      // rather than leave a hole that only an SSRF attempt would reveal.
+      throw new Error(`Unparseable blocked IPv6 prefix: ${prefix}`);
+    }
+    return [parsed, bits, label] as const;
+  });
+
+const inIpv6Block = (
+  bytes: number[],
+  prefixBytes: number[],
+  bits: number,
+): boolean => {
+  const wholeBytes = bits >> 3;
+  for (let i = 0; i < wholeBytes; i++) {
+    if (bytes[i] !== prefixBytes[i]) {
+      return false;
+    }
+  }
+  const leftoverBits = bits & 7;
+  if (leftoverBits === 0) {
+    return true;
+  }
+  const mask = (0xff << (8 - leftoverBits)) & 0xff;
+  return (bytes[wholeBytes] & mask) === (prefixBytes[wholeBytes] & mask);
+};
+
+/**
  * True when an IP sits in address space that should never be reachable from a
  * user-supplied URL — loopback, private ranges, link-local (which covers cloud
  * metadata endpoints such as 169.254.169.254), and unspecified/reserved blocks.
@@ -260,7 +318,9 @@ export const isBlockedAddress = (ip: string): boolean => {
   if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
   if (bytes[0] === 0xff) return true; // ff00::/8 multicast
 
-  return false;
+  return BLOCKED_IPV6_BLOCKS.some(([prefixBytes, bits]) =>
+    inIpv6Block(bytes, prefixBytes, bits),
+  );
 };
 
 /**
