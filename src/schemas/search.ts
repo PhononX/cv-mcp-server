@@ -41,11 +41,16 @@ export const searchMessageIdsParams = z.object({
   workspace_ids: idList('Only messages in these workspaces.'),
   label_ids: idList('Only messages carrying these labels.'),
   created_or_updated_at: z
+    // `{ offset: true }` because the bare `.datetime()` accepts only a `Z`
+    // suffix. An agent resolving "since 8am" against the user's timezone
+    // naturally produces `2026-09-14T08:00:00-04:00`, which is valid RFC 3339
+    // and was rejected at the MCP boundary before ever reaching the API.
     .string()
-    .datetime()
+    .datetime({ offset: true })
     .optional()
     .describe(
-      'ISO timestamp anchor. Combined with `sort_direction` to page backwards or forwards from a point in time.',
+      'ISO 8601 timestamp anchor; a UTC `Z` suffix or a numeric offset both work. ' +
+        'Combined with `sort_direction` to page backwards or forwards from a point in time.',
     ),
   sort_direction: z
     .enum(['older', 'newer'])

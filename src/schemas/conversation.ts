@@ -20,19 +20,25 @@ export const summarizeConversationParams = z.object({
     .string()
     .optional()
     .describe('Summary language. Defaults to the original message language.'),
+  // Both bounds take `{ offset: true }` for the same reason as
+  // `created_or_updated_at` in search.ts: a bare `.datetime()` refuses a
+  // numeric offset, which is the form an agent produces when it resolves a
+  // local time.
   start_date: z
     .string()
-    .datetime()
+    .datetime({ offset: true })
     .optional()
     .describe(
-      'ISO 8601 lower bound on message age. Ignored when `message_ids` is given.',
+      'ISO 8601 lower bound on message age; a UTC `Z` suffix or a numeric offset ' +
+        'both work. Ignored when `message_ids` is given.',
     ),
   end_date: z
     .string()
-    .datetime()
+    .datetime({ offset: true })
     .optional()
     .describe(
-      'ISO 8601 upper bound on message age. Ignored when `message_ids` is given.',
+      'ISO 8601 upper bound on message age; a UTC `Z` suffix or a numeric offset ' +
+        'both work. Ignored when `message_ids` is given.',
     ),
   limit: z
     .number()

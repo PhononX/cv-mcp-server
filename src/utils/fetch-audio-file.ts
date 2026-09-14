@@ -210,6 +210,7 @@ const BLOCKED_IPV6_BLOCKS: ReadonlyArray<readonly [number[], number, string]> =
       ['2001:20::', 28, 'ORCHIDv2'],
       ['2001:30::', 28, 'drone remote ID'],
       ['2001:db8::', 32, 'documentation'],
+      ['3ffe::', 16, '6bone, returned to IANA'],
       ['3fff::', 20, 'documentation'],
       ['5f00::', 16, 'SRv6 SIDs'],
     ] as ReadonlyArray<readonly [string, number, string]>
@@ -329,6 +330,33 @@ export const isBlockedAddress = (ip: string): boolean => {
   if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
   if (bytes[0] === 0xff) return true; // ff00::/8 multicast
 
+  // 2000::/3 is the only range IANA has allocated for global unicast, so
+  // anything outside it is special-purpose or simply unallocated — 4000::,
+  // 6000::, 8000::, c000::, e000:: and f000:: all reached the public branch
+  // before this test.
+  //
+  // This is the positive classification the review asked for three times, and
+  // twice I answered that for a fixed registry a deny-list and a positive
+  // classifier describe the same set. That is roughly true of IPv4, which is
+  // essentially fully allocated. It is false of IPv6: most of the space is
+  // unallocated and therefore appears in no special-purpose registry at all,
+  // so no enumeration of special-purpose prefixes can ever cover it. The
+  // enumerated table below is still needed for the prefixes that sit INSIDE
+  // 2000::/3.
+  //
+  // The embedded-IPv4 forms are deliberately resolved before this point:
+  // ::ffff:0:0/96, ::/96 and 64:ff9b::/96 all lie outside 2000::/3, and
+  // `::ffff:8.8.8.8` must stay reachable on the merit of its embedded address.
+  if ((bytes[0] & 0xe0) !== 0x20) {
+    return true;
+  }
+
+  // Residual gap, stated rather than papered over: within 2000::/3 only the
+  // prefixes below are refused. IANA has allocated a subset of 2000::/3 to the
+  // RIRs, so unallocated space inside it (2100::, 2300::, 2500::…) still
+  // passes. Enumerating the RIR /12s would close that, at the cost of refusing
+  // any host in a /12 allocated after this table was written — a silent
+  // breakage traded for a narrow gain, so it is not done here.
   return BLOCKED_IPV6_BLOCKS.some(([prefixBytes, bits]) =>
     inIpv6Block(bytes, prefixBytes, bits),
   );

@@ -87,6 +87,27 @@ describe('isBlockedAddress', () => {
     ['2002:0a00:0001::1', '6to4 embedding 10.0.0.1'],
     ['2002:c0a8:0101::1', '6to4 embedding 192.168.1.1'],
     ['2002::1', '6to4 embedding 0.0.0.0'],
+    // Outside 2000::/3, the only range allocated for global unicast. These are
+    // unallocated rather than special-purpose, so no registry enumeration
+    // reaches them — only the positive test does. 3ffe::/16 is former 6bone,
+    // returned to IANA; the earlier suite asserted it REACHABLE.
+    ['3ffe:ffff::1', '6bone, returned to IANA'],
+    ['3ffe::1', '6bone lower bound'],
+    ['4000::1', 'unallocated, outside 2000::/3'],
+    ['6000::1', 'unallocated, outside 2000::/3'],
+    ['8000::1', 'unallocated, outside 2000::/3'],
+    ['c000::1', 'unallocated, outside 2000::/3'],
+    ['e000::1', 'unallocated, outside 2000::/3'],
+    ['f000::1', 'unallocated, outside 2000::/3'],
+    ['1000::1', 'unallocated, just below 2000::/3'],
+    // Just outside their enumerated prefixes, yet still blocked — because
+    // 100::/64 and 5f00::/16 both sit outside 2000::/3, so the global-unicast
+    // test covers their neighbourhood and those two table rows are now
+    // redundant. They are kept as registry documentation, not as load-bearing
+    // checks. Under the old deny-list these two addresses were asserted
+    // REACHABLE, which is what "outside a blocked prefix" used to imply.
+    ['101::1', 'just above the discard-only /64, still outside 2000::/3'],
+    ['5f01::1', 'just above the SRv6 /16, still outside 2000::/3'],
     ['::ffff:127.0.0.1', 'IPv4-mapped loopback'],
     ['::ffff:169.254.169.254', 'IPv4-mapped metadata'],
     ['not-an-ip', 'unparseable input'],
@@ -117,6 +138,13 @@ describe('isBlockedAddress', () => {
     // testing only the first two octets. Only /24s inside it are reserved.
     ['192.0.1.1', 'inside 192.0/16 but not a reserved /24'],
     ['2606:4700::1111', 'public IPv6'],
+    ['2000::1', 'global unicast lower bound'],
+    ['2a00::1', 'ordinary RIR-allocated space'],
+    // The embedded-IPv4 forms all sit OUTSIDE 2000::/3, so they must be
+    // resolved before the global-unicast test or a public embedded address
+    // would be refused. These prove that ordering.
+    ['::ffff:8.8.8.8', 'IPv4-mapped public address'],
+    ['64:ff9b::8.8.8.8', 'NAT64-wrapped public address'],
     // Marked globally reachable by the registry despite sitting among the
     // special-purpose ranges. Listing the specific blocked sub-prefixes rather
     // than the enclosing 2001::/23 is what keeps these working.
@@ -125,11 +153,10 @@ describe('isBlockedAddress', () => {
     // Just outside each blocked prefix — these prove the masks are the right
     // width rather than merely blocking something.
     ['3fff:1000::1', 'just above the documentation /20'],
-    ['3ffe:ffff::1', 'just below the documentation /20'],
+    ['3fff:1000::1', 'just above the documentation /20, still global unicast'],
     ['2001:f::1', 'just below the ORCHID /28'],
     ['2001:40::1', 'just above the ORCHIDv2 /28'],
-    ['101::1', 'just above the discard-only /64'],
-    ['5f01::1', 'just above the SRv6 /16'],
+
     // 6to4 is re-judged on its embedded IPv4, not blanket-refused: one
     // wrapping a public address stays reachable.
     ['2002:0808:0808::1', '6to4 embedding 8.8.8.8'],
