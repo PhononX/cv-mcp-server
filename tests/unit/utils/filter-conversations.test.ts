@@ -181,10 +181,34 @@ describe('filterConversationsByName', () => {
     expect(input).not.toHaveProperty('unfiltered_count');
   });
 
-  it('leaves a response with no results array alone', () => {
+  it('leaves a payload that is not a listing alone', () => {
     const weird = { statusCode: 500 };
 
     expect(filterConversationsByName(weird, 'fred')).toBe(weird);
+  });
+
+  // `results` is optional on the upstream response, so a listing can arrive
+  // without one. The doc tells the agent to ALWAYS check `unfiltered_count`
+  // before concluding a conversation does not exist, so this shape — the one
+  // case where "nothing is there" is actually TRUE — still has to carry it.
+  it('reports unfiltered_count for a listing with no results array', () => {
+    const out = filterConversationsByName({ results_count: 0 }, 'fred');
+
+    expect(out.unfiltered_count).toBe(0);
+    expect(out.results_count).toBe(0);
+  });
+
+  // The count is taken after `types` has already narrowed the set, so a zero
+  // means "your other filters left nothing", not "you have no conversations".
+  // Reading it the second way is the false negative the field exists to stop.
+  it('counts only the rows the name was matched against', () => {
+    const out = filterConversationsByName(
+      filterConversationsByType(RESPONSE, ['directMessage']),
+      'acme',
+    );
+
+    expect(out.results_count).toBe(0);
+    expect(out.unfiltered_count).toBe(1);
   });
 
   it('drops rows with a missing or non-string name', () => {

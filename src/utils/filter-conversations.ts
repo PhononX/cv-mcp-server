@@ -72,8 +72,15 @@ interface NameFilterableResponse {
  * `results: []` will report "you have no conversation called X", which is
  * wrong and unrecoverable when the name was merely misspelled or the
  * conversation is older than the six-month window. Reporting how many rows
- * the filter looked at lets the agent tell "you have no conversations" apart
+ * the filter looked at lets the agent tell "nothing was there to match" apart
  * from "none of your 47 matched that string".
+ *
+ * Note what it is counted against: the rows THIS filter saw, which is after
+ * `user_ids` (applied upstream) and `types` (applied before this). So
+ * `unfiltered_count: 0` means the other filters already left nothing — not
+ * that the caller has no conversations. The tool doc has to say so, or an
+ * agent combining filters walks straight back into the false negative this
+ * field exists to prevent.
  *
  * Omitted, empty or whitespace-only `name` returns the input by reference, so
  * the behaviour is identical to not having the filter at all — no
@@ -90,7 +97,15 @@ export const filterConversationsByName = <T>(
   }
   const body = response as NameFilterableResponse;
   if (!Array.isArray(body?.results)) {
-    return response as Filtered;
+    // `results` is optional upstream, so a listing with none is an empty set
+    // rather than a malformed body. The doc tells the agent to ALWAYS check
+    // `unfiltered_count`, so that case has to carry one — omitting it is the
+    // one shape where "nothing is there" cannot be justified from the
+    // response. Anything that is not a listing (an error payload, say) still
+    // passes through untouched.
+    return typeof body?.results_count === 'number'
+      ? ({ ...body, unfiltered_count: 0 } as unknown as Filtered)
+      : (response as Filtered);
   }
 
   const unfiltered_count = body.results.length;

@@ -318,7 +318,7 @@ The server will create two log files in this directory:
 
 ### Conversations
 
-- **`list_conversations`** - Get all conversations from the last 6 months, with optional filtering by user IDs, `types`, and `name` (case-insensitive substring). All three narrow the response here rather than upstream, so they compose freely. A `name`-filtered response also carries `unfiltered_count` — the count before the name match — so "no conversation by that name" can be told apart from "no conversations at all"
+- **`list_conversations`** - Get all conversations from the last 6 months, with optional filtering by `user_ids`/`match` (applied by the API), plus `types` and `name` (case-insensitive substring), which this server applies to the response. A `name`-filtered response also carries `unfiltered_count` — how many conversations the name was matched against, after the other filters — so an empty result can be told apart from a name that simply did not match
 - **`get_conversation`** - Retrieve conversation details by ID
 - **`get_conversation_users`** - Get all users in a conversation
 
@@ -378,7 +378,8 @@ that shrinks the response before it reaches the agent's context. Paths traverse
 arrays element-wise, and pagination fields (`total`, `has_next_page`, `has_more`,
 `next_cursor`, …) are always kept so the "is there more?" signal survives. So is
 `list_conversations`'s `unfiltered_count`, for the same reason: a projection that
-stripped it would leave an empty result looking like "no such conversation".
+stripped it would leave an empty result looking like a conversation that does not
+exist.
 
 ```json
 { "response_fields": ["total", "has_next_page", "results.id", "results.transcript"] }

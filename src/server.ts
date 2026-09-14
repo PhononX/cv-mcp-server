@@ -711,8 +711,11 @@ function registerCarbonVoiceTools(server: McpServer): void {
       try {
         return formatToMCPToolResponse(
           // Name last, so its `unfiltered_count` reports the rows it actually
-          // looked at — i.e. what survived `types` — rather than a total the
-          // caller already narrowed away.
+          // looked at — what survived `user_ids` upstream and `types` here —
+          // rather than a total the caller already narrowed away. The tool doc
+          // says so explicitly: an agent that read `unfiltered_count: 0` as
+          // "you have no conversations" would resurrect the false negative the
+          // field exists to prevent.
           filterConversationsByName(
             filterConversationsByType(
               await simplifiedApi.getAllConversations(
