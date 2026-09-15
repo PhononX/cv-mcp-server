@@ -157,13 +157,30 @@ type ToolShape = {
 // ---------------------------------------------------------------------------
 
 /**
- * The only two tools whose reach leaves the authenticated Carbon Voice
- * account: `create_direct_message` can address arbitrary email addresses, and
- * `create_voicememo_message` makes the server fetch an arbitrary
- * caller-supplied public URL. Every other tool is closed over the caller's own
- * account and workspaces.
+ * Every tool whose domain of interaction reaches outside the authenticated
+ * Carbon Voice account — not only tools where this MCP server itself makes
+ * the outbound call:
+ *  - `create_direct_message` can address arbitrary email addresses.
+ *  - `create_voicememo_message` makes the server fetch an arbitrary
+ *    caller-supplied public URL directly.
+ *  - `create_conversation_message` and `add_attachments_to_message` accept
+ *    `links`, which the Carbon Voice backend (cv-api) dereferences to fetch a
+ *    title/description. This server never makes that request itself, but
+ *    calling the tool still causes Carbon Voice's infrastructure to fetch a
+ *    caller-supplied URL.
+ *  - `run_ai_action_for_shared_link` and `get_message_share_link` both accept
+ *    a share link ID that can point to a message shared by someone the
+ *    caller has no existing relationship with.
+ * Every other tool is closed over the caller's own account and workspaces.
  */
-const OPEN_WORLD_TOOLS = ['create_direct_message', 'create_voicememo_message'];
+const OPEN_WORLD_TOOLS = [
+  'create_conversation_message',
+  'create_direct_message',
+  'create_voicememo_message',
+  'add_attachments_to_message',
+  'run_ai_action_for_shared_link',
+  'get_message_share_link',
+];
 
 /**
  * Every tool whose `destructiveHint` must be `true` — it deletes, overwrites
@@ -267,7 +284,7 @@ describe('tools/list contract', () => {
     ).toBe(TOOL_NAMES.length);
   });
 
-  it('marks exactly the two open-world tools as open-world', () => {
+  it('marks exactly the open-world tools as open-world', () => {
     expect(
       tools.filter((t) => t.annotations?.openWorldHint).map((t) => t.name),
     ).toEqual(OPEN_WORLD_TOOLS);
@@ -323,13 +340,19 @@ describe('tools/list contract', () => {
       });
     });
 
-    it('never marks a read-only tool as destructive or open-world', () => {
+    it('never marks a read-only tool as destructive', () => {
+      // The spec ties `destructiveHint` to `readOnlyHint == false` ("This
+      // property is meaningful only when readOnlyHint == false"), but
+      // `openWorldHint` is an independent axis — a read-only tool can still be
+      // open-world (the spec's own example, a web search tool, is exactly
+      // that: it only reads, but its domain is the open internet).
+      // `get_message_share_link` is this server's case: read-only, but it can
+      // retrieve a message shared by someone outside the caller's account.
       if (!tool().annotations?.readOnlyHint) return;
       expect({
         tool: name,
         destructive: tool().annotations?.destructiveHint,
-        openWorld: tool().annotations?.openWorldHint,
-      }).toEqual({ tool: name, destructive: false, openWorld: false });
+      }).toEqual({ tool: name, destructive: false });
     });
 
     it('gives every parameter a usable JSON Schema type', () => {

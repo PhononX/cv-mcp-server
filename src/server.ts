@@ -163,14 +163,29 @@ const responseFieldsShape = {
  *    calls that add a new response record (`run_ai_action`,
  *    `summarize_conversation`, the `suggest_action_items_*` pair).
  *
- * `openWorldHint` is `true` only where the tool's reach leaves the
- * authenticated Carbon Voice account: `create_direct_message` addresses
- * arbitrary email addresses, and `create_voicememo_message` makes the server
- * fetch an arbitrary caller-supplied public URL. Everything else reads or
- * writes inside the caller's own account and workspaces, so its domain of
- * interaction is closed. Link params that are merely stored
- * (`add_attachments_to_message`, `links` on the message tools) do not open the
- * world: the server never dereferences them.
+ * `openWorldHint` is `true` wherever the *system* the tool sits in front of
+ * reaches outside the authenticated Carbon Voice account — not only where
+ * this MCP server itself makes the outbound call. The spec's own example
+ * (a web search tool is open-world; a memory tool is not) is about the
+ * domain of interaction the tool exposes the caller to, regardless of which
+ * process performs the network request:
+ *  - `create_direct_message` addresses arbitrary email addresses.
+ *  - `create_voicememo_message` makes the server fetch an arbitrary
+ *    caller-supplied public URL directly.
+ *  - `create_conversation_message` and `add_attachments_to_message` accept
+ *    `links`, which the Carbon Voice backend (cv-api) dereferences to fetch a
+ *    title/description for the attachment. This server never makes that
+ *    request itself, but calling the tool still causes an arbitrary
+ *    caller-supplied URL to be fetched by Carbon Voice's infrastructure, so
+ *    the tool's domain of interaction is open, not closed.
+ *  - `run_ai_action_for_shared_link` and `get_message_share_link` both accept
+ *    a share link ID that can point to a message shared by someone the
+ *    caller has no existing relationship with — the point of a share link is
+ *    that it works for anyone who has the ID. That reaches outside the
+ *    caller's own closed account graph the same way an arbitrary email
+ *    address does for `create_direct_message`.
+ * Everything else reads or writes only inside the caller's own account and
+ * workspaces, so its domain of interaction stays closed.
  */
 /**
  * Registers all Carbon Voice tools on an MCP server instance.
@@ -312,7 +327,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (
@@ -504,7 +519,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (
@@ -1380,7 +1395,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (
@@ -1494,7 +1509,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (

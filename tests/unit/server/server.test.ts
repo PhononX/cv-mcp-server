@@ -796,8 +796,10 @@ describe('MCP Server', () => {
         expect(
           createConversationMessageCall[1].annotations.destructiveHint,
         ).toBe(true);
+        // `links` is dereferenced by the Carbon Voice backend to fetch a
+        // title/description, so this tool's domain of interaction is open.
         expect(createConversationMessageCall[1].annotations.openWorldHint).toBe(
-          false,
+          true,
         );
         expect(createConversationMessageCall[1].description).toBeDefined();
       });
@@ -1073,6 +1075,11 @@ describe('MCP Server', () => {
         );
         expect(addAttachmentsToMessageCall[1].annotations.destructiveHint).toBe(
           false,
+        );
+        // `links` is dereferenced by the Carbon Voice backend to fetch a
+        // title/description, so this tool's domain of interaction is open.
+        expect(addAttachmentsToMessageCall[1].annotations.openWorldHint).toBe(
+          true,
         );
         expect(addAttachmentsToMessageCall[1].description).toBeDefined();
       });
@@ -2476,6 +2483,12 @@ describe('MCP Server', () => {
         expect(
           runAIActionForSharedLinkCall[1].annotations.destructiveHint,
         ).toBe(false);
+        // A share link ID can point to a message shared by someone outside
+        // the caller's own account, so this tool's domain of interaction is
+        // open.
+        expect(runAIActionForSharedLinkCall[1].annotations.openWorldHint).toBe(
+          true,
+        );
         expect(runAIActionForSharedLinkCall[1].description).toBeDefined();
       });
 
@@ -3145,6 +3158,10 @@ describe('MCP Server', () => {
         expect(call[1].inputSchema).toBeDefined();
         expect(call[1].annotations.readOnlyHint).toBe(true);
         expect(call[1].annotations.destructiveHint).toBe(false);
+        // A share link ID can point to a message shared by someone outside
+        // the caller's own account, so this tool's domain of interaction is
+        // open even though it's read-only.
+        expect(call[1].annotations.openWorldHint).toBe(true);
         expect(call[1].description).toBeDefined();
       });
 
