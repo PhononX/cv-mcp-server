@@ -793,9 +793,12 @@ describe('MCP Server', () => {
         expect(createConversationMessageCall[1].annotations.readOnlyHint).toBe(
           false,
         );
+        // Sending a message only creates a new record — it doesn't overwrite
+        // or delete anything — so it's additive, not destructive, even
+        // though no tool here can withdraw it once sent.
         expect(
           createConversationMessageCall[1].annotations.destructiveHint,
-        ).toBe(true);
+        ).toBe(false);
         // `links` is dereferenced by the Carbon Voice backend to fetch a
         // title/description, so this tool's domain of interaction is open.
         expect(createConversationMessageCall[1].annotations.openWorldHint).toBe(
@@ -887,8 +890,11 @@ describe('MCP Server', () => {
         expect(createDirectMessageCall[1].inputSchema).toBeDefined();
         expect(createDirectMessageCall[1].annotations).toBeDefined();
         expect(createDirectMessageCall[1].annotations.readOnlyHint).toBe(false);
+        // Sending a message only creates a new record — it doesn't overwrite
+        // or delete anything — so it's additive, not destructive, even
+        // though no tool here can withdraw it once sent.
         expect(createDirectMessageCall[1].annotations.destructiveHint).toBe(
-          true,
+          false,
         );
         // Recipients can be arbitrary email addresses, so this tool reaches
         // outside the authenticated Carbon Voice account.

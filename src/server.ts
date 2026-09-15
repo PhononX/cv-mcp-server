@@ -150,16 +150,18 @@ const responseFieldsShape = {
  *
  * `destructiveHint` is the spec's additive/destructive split ("If true, the
  * tool may perform destructive updates to its environment. If false, the tool
- * performs only additive updates."), not a reversibility test:
+ * performs only additive updates."), not a reversibility test — irreversible
+ * and visible to someone else is not the same as destructive, so a message
+ * send that only creates a new record stays `false` even though no tool here
+ * can withdraw it once sent:
  *  - `true` for deletes, for updates that overwrite an existing field
  *    (`update_folder_name`, `update_action_item`, `set_action_item_status`),
- *    for moves that replace a current location (`move_folder`,
- *    `move_message_to_folder`), and for sends that put a message in front of
- *    another person with no tool here to withdraw it
- *    (`create_conversation_message`, `create_direct_message`).
+ *    and for moves that replace a current location (`move_folder`,
+ *    `move_message_to_folder`).
  *  - `false` for pure creates that only append (`create_folder`,
  *    `create_action_item`, `create_voicememo_message`,
- *    `add_attachments_to_message`, `create_message_share_link`) and for AI
+ *    `add_attachments_to_message`, `create_message_share_link`,
+ *    `create_conversation_message`, `create_direct_message`) and for AI
  *    calls that add a new response record (`run_ai_action`,
  *    `summarize_conversation`, the `suggest_action_items_*` pair).
  *
@@ -326,7 +328,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         openWorldHint: true,
       },
     },
@@ -359,7 +361,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       inputSchema: { ...sendDirectMessageBodyShape },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         openWorldHint: true,
       },
     },

@@ -184,12 +184,13 @@ const OPEN_WORLD_TOOLS = [
 
 /**
  * Every tool whose `destructiveHint` must be `true` — it deletes, overwrites
- * an existing field, replaces a current location, or sends a message that no
- * tool here can withdraw. Anything absent from this list must be `false`.
+ * an existing field, or replaces a current location. Irreversible and
+ * visible to someone else is not the same as destructive: a message send
+ * only creates a new record, so `create_conversation_message` and
+ * `create_direct_message` are NOT in this list even though no tool here can
+ * withdraw a sent message. Anything absent from this list must be `false`.
  */
 const DESTRUCTIVE_TOOLS = [
-  'create_conversation_message',
-  'create_direct_message',
   'update_folder_name',
   'delete_folder',
   'move_folder',
