@@ -810,12 +810,13 @@ export const TOOL_DOCS: ToolDocRegistry = {
 
   list_conversations: {
     purpose:
-      'List your conversations from the last 6 months, optionally filtered by participants and type.',
+      'List your conversations from the last 6 months, optionally filtered by participants, type and name.',
     whenToUse:
-      'Finding a `conversation_id`. Filter with `user_ids` plus `match`, and ' +
-      'narrow to `types` — YOUR DM with someone is ' +
+      'Finding a `conversation_id`. Filter with `user_ids` plus `match`, ' +
+      '`types` and `name` — YOUR DM with someone is ' +
       '`user_ids: ["<their id>"], types: ["directMessage"]`. You are always an ' +
-      'implicit participant, so never pass your own ID.',
+      'implicit participant, so never pass your own ID. Filters AND together; ' +
+      'if several match, ask which was meant.',
     whenNotToUse:
       '`get_conversation` when you already have an ID and want full detail — this ' +
       'returns only id, name, workspace_id and type.',
@@ -823,8 +824,12 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape:
       '`{results_count, results: [{id, name, workspace_id, type}]}` where type is ' +
       '`directMessage` | `customerConversation` | `namedConversation` | `asyncMeeting`. ' +
-      'No paging: `results_count` is the size of what is returned, after `types`. ' +
-      'An empty `results` is a real answer — no such conversation — not an error.',
+      'No paging: `results_count` is what is returned, after filtering. `name` ' +
+      'adds `unfiltered_count`: rows the name was matched against, AFTER ' +
+      '`user_ids`/`types`. ALWAYS check it before saying no such conversation ' +
+      'exists. 0 of 47 means none matched that string (misspelt, or >6 months ' +
+      'old); 0 of 0 means your other filters left nothing — not that the caller ' +
+      'has none. Widen the filters or ask; never report it does not exist.',
   },
 
   get_conversation: {
