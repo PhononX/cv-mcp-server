@@ -29,6 +29,11 @@
 const ALWAYS_PRESERVED = [
   'total',
   'results_count',
+  // `list_conversations`'s name filter reports how many rows it looked at.
+  // Stripping it under a projection would leave an agent with a bare
+  // `results: []` and no way to tell "you have no conversations" from "none
+  // of your 47 matched that string" — the same harm as dropping `has_more`.
+  'unfiltered_count',
   'has_next_page',
   'has_more',
   'next_cursor',

@@ -97,6 +97,7 @@ import {
 import {
   ConversationTypeFilter,
   fetchAudioFile,
+  filterConversationsByName,
   filterConversationsByType,
   formatToMCPToolResponse,
   logger,
@@ -704,6 +705,18 @@ function registerCarbonVoiceTools(server: McpServer): void {
           'someone — combine with `user_ids` to find your DM with a person. ' +
           '`namedConversation` is a conversation somebody named. Omit for all types.',
       ),
+    // Also MCP-side, for the same reason as `types`: no upstream `name`
+    // parameter exists, and "what did I last send to <conversation>" would
+    // otherwise pull every conversation the caller is in to use one row.
+    name: z
+      .string()
+      .optional()
+      .describe(
+        'Keep only conversations whose name contains this string, ' +
+          'case-insensitively. When nothing matches, check `unfiltered_count` ' +
+          'before reporting no such conversation — it says how many existed ' +
+          'to match against. Several matches means ask which was meant.',
+      ),
   });
 
   server.registerTool(
@@ -723,11 +736,14 @@ function registerCarbonVoiceTools(server: McpServer): void {
     async (
       input: GetAllConversationsParams & {
         types?: ConversationTypeFilter[];
+        name?: string;
         response_fields?: string[];
       },
       { authInfo },
     ): Promise<McpToolResponse> => {
-      const { response_fields, types, ...args } = input;
+      // `types` and `name` are destructured out here so they can never reach
+      // `params`, and so never cross the wire as unknown query strings.
+      const { response_fields, types, name, ...args } = input;
       const params: GetAllConversationsParams = {};
       if (args.user_ids?.length) {
         params.user_ids = args.user_ids;
@@ -737,12 +753,21 @@ function registerCarbonVoiceTools(server: McpServer): void {
       }
       try {
         return formatToMCPToolResponse(
-          filterConversationsByType(
-            await simplifiedApi.getAllConversations(
-              params,
-              setCarbonVoiceAuthHeader(authInfo?.token),
+          // Name last, so its `unfiltered_count` reports the rows it actually
+          // looked at — what survived `user_ids` upstream and `types` here —
+          // rather than a total the caller already narrowed away. The tool doc
+          // says so explicitly: an agent that read `unfiltered_count: 0` as
+          // "you have no conversations" would resurrect the false negative the
+          // field exists to prevent.
+          filterConversationsByName(
+            filterConversationsByType(
+              await simplifiedApi.getAllConversations(
+                params,
+                setCarbonVoiceAuthHeader(authInfo?.token),
+              ),
+              types,
             ),
-            types,
+            name,
           ),
           { responseFields: response_fields },
         );
