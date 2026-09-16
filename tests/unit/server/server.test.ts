@@ -793,9 +793,17 @@ describe('MCP Server', () => {
         expect(createConversationMessageCall[1].annotations.readOnlyHint).toBe(
           false,
         );
+        // Sending a message only creates a new record — it doesn't overwrite
+        // or delete anything — so it's additive, not destructive, even
+        // though no tool here can withdraw it once sent.
         expect(
           createConversationMessageCall[1].annotations.destructiveHint,
         ).toBe(false);
+        // `links` is dereferenced by the Carbon Voice backend to fetch a
+        // title/description, so this tool's domain of interaction is open.
+        expect(createConversationMessageCall[1].annotations.openWorldHint).toBe(
+          true,
+        );
         expect(createConversationMessageCall[1].description).toBeDefined();
       });
 
@@ -882,9 +890,15 @@ describe('MCP Server', () => {
         expect(createDirectMessageCall[1].inputSchema).toBeDefined();
         expect(createDirectMessageCall[1].annotations).toBeDefined();
         expect(createDirectMessageCall[1].annotations.readOnlyHint).toBe(false);
+        // Sending a message only creates a new record — it doesn't overwrite
+        // or delete anything — so it's additive, not destructive, even
+        // though no tool here can withdraw it once sent.
         expect(createDirectMessageCall[1].annotations.destructiveHint).toBe(
           false,
         );
+        // Recipients can be arbitrary email addresses, so this tool reaches
+        // outside the authenticated Carbon Voice account.
+        expect(createDirectMessageCall[1].annotations.openWorldHint).toBe(true);
         expect(createDirectMessageCall[1].description).toBeDefined();
       });
 
@@ -973,6 +987,10 @@ describe('MCP Server', () => {
         );
         expect(createVoicememoMessageCall[1].annotations.destructiveHint).toBe(
           false,
+        );
+        // `audio_url` makes the server fetch a caller-supplied public URL.
+        expect(createVoicememoMessageCall[1].annotations.openWorldHint).toBe(
+          true,
         );
         expect(createVoicememoMessageCall[1].description).toBeDefined();
       });
@@ -1063,6 +1081,11 @@ describe('MCP Server', () => {
         );
         expect(addAttachmentsToMessageCall[1].annotations.destructiveHint).toBe(
           false,
+        );
+        // `links` is dereferenced by the Carbon Voice backend to fetch a
+        // title/description, so this tool's domain of interaction is open.
+        expect(addAttachmentsToMessageCall[1].annotations.openWorldHint).toBe(
+          true,
         );
         expect(addAttachmentsToMessageCall[1].description).toBeDefined();
       });
@@ -1156,6 +1179,10 @@ describe('MCP Server', () => {
         expect(searchUserCall[1].annotations).toBeDefined();
         expect(searchUserCall[1].annotations.readOnlyHint).toBe(true);
         expect(searchUserCall[1].annotations.destructiveHint).toBe(false);
+        // Only the `name` search is contact-restricted upstream; `email`/
+        // `phone` can resolve any Carbon Voice user, so this reaches outside
+        // the caller's own account graph even though it's read-only.
+        expect(searchUserCall[1].annotations.openWorldHint).toBe(true);
         expect(searchUserCall[1].description).toBeDefined();
       });
 
@@ -1237,6 +1264,10 @@ describe('MCP Server', () => {
         expect(searchUsersCall[1].annotations).toBeDefined();
         expect(searchUsersCall[1].annotations.readOnlyHint).toBe(true);
         expect(searchUsersCall[1].annotations.destructiveHint).toBe(false);
+        // Only the `names` search is contact-restricted upstream; `emails`/
+        // `phones` can resolve any Carbon Voice user, so this reaches outside
+        // the caller's own account graph even though it's read-only.
+        expect(searchUsersCall[1].annotations.openWorldHint).toBe(true);
         expect(searchUsersCall[1].description).toBeDefined();
       });
 
@@ -2017,7 +2048,8 @@ describe('MCP Server', () => {
         expect(updateFolderNameCall[1].inputSchema).toBeDefined();
         expect(updateFolderNameCall[1].annotations).toBeDefined();
         expect(updateFolderNameCall[1].annotations.readOnlyHint).toBe(false);
-        expect(updateFolderNameCall[1].annotations.destructiveHint).toBe(false);
+        expect(updateFolderNameCall[1].annotations.destructiveHint).toBe(true);
+        expect(updateFolderNameCall[1].annotations.openWorldHint).toBe(false);
         expect(updateFolderNameCall[1].description).toBeDefined();
       });
 
@@ -2136,7 +2168,8 @@ describe('MCP Server', () => {
         expect(moveFolderCall[1].inputSchema).toBeDefined();
         expect(moveFolderCall[1].annotations).toBeDefined();
         expect(moveFolderCall[1].annotations.readOnlyHint).toBe(false);
-        expect(moveFolderCall[1].annotations.destructiveHint).toBe(false);
+        expect(moveFolderCall[1].annotations.destructiveHint).toBe(true);
+        expect(moveFolderCall[1].annotations.openWorldHint).toBe(false);
         expect(moveFolderCall[1].description).toBeDefined();
       });
 
@@ -2196,6 +2229,9 @@ describe('MCP Server', () => {
         expect(moveMessageToFolderCall[1].annotations).toBeDefined();
         expect(moveMessageToFolderCall[1].annotations.readOnlyHint).toBe(false);
         expect(moveMessageToFolderCall[1].annotations.destructiveHint).toBe(
+          true,
+        );
+        expect(moveMessageToFolderCall[1].annotations.openWorldHint).toBe(
           false,
         );
         expect(moveMessageToFolderCall[1].description).toBeDefined();
@@ -2461,6 +2497,12 @@ describe('MCP Server', () => {
         expect(
           runAIActionForSharedLinkCall[1].annotations.destructiveHint,
         ).toBe(false);
+        // A share link ID can point to a message shared by someone outside
+        // the caller's own account, so this tool's domain of interaction is
+        // open.
+        expect(runAIActionForSharedLinkCall[1].annotations.openWorldHint).toBe(
+          true,
+        );
         expect(runAIActionForSharedLinkCall[1].description).toBeDefined();
       });
 
@@ -2892,17 +2934,39 @@ describe('MCP Server', () => {
       const findCall = (name: string) =>
         mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
 
-      it('should mark only delete_action_item as destructive', () => {
-        expect(
-          findCall('delete_action_item')[1].annotations.destructiveHint,
-        ).toBe(true);
+      it('should mark the destroying and overwriting item tools as destructive', () => {
+        // `delete_action_item` removes the record; `update_action_item` and
+        // `set_action_item_status` overwrite fields that already have values.
+        // Only `create_action_item` is purely additive.
         [
-          'create_action_item',
+          'delete_action_item',
           'update_action_item',
           'set_action_item_status',
         ].forEach((name) => {
-          expect(findCall(name)[1].annotations.destructiveHint).toBe(false);
+          expect(findCall(name)[1].annotations.destructiveHint).toBe(true);
           expect(findCall(name)[1].annotations.readOnlyHint).toBe(false);
+        });
+        expect(
+          findCall('create_action_item')[1].annotations.destructiveHint,
+        ).toBe(false);
+        expect(findCall('create_action_item')[1].annotations.readOnlyHint).toBe(
+          false,
+        );
+      });
+
+      it('should mark every action item tool as closed-world', () => {
+        [
+          'list_my_action_items',
+          'list_action_items',
+          'get_action_item',
+          'create_action_item',
+          'update_action_item',
+          'set_action_item_status',
+          'delete_action_item',
+          'suggest_action_items_from_message',
+          'suggest_action_items_from_messages',
+        ].forEach((name) => {
+          expect(findCall(name)[1].annotations.openWorldHint).toBe(false);
         });
       });
 
@@ -3108,6 +3172,10 @@ describe('MCP Server', () => {
         expect(call[1].inputSchema).toBeDefined();
         expect(call[1].annotations.readOnlyHint).toBe(true);
         expect(call[1].annotations.destructiveHint).toBe(false);
+        // A share link ID can point to a message shared by someone outside
+        // the caller's own account, so this tool's domain of interaction is
+        // open even though it's read-only.
+        expect(call[1].annotations.openWorldHint).toBe(true);
         expect(call[1].description).toBeDefined();
       });
 
