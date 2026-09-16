@@ -42,7 +42,7 @@
     "source_of_truth": "MCP schema 2025-06-18, ToolAnnotations: destructiveHint is \"If true, the tool may perform destructive updates to its environment. If false, the tool performs only additive updates.\"; openWorldHint is \"If true, this tool may interact with an 'open world' of external entities. If false, the tool's domain of interaction is closed.\"",
     "why_explicit": "destructiveHint and openWorldHint both DEFAULT to true, so an omitted hint advertises a tool as more dangerous and less contained than it is. All three hints are declared explicitly on all 42 tools.",
     "destructive_rule": "true for deletes, for updates that overwrite an existing field, and for moves that replace a current location. false for creates that only append, including message sends (no tool here can withdraw a sent message, but irreversible and visible to someone else is not the same as destructive under this spec's additive/destructive split) and AI calls that add a new response record.",
-    "open_world_rule": "true wherever the system this tool sits in front of reaches outside the authenticated Carbon Voice account, not only where this MCP server itself makes the outbound call. `links` parameters are dereferenced downstream by the Carbon Voice backend (cv-api) to fetch a title/description for the attachment, so tools that accept them are open-world even though this server never fetches the URL itself. Share link IDs that can point to content shared by someone outside the caller's account are open-world for the same reason."
+    "open_world_rule": "true wherever the system this tool sits in front of reaches outside the authenticated Carbon Voice account, not only where this MCP server itself makes the outbound call. `links` parameters are dereferenced downstream by the Carbon Voice backend (cv-api) to fetch a title/description for the attachment, so tools that accept them are open-world even though this server never fetches the URL itself. Share link IDs that can point to content shared by someone outside the caller's account are open-world for the same reason, as is looking someone up by email or phone: the upstream API's contacts-only restriction applies only to name search, so an email/phone lookup can resolve any Carbon Voice user."
   },
   "tools": [
     {
@@ -139,9 +139,9 @@
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
-        "openWorldHint": false
+        "openWorldHint": true
       },
-      "annotation_justification": "Read-only: a GET lookup of a single user by email, phone or name within the caller's Carbon Voice directory.",
+      "annotation_justification": "Read-only: a GET lookup of a single user by email, phone or name. Open-world despite being read-only, because the contacts-only restriction the upstream API documents applies only to `name` search; `email`/`phone` can resolve any Carbon Voice user, not just the caller's own contacts.",
       "has_output_schema": false
     },
     {
@@ -150,9 +150,9 @@
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
-        "openWorldHint": false
+        "openWorldHint": true
       },
-      "annotation_justification": "Read-only: a batch directory lookup that writes nothing and resolves only people reachable from the authenticated account.",
+      "annotation_justification": "Read-only: a batch directory lookup that writes nothing. Open-world despite being read-only, because the contacts-only restriction the upstream API documents applies only to `names` search; `emails`/`phones` can resolve any Carbon Voice user, not just the caller's own contacts.",
       "has_output_schema": false
     },
     {
@@ -526,6 +526,8 @@
       "create_direct_message",
       "create_voicememo_message",
       "add_attachments_to_message",
+      "search_user",
+      "search_users",
       "run_ai_action_for_shared_link",
       "get_message_share_link"
     ],
@@ -693,7 +695,7 @@
       "sensitive_data_solicitation": "No tool solicits credentials, payment details or government identifiers. The only credential-adjacent logic is create_voicememo_message actively REJECTING URLs that embed credentials.",
       "misleading_names_or_descriptions": "Every active registerTool definition was read against its handler. Names and descriptions match behaviour; the only naming risk is the AI tools noted above, which are correctly annotated as writes.",
       "widget_csp": "Not applicable — the server registers no widgets, no UI resources and no openai/outputTemplate _meta, so there is no widget CSP surface.",
-      "annotation_behavior_consistency": "No readOnlyHint true tool reaches a mutating endpoint, and no readOnlyHint true tool is marked destructive. `get_message_share_link` is the one readOnlyHint true tool marked open-world, because destructiveHint and openWorldHint are independent axes (the spec's own example, a web search tool, is read-only and open-world). Verified against a live tools/list response, not against the source text."
+      "annotation_behavior_consistency": "No readOnlyHint true tool reaches a mutating endpoint, and no readOnlyHint true tool is marked destructive. `get_message_share_link`, `search_user` and `search_users` are readOnlyHint true tools also marked open-world, because destructiveHint and openWorldHint are independent axes (the spec's own example, a web search tool, is read-only and open-world). Verified against a live tools/list response, not against the source text."
     }
   }
 }

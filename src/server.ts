@@ -186,6 +186,12 @@ const responseFieldsShape = {
  *    that it works for anyone who has the ID. That reaches outside the
  *    caller's own closed account graph the same way an arbitrary email
  *    address does for `create_direct_message`.
+ *  - `search_user` and `search_users` accept `email`/`phone`/`emails`/`phones`,
+ *    which resolve against every Carbon Voice user, not just the caller's own
+ *    contacts — the upstream API restricts the contacts-only rule to `name`/
+ *    `names` searches. Looking someone up by email or phone can therefore
+ *    surface a person the caller has no existing relationship with, the same
+ *    reach `create_direct_message` has.
  * Everything else reads or writes only inside the caller's own account and
  * workspaces, so its domain of interaction stays closed.
  */
@@ -598,7 +604,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (args: SearchUserParams, { authInfo }): Promise<McpToolResponse> => {
@@ -630,7 +636,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (

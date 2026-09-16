@@ -171,6 +171,11 @@ type ToolShape = {
  *  - `run_ai_action_for_shared_link` and `get_message_share_link` both accept
  *    a share link ID that can point to a message shared by someone the
  *    caller has no existing relationship with.
+ *  - `search_user` and `search_users` accept `email`/`phone`/`emails`/`phones`,
+ *    which resolve against every Carbon Voice user, not just the caller's own
+ *    contacts (the upstream API restricts the contacts-only rule to `name`/
+ *    `names` searches), so they can surface a person the caller has no
+ *    existing relationship with.
  * Every other tool is closed over the caller's own account and workspaces.
  */
 const OPEN_WORLD_TOOLS = [
@@ -178,6 +183,8 @@ const OPEN_WORLD_TOOLS = [
   'create_direct_message',
   'create_voicememo_message',
   'add_attachments_to_message',
+  'search_user',
+  'search_users',
   'run_ai_action_for_shared_link',
   'get_message_share_link',
 ];

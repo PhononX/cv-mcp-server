@@ -1179,6 +1179,10 @@ describe('MCP Server', () => {
         expect(searchUserCall[1].annotations).toBeDefined();
         expect(searchUserCall[1].annotations.readOnlyHint).toBe(true);
         expect(searchUserCall[1].annotations.destructiveHint).toBe(false);
+        // Only the `name` search is contact-restricted upstream; `email`/
+        // `phone` can resolve any Carbon Voice user, so this reaches outside
+        // the caller's own account graph even though it's read-only.
+        expect(searchUserCall[1].annotations.openWorldHint).toBe(true);
         expect(searchUserCall[1].description).toBeDefined();
       });
 
@@ -1260,6 +1264,10 @@ describe('MCP Server', () => {
         expect(searchUsersCall[1].annotations).toBeDefined();
         expect(searchUsersCall[1].annotations.readOnlyHint).toBe(true);
         expect(searchUsersCall[1].annotations.destructiveHint).toBe(false);
+        // Only the `names` search is contact-restricted upstream; `emails`/
+        // `phones` can resolve any Carbon Voice user, so this reaches outside
+        // the caller's own account graph even though it's read-only.
+        expect(searchUsersCall[1].annotations.openWorldHint).toBe(true);
         expect(searchUsersCall[1].description).toBeDefined();
       });
 
