@@ -719,7 +719,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape:
       '`{results: [{id, conversation_id, workspace_id, creator_id, created_at, status, ' +
       'content: {transcript, ai_summary, time_codes, duration_ms, ...}, attachments, ...}], missing_ids}`. ' +
-      '`missing_ids`: not found, no access, or deleted; never retry them. ' +
+      '`missing_ids`: not found, no access, deleted, or still processing. ' +
+      'Retry one later only if that message was just created. ' +
       '`content.time_codes` has one entry per word.',
     recommendedFields: [
       'results.id',
