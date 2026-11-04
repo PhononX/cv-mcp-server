@@ -142,18 +142,18 @@ T4 ──→ T5
 
 **Done when**:
 
-- [ ] Spec Independent Test (A 2 rows, B 1, C 0, `personal` 403) gives `needs_workspace_choice: true`, `workspaces` ordered by `best_score`, `empty_workspaces: [C]`, `personal` nowhere; B as 429 moves to `skipped_workspaces` with `RATE_LIMITED`
-- [ ] All N `search` calls issued before the first resolves (pending-promise fake)
-- [ ] Bodies: per-workspace `workspace_id`, same other args, `limit` 10 by default / given value otherwise, same `exclude_message_ids` in every body
-- [ ] `listWorkspaces` rejection rethrown as the same object; `search` never called
-- [ ] Group fields: `result_count`, `best_score` = max score, `results` and `scope_capped` unchanged
-- [ ] `needs_workspace_choice` false for 0 and 1 groups, true for 2
-- [ ] Reasons: 429 → `RATE_LIMITED`, 503 → `SERVER_ERROR`, no response → `NETWORK_ERROR`, non-envelope → `UNKNOWN_ERROR`
-- [ ] Whole-call: [503, 429] rejects with the 429 object; [403, 503, 500] with the 503 object; all 403 resolves `{false, [], [], []}`; `basic-info` `[]` resolves `{false, [], [], []}`
-- [ ] Summary line: emitted once when any search rejects, with `tool`, `listed`, `succeeded`, `forbidden`, `skipped`, `failures[{workspace_id,status,code}]`; `warn` if skipped > 0, `info` if only 403; not emitted when none rejects
-- [ ] `describeFailure` returns only `{status, code}` (no message, no details)
-- [ ] Gate check passes: `npm run test:unit`
-- [ ] Test count: T2 total + new tests pass
+- [x] Spec Independent Test (A 2 rows, B 1, C 0, `personal` 403) gives `needs_workspace_choice: true`, `workspaces` ordered by `best_score`, `empty_workspaces: [C]`, `personal` nowhere; B as 429 moves to `skipped_workspaces` with `RATE_LIMITED`
+- [x] All N `search` calls issued before the first resolves (pending-promise fake)
+- [x] Bodies: per-workspace `workspace_id`, same other args, `limit` 10 by default / given value otherwise, same `exclude_message_ids` in every body
+- [x] `listWorkspaces` rejection rethrown as the same object; `search` never called
+- [x] Group fields: `result_count`, `best_score` = max score, `results` and `scope_capped` unchanged
+- [x] `needs_workspace_choice` false for 0 and 1 groups, true for 2
+- [x] Reasons: 429 → `RATE_LIMITED`, 503 → `SERVER_ERROR`, no response → `NETWORK_ERROR`, non-envelope → `UNKNOWN_ERROR`
+- [x] Whole-call: [503, 429] rejects with the 429 object; [403, 503, 500] with the 503 object; all 403 resolves `{false, [], [], []}`; `basic-info` `[]` resolves `{false, [], [], []}`
+- [x] Summary line: emitted once when any search rejects, with `tool`, `listed`, `succeeded`, `forbidden`, `skipped`, `failures[{workspace_id,status,code}]`; `warn` if skipped > 0, `info` if only 403; not emitted when none rejects
+- [x] `describeFailure` returns only `{status, code}` (no message, no details)
+- [x] Gate check passes: `npm run test:unit`
+- [x] Test count: T2 total + new tests pass
 
 **Tests**: unit
 **Gate**: quick

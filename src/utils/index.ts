@@ -13,3 +13,4 @@ export * from './tool-error-hint';
 export * from './project-response';
 export * from './redact-url.util';
 export * from './filter-conversations';
+export * from './search-transcripts-fan-out';
