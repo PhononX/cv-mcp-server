@@ -225,18 +225,23 @@ describe('searchTranscriptsInAllWorkspaces', () => {
       ]);
     });
 
-    // FAN_OUT_MAX_TOTAL_ROWS = 100: the per-workspace limit shrinks to fit.
+    // FAN_OUT_MAX_TOTAL_ROWS = 100 is applied to the rows, after the
+    // searches: the per-workspace limit is never lowered to fit it.
     const many = (n: number) =>
       Array.from({ length: n }, (_, i) => ({ id: `ws-${i}`, name: `W${i}` }));
     const emptyFor = (ws: { id: string }[]) =>
       Object.fromEntries(ws.map((w) => [w.id, { ok: EMPTY }]));
+    const rowsFor = (ws: { id: string }, n: number, base: number) => ({
+      results: Array.from({ length: n }, (_, i) =>
+        row(`${ws.id}-${i}`, base - i / 1000, ws.id),
+      ),
+      scope_capped: false,
+    });
 
     it.each([
-      ['10 workspaces, default', 10, undefined, 10],
-      ['20 workspaces, default', 20, undefined, 5],
-      ['2 workspaces, limit 50', 2, 50, 50],
-      ['3 workspaces, limit 50', 3, 50, 33],
-      ['150 workspaces, default', 150, undefined, 1],
+      ['29 workspaces, default', 29, undefined, 10],
+      ['150 workspaces, default', 150, undefined, 10],
+      ['3 workspaces, limit 50', 3, 50, 50],
     ])('%s → limit %s per workspace', async (_l, n, limit, expected) => {
       const ws = many(n);
       const deps = makeDeps(ws, emptyFor(ws));
@@ -245,6 +250,90 @@ describe('searchTranscriptsInAllWorkspaces', () => {
 
       const limits = new Set(deps.search.mock.calls.map(([b]) => b.limit));
       expect([...limits]).toEqual([expected]);
+    });
+
+    it('keeps all 10 rows of the one workspace with hits among 29', async () => {
+      // Stage, 2026-11-04: 26 empty workspaces cut the only one with hits
+      // to 3 rows, and the wanted message was rank 6.
+      const ws = many(29);
+      const deps = makeDeps(ws, {
+        ...emptyFor(ws),
+        [ws[0].id]: { ok: rowsFor(ws[0], 10, 0.6) },
+      });
+
+      const result = await searchTranscriptsInAllWorkspaces(args, deps);
+
+      expect(result.workspaces).toHaveLength(1);
+      expect(result.workspaces[0].result_count).toBe(10);
+      expect(result.workspaces[0].results).toHaveLength(10);
+    });
+
+    it('past 100 rows, drops the lowest scores across groups and keeps each best row', async () => {
+      const [a, b, c] = many(3);
+      // a: 0.9.., b: 0.5.., c: 0.1.. (50 rows each, 150 in total).
+      const deps = makeDeps([a, b, c], {
+        [a.id]: { ok: rowsFor(a, 50, 0.9) },
+        [b.id]: { ok: rowsFor(b, 50, 0.5) },
+        [c.id]: { ok: rowsFor(c, 50, 0.1) },
+      });
+
+      const result = await searchTranscriptsInAllWorkspaces(
+        { ...args, limit: 50 },
+        deps,
+      );
+
+      const counts = result.workspaces.map((g) => [
+        g.workspace_id,
+        g.result_count,
+        g.results.length,
+      ]);
+      // 3 best rows kept, then the 97 highest of the other 147: all 49 of
+      // a's, then 48 of b's, none of c's.
+      expect(counts).toEqual([
+        [a.id, 50, 50],
+        [b.id, 49, 49],
+        [c.id, 1, 1],
+      ]);
+      expect(result.workspaces[2].best_score).toBe(0.1);
+      expect(result.workspaces[2].results[0].message_id).toBe(`${c.id}-0`);
+      expect(result.workspaces[1].results.map((r) => r.message_id)).toEqual(
+        Array.from({ length: 49 }, (_, i) => `${b.id}-${i}`),
+      );
+    });
+
+    it('past 100 groups, keeps exactly one row per group', async () => {
+      const ws = many(101);
+      const deps = makeDeps(
+        ws,
+        Object.fromEntries(
+          ws.map((w, i) => [w.id, { ok: rowsFor(w, 2, 0.5 + i / 1000) }]),
+        ),
+      );
+
+      const result = await searchTranscriptsInAllWorkspaces(args, deps);
+
+      expect(result.workspaces).toHaveLength(101);
+      expect(result.workspaces.every((g) => g.result_count === 1)).toBe(true);
+      expect(
+        result.workspaces.every(
+          (g) => g.results[0].message_id === `${g.workspace_id}-0`,
+        ),
+      ).toBe(true);
+    });
+
+    it('does not trim at exactly 100 rows', async () => {
+      const [a, b] = many(2);
+      const deps = makeDeps([a, b], {
+        [a.id]: { ok: rowsFor(a, 50, 0.9) },
+        [b.id]: { ok: rowsFor(b, 50, 0.5) },
+      });
+
+      const result = await searchTranscriptsInAllWorkspaces(
+        { ...args, limit: 50 },
+        deps,
+      );
+
+      expect(result.workspaces.map((g) => g.result_count)).toEqual([50, 50]);
     });
   });
 
