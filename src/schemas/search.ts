@@ -179,7 +179,7 @@ export const searchTranscriptsParams = z.object({
     .optional()
     .describe(
       'Rows per workspace, 1-50. Default 30, or 10 per workspace when `workspace_id` is omitted ' +
-        '(100 in total, or 1 each past 100 workspaces).',
+        '(then at most 100 in total: lowest scores cut first, each workspace keeps its best).',
     ),
 });
 

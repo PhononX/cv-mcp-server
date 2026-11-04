@@ -15,10 +15,12 @@ import { SearchTranscriptsParams } from '../schemas';
 export const FAN_OUT_DEFAULT_LIMIT = 10;
 
 /**
- * Most rows one fan-out call can return across all workspaces (STT-07): the
- * per-workspace `limit` shrinks to fit, so 20 workspaces x `limit` 50 cannot
- * put 1,000 `matched_chunk`s into one tool result. It never drops below 1
- * per workspace, so past 100 workspaces the total is one row per workspace.
+ * Most rows one fan-out call returns across all workspaces (STT-07), so 20
+ * workspaces x `limit` 50 cannot put 1,000 `matched_chunk`s into one tool
+ * result. Applied AFTER the searches, on scores: splitting it up front gave
+ * every workspace `floor(100 / n)` rows, so 29 workspaces (26 of them empty)
+ * cut the only one with hits to 3. Each group keeps its best row, so no
+ * workspace disappears; past 100 groups the total is one row per group.
  */
 export const FAN_OUT_MAX_TOTAL_ROWS = 100;
 
@@ -100,10 +102,7 @@ export async function searchTranscriptsInAllWorkspaces(
   deps: FanOutDeps,
 ): Promise<TranscriptSearchFanOutResponse> {
   const workspaces = await deps.listWorkspaces();
-  const limit = Math.min(
-    args.limit ?? FAN_OUT_DEFAULT_LIMIT,
-    Math.max(1, Math.floor(FAN_OUT_MAX_TOTAL_ROWS / workspaces.length)),
-  );
+  const limit = args.limit ?? FAN_OUT_DEFAULT_LIMIT;
   // `map` starts every call before any is awaited (STT-06).
   const settled = await Promise.allSettled(
     workspaces.map((w) =>
@@ -171,6 +170,7 @@ export async function searchTranscriptsInAllWorkspaces(
     );
   }
 
+  capTotalRows(groups);
   groups.sort((a, b) => b.best_score - a.best_score); // STT-10
   return {
     needs_workspace_choice: groups.length >= 2, // STT-11
@@ -178,4 +178,30 @@ export async function searchTranscriptsInAllWorkspaces(
     empty_workspaces: empty,
     skipped_workspaces: skipped,
   };
+}
+
+/**
+ * Trims `groups` in place to `FAN_OUT_MAX_TOTAL_ROWS` rows, dropping the
+ * lowest scores across all groups first. Each group's best row is never
+ * dropped, so `best_score` holds and every group stays listed.
+ */
+function capTotalRows(groups: TranscriptSearchGroup[]): void {
+  const total = groups.reduce((n, g) => n + g.results.length, 0);
+  if (total <= FAN_OUT_MAX_TOTAL_ROWS) return;
+
+  const best = new Set(
+    groups.map((g) =>
+      g.results.reduce((top, r) => (r.score > top.score ? r : top)),
+    ),
+  );
+  const keep = new Set(
+    groups
+      .flatMap((g) => g.results.filter((r) => !best.has(r)))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Math.max(0, FAN_OUT_MAX_TOTAL_ROWS - groups.length)),
+  );
+  for (const g of groups) {
+    g.results = g.results.filter((r) => best.has(r) || keep.has(r));
+    g.result_count = g.results.length;
+  }
 }
