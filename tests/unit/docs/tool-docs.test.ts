@@ -20,10 +20,12 @@ const MAX_DESCRIPTION_CHARS = 1200;
  * `.specs/features/search-transcripts/design.md`). Its fan-out mode needs the
  * agent to know the rate-limit cost, the workspace-choice step, paging,
  * `scope_capped`, the date window and `skipped_workspaces` (spec STT-20 a-h);
- * the rendered doc measures ~1,890 chars.
+ * the rendered doc measured ~1,890 chars. Raised to 2,050 on 2026-11-04 for
+ * STT-20 (i) and (g): on stage an agent put a person's name in `query` instead
+ * of `creator_ids`, then called `get_message` per hit for text it already had.
  */
 const DESCRIPTION_CHAR_OVERRIDES: Record<string, number> = {
-  search_transcripts: 1900,
+  search_transcripts: 2050,
 };
 
 const entries = Object.entries(TOOL_DOCS);
@@ -262,7 +264,7 @@ describe('search_transcripts doc', () => {
     );
   });
 
-  // STT-20 (a)-(h)
+  // STT-20 (a)-(i)
   it.each([
     ['a: omitting workspace_id costs one of 20/min per workspace', '20/min'],
     ['a: send workspace_id when known', 'send it when known'],
@@ -279,6 +281,14 @@ describe('search_transcripts doc', () => {
     ['f: half-open date window', '[start_date, end_date)'],
     ['f: both dates need an offset', 'offset'],
     ['g: get_message for the full message', '`get_message`'],
+    [
+      'g: matched_chunk usually already holds the transcript',
+      '`matched_chunk` is usually the whole transcript; `get_message` (`id` = `message_id`) only for more',
+    ],
+    [
+      'i: a person goes in creator_ids, not in query',
+      'their `search_user` id in `creator_ids`, not the name in `query`',
+    ],
     [
       'h: skipped workspaces were not searched',
       '`skipped_workspaces` were NOT searched',

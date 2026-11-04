@@ -554,7 +554,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
       'Find messages by meaning (semantic search over transcripts), with the part that matched.',
     whenToUse:
       '"Where did we discuss X?" without knowing the date or conversation. ' +
-      'Omitting `workspace_id` searches every workspace, one request each out of 20/min: send it when known.',
+      'Omitting `workspace_id` searches every workspace, one request each out of 20/min: send it when known. ' +
+      'Someone\'s own words ("what did Ana say"): their `search_user` id in `creator_ids`, not the name in `query`.',
     whenNotToUse:
       '`search_message_ids` for notified, mentions/tags, labels; `list_messages` for plain history; ' +
       '`search_messages_by_heard_status` for unread. Exact names, URLs, ticket numbers may be missed.',
@@ -577,7 +578,7 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`scope_capped` true: narrow by `conversation_ids` or dates. ' +
       'Window `[start_date, end_date)`, both with an offset. ' +
       '`conversation_id: null` = your voice memo. ' +
-      'Full message: `get_message` with `id` = `message_id`.',
+      '`matched_chunk` is usually the whole transcript; `get_message` (`id` = `message_id`) only for more.',
     commonErrors: [
       {
         code: 'BAD_REQUEST',
