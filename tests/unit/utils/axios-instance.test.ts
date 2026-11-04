@@ -249,3 +249,69 @@ describe('validation errors through mutator', () => {
     ]);
   });
 });
+
+// STT-26 (points b, c): `/search/transcripts` request and failure logs carry
+// no body content; every other route logs exactly as before.
+describe('request/error log content by route', () => {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  let logger: { debug: jest.Mock; error: jest.Mock };
+  let mutator: (config: object) => Promise<unknown>;
+  const body = { query: 'secret words', workspace_id: 'ws-1' };
+  const ERROR_400 = { message: [{ property: 'query', value: 'secret words' }] };
+
+  beforeEach(() => {
+    jest.isolateModules(() => {
+      const realLogger = require('../../../src/utils/logger').logger;
+      logger = {
+        debug: jest.spyOn(realLogger, 'debug').mockImplementation(),
+        error: jest.spyOn(realLogger, 'error').mockImplementation(),
+      } as never;
+      const axiosModule = require('../../../src/utils/axios-instance');
+      const { AxiosError } = require('axios');
+      axiosModule.customAxios.defaults.adapter = async (config: never) => {
+        const response = {
+          data: ERROR_400,
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+          config,
+          request: {},
+        };
+        throw new AxiosError('bad', 'ERR_BAD_REQUEST', config, {}, response);
+      };
+      mutator = axiosModule.mutator;
+    });
+  });
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  const call = (url: string) =>
+    mutator({ url, method: 'POST', data: body }).catch(() => undefined);
+  const requestMeta = () => logger.debug.mock.calls[0][1];
+  const errorMeta = () => logger.error.mock.calls[0][1];
+
+  it('still logs data, requestData and responseData for another route', async () => {
+    await call('/v3/search');
+
+    expect(requestMeta().data).toEqual(body);
+    expect(JSON.parse(errorMeta().requestData)).toEqual(body);
+    expect(errorMeta().responseData).toEqual(ERROR_400);
+    expect(errorMeta().error.body.message).toBeDefined();
+  });
+
+  it('redacts the request body and drops failure content for /search/transcripts', async () => {
+    await call('/search/transcripts');
+
+    expect(requestMeta().data).toBe('[REDACTED]');
+    expect(requestMeta().url).toBe('/search/transcripts');
+    expect(errorMeta()).not.toHaveProperty('requestData');
+    expect(errorMeta()).not.toHaveProperty('responseData');
+    expect(errorMeta().error.body).not.toHaveProperty('message');
+    // STT-27: what stays.
+    expect(errorMeta()).toMatchObject({
+      url: '/search/transcripts',
+      method: 'post',
+      status: 400,
+      error: { statusCode: 400, body: { code: 'BAD_REQUEST' } },
+    });
+  });
+});

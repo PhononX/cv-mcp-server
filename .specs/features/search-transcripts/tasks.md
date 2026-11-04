@@ -210,19 +210,37 @@ Cohesive by design: one AC (STT-26) whose sentinel must be red against all four 
 
 **Done when**:
 
-- [ ] Red run recorded in Notes, with at least one hit at each of points a, b, c, d
-- [ ] Sentinel green: zero captured lines contain the query or chunk sentinel across the design matrix (single × 200/400-echo/429/503/network; fan-out × all-200/mixed/all-503/`basic-info`-503; middleware object + batch)
-- [ ] Sentinel non-vacuous: `logger.level === 'debug'`; every scenario captured ≥ 1 line naming `/search/transcripts` or `search_transcripts` with its status/code (STT-27)
-- [ ] `axios-instance.test.ts`: another route still logs `data`, `requestData`, `responseData`
-- [ ] `log-request.middleware.test.ts`: `search_transcripts` arguments → `'[REDACTED]'` (object and batch); another tool's body logged unchanged; `req.body` not mutated
-- [ ] Gate check passes (Build): `npm run build:check && npx eslint src && npm run test:unit && npm run test:integration && npm run test:e2e`
-- [ ] Test count: unit T4 total + new; integration and e2e unchanged from T4
+- [x] Red run recorded in Notes, with at least one hit at each of points a, b, c, d
+- [x] Sentinel green: zero captured lines contain the query or chunk sentinel across the design matrix (single × 200/400-echo/429/503/network; fan-out × all-200/mixed/all-503/`basic-info`-503; middleware object + batch)
+- [x] Sentinel non-vacuous: `logger.level === 'debug'`; every scenario captured ≥ 1 line naming `/search/transcripts` or `search_transcripts` with its status/code (STT-27)
+- [x] `axios-instance.test.ts`: another route still logs `data`, `requestData`, `responseData`
+- [x] `log-request.middleware.test.ts`: `search_transcripts` arguments → `'[REDACTED]'` (object and batch); another tool's body logged unchanged; `req.body` not mutated
+- [x] Gate check passes (Build): `npm run build:check && npx eslint src && npm run test:unit && npm run test:integration && npm run test:e2e`
+- [x] Test count: unit T4 total + new; integration and e2e unchanged from T4
 
 **Tests**: unit
 **Gate**: build
 **Commit**: `fix(logging): keep search_transcripts query and chunks out of logs [CV-14191]`
 
-**Notes**: _(red-run evidence goes here during Execute)_
+**Notes**: Red run (2026-11-04, on `7200d8b`, before any redaction change). Command: `npx jest tests/unit/privacy`. Result: `Tests: 12 failed, 9 passed, 21 total`. Lines that carried the query or chunk sentinel, by log point:
+
+| Scenario | a: handler `Error searching transcripts:` | b: `➡️ Making API request to: POST /search/transcripts` | c: `❌ API request failed: POST /search/transcripts <status>` | d: `HTTP POST /mcp 200` |
+| --- | --- | --- | --- | --- |
+| single 200 | — | 1 | — | — |
+| single 400 (echo) | 1 | 1 | 1 | — |
+| single 429 | 1 | 1 | 1 | — |
+| single 503 | 1 | 1 | 1 | — |
+| single network | 1 | 1 | 1 (`undefined` status) | — |
+| fan-out all 200 | — | 4 | — | — |
+| fan-out mixed 200/403/429/503 | — | 4 | 3 (429, 503, 403) | — |
+| fan-out all 503 | 1 | 4 | 4 | — |
+| fan-out `basic-info` 503 | 1 | — | — | — |
+| middleware, `tools/call` object | — | — | — | 1 |
+| middleware, batch array | — | — | — | 1 |
+
+Also red: `fan-out basic-info 503 › still logs the tool or route with its status (STT-27)`. The only line naming the tool was the handler line, and its message `Error searching transcripts:` does not contain `search_transcripts`. The axios line names `/simplified/workspaces/basic-info`.
+
+Green (2026-11-04): sentinel 21/21. Build gate exit 0: unit 27 suites / 942 tests (T4 915 + 27), integration 466, e2e 56.
 
 ---
 

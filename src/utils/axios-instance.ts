@@ -58,6 +58,16 @@ interface ErrorResponseData {
 const NOT_LOG_ROUTES = ['/health'];
 
 /**
+ * Routes whose request and failure bodies never reach a log: the
+ * `search_transcripts` body is the user's query, and a cv-api 400 echoes it
+ * back. Exact match, like `NOT_LOG_ROUTES`, so every other route logs as
+ * before (the same leak for other tools is spec D-3, a separate ticket).
+ */
+const CONTENT_REDACTED_ROUTES = ['/search/transcripts'];
+const isContentRedacted = (url?: string) =>
+  CONTENT_REDACTED_ROUTES.includes(url ?? '');
+
+/**
  * Serializes query params with repeated keys for arrays (`user_ids=a&user_ids=b`)
  * instead of axios's default bracket notation (`user_ids[]=a&user_ids[]=b`).
  * The Carbon Voice API's array query params (e.g. `user_ids`) are dropped when
@@ -255,7 +265,7 @@ const getAxiosInstance = (): AxiosInstance => {
         url: config.url,
         method: config.method,
         params: config.params,
-        data: config.data,
+        data: isContentRedacted(config.url) ? '[REDACTED]' : config.data,
         headers: obfuscateAuthHeaders(config.headers),
         traceId: als?.traceId,
         sessionId: als?.sessionId,
@@ -322,6 +332,9 @@ const getAxiosInstance = (): AxiosInstance => {
         const method = error.config?.method?.toUpperCase();
         const url = error.config?.url;
         const status = error.response?.status;
+        // The bodies and the message (which can quote a 400's constraint
+        // text) stay out for a content-redacted route.
+        const redacted = isContentRedacted(url);
         // Log the error with all relevant details
         logger.error(
           `❌ API request failed: ${method} ${url} ${status} ${durationText}`,
@@ -329,7 +342,7 @@ const getAxiosInstance = (): AxiosInstance => {
             error: {
               statusCode: axiosError?.statusCode,
               body: {
-                message: axiosError?.body?.error?.message,
+                ...(!redacted && { message: axiosError?.body?.error?.message }),
                 code: axiosError?.body?.error?.code,
               },
             },
@@ -337,8 +350,10 @@ const getAxiosInstance = (): AxiosInstance => {
             method: error.config?.method,
             status: error.response?.status,
             statusText: error.response?.statusText,
-            requestData: error.config?.data,
-            responseData: error.response?.data,
+            ...(!redacted && {
+              requestData: error.config?.data,
+              responseData: error.response?.data,
+            }),
             duration: duration,
           },
         );

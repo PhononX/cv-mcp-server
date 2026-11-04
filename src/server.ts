@@ -98,6 +98,7 @@ import {
 } from './schemas';
 import {
   ConversationTypeFilter,
+  describeFailure,
   fetchAudioFile,
   filterConversationsByName,
   filterConversationsByType,
@@ -2057,7 +2058,12 @@ function registerCarbonVoiceTools(server: McpServer): void {
           responseFields: response_fields,
         });
       } catch (error) {
-        logger.error('Error searching transcripts:', { args, error });
+        // Metadata only: `args` holds the query, and a cv-api 400 echoes it in
+        // `error.body.error.details` (STT-26). Tool + status/code is STT-27.
+        logger.error('Error searching transcripts', {
+          tool: 'search_transcripts',
+          ...describeFailure(error),
+        });
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'search_transcripts',
