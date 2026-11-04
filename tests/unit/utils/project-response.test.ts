@@ -188,6 +188,25 @@ describe('projectResponse', () => {
       // `filters` just echoes the request, so it is waste under a projection.
       expect(result).not.toHaveProperty('filters');
     });
+
+    it('preserves the search_transcripts completeness signals', () => {
+      const fanOut = {
+        needs_workspace_choice: false,
+        workspaces: [{ workspace_id: 'ws-a', results: [{ score: 0.5 }] }],
+        empty_workspaces: [{ workspace_id: 'ws-b' }],
+        skipped_workspaces: [{ workspace_id: 'ws-c', reason: 'RATE_LIMITED' }],
+      };
+      expect(
+        projectResponse(fanOut, ['workspaces.results.score']),
+      ).toStrictEqual({
+        workspaces: [{ results: [{ score: 0.5 }] }],
+        needs_workspace_choice: false,
+        skipped_workspaces: [{ workspace_id: 'ws-c', reason: 'RATE_LIMITED' }],
+      });
+      expect(
+        projectResponse({ results: [], scope_capped: true }, ['results.id']),
+      ).toStrictEqual({ results: [], scope_capped: true });
+    });
   });
 
   describe('tolerance of bad input', () => {

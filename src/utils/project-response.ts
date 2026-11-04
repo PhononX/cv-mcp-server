@@ -43,6 +43,13 @@ const ALWAYS_PRESERVED = [
   'sort_direction',
   'total_results',
   'total_unread',
+  // `search_transcripts`: "was the search complete?" signals. Dropping
+  // `skipped_workspaces` under a projection made a partial fan-out read as a
+  // full one; `scope_capped` (single mode) and `needs_workspace_choice` are
+  // the same kind of "there is more / ask first" signal as `has_more`.
+  'needs_workspace_choice',
+  'skipped_workspaces',
+  'scope_capped',
 ] as const;
 
 type Indexable = Record<string, unknown>;

@@ -88,6 +88,8 @@ const aIResponseControllerCreateResponse = jest.fn();
 const actionItemControllerCreateSuggestionsFromMessages = jest.fn();
 const createActionItemSuggestionsFromMessage = jest.fn();
 const getAllConversations = jest.fn();
+const getAllWorkspacesWithBasicInfo = jest.fn();
+const searchTranscripts = jest.fn();
 
 jest.mock('../../src/generated', () => {
   const explicit: Record<string, unknown> = {};
@@ -105,6 +107,9 @@ jest.mock('../../src/generated', () => {
             return actionItemControllerCreateSuggestionsFromMessages;
           }
           if (prop === 'getAllConversations') return getAllConversations;
+          if (prop === 'getAllWorkspacesWithBasicInfo') {
+            return getAllWorkspacesWithBasicInfo;
+          }
           return jest.fn().mockResolvedValue({});
         },
       }),
@@ -121,6 +126,7 @@ jest.mock('../../src/cv-api', () => ({
       .fn()
       .mockResolvedValue({ results: [], total_results: 0, total_unread: 0 }),
     createActionItemSuggestionsFromMessage,
+    searchTranscripts,
   }),
   getCarbonVoiceApiStatus: jest.fn(),
 }));
@@ -474,8 +480,12 @@ describe('tools/list payload budget', () => {
    * prompt and the conversation, so this payload is paid on every request.
    * Measured 62,215 bytes at the time of writing; the ceiling leaves room to
    * add tools deliberately while failing on accidental bloat.
+   *
+   * Raised 72,000 -> 75,000 for `search_transcripts` (design DD-1 option A,
+   * 2026-11-03, `.specs/features/search-transcripts/design.md`): 70,023 bytes
+   * for 42 tools before it, 73,494 bytes for 43 after (measured 2026-11-04).
    */
-  const MAX_WIRE_BYTES = 72_000;
+  const MAX_WIRE_BYTES = 75_000;
   const MAX_PER_TOOL_BYTES = 4_000;
 
   const wire = (v: unknown) => Buffer.byteLength(JSON.stringify(v), 'utf8');
@@ -899,5 +909,147 @@ describe('list_conversations name filter over the protocol', () => {
     expect(body.results).toEqual([]);
     expect(body.results_count).toBe(0);
     expect(body.unfiltered_count).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// search_transcripts over the protocol (STT-01 wire, STT-13, STT-24, STT-25)
+// ---------------------------------------------------------------------------
+
+describe('search_transcripts over the protocol', () => {
+  beforeEach(() => {
+    searchTranscripts.mockReset();
+    getAllWorkspacesWithBasicInfo.mockReset();
+  });
+
+  it('declares read-only, non-destructive, closed-world annotations (STT-25)', () => {
+    expect(OPEN_WORLD_TOOLS).not.toContain('search_transcripts');
+    expect(DESTRUCTIVE_TOOLS).not.toContain('search_transcripts');
+    expect(
+      tools.find((t) => t.name === 'search_transcripts')?.annotations,
+    ).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    });
+  });
+
+  it('calls the documented example without error (STT-24)', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { TOOL_DOCS } = require('../../src/docs');
+    searchTranscripts.mockResolvedValueOnce({
+      results: [],
+      scope_capped: false,
+    });
+
+    const result = await client.callTool({
+      name: 'search_transcripts',
+      arguments: TOOL_DOCS.search_transcripts.example,
+    });
+
+    expect((result as { isError?: boolean }).isError).toBeFalsy();
+    expect(jsonOf(result as never)).toEqual({
+      results: [],
+      scope_capped: false,
+    });
+    expect(searchTranscripts).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a date without an offset at the protocol and calls nothing (STT-01)', async () => {
+    await expect(
+      client.callTool({
+        name: 'search_transcripts',
+        arguments: {
+          query: 'launch',
+          workspace_id: 'ws-1',
+          start_date: '2026-10-01T10:00:00',
+        },
+      }),
+    ).rejects.toThrow(/Invalid arguments for tool search_transcripts/);
+    expect(searchTranscripts).not.toHaveBeenCalled();
+  });
+
+  // STT-13: the projection narrows the groups but always keeps the
+  // completeness signals (`needs_workspace_choice`, `skipped_workspaces`), so
+  // a partial fan-out never reads as a full one.
+  it('narrows the grouped fan-out payload with response_fields, keeping skipped_workspaces (STT-13)', async () => {
+    getAllWorkspacesWithBasicInfo.mockResolvedValueOnce([
+      { id: 'ws-a', name: 'Alpha' },
+      { id: 'ws-b', name: 'Beta' },
+      { id: 'ws-c', name: 'Gamma' },
+    ]);
+    const row = (id: string, score: number) => ({
+      message_id: id,
+      conversation_id: 'c-1',
+      conversation_name: 'General',
+      workspace_id: 'w',
+      creator_id: 'u-1',
+      creator_name: 'Ann',
+      created_at: '2026-10-01T10:00:00Z',
+      parent_message_id: null,
+      score,
+      matched_chunk: `chunk ${id}`,
+    });
+    searchTranscripts
+      .mockResolvedValueOnce({
+        results: [row('a-1', 0.4)],
+        scope_capped: false,
+      })
+      .mockResolvedValueOnce({
+        results: [row('b-1', 0.9)],
+        scope_capped: true,
+      })
+      .mockRejectedValueOnce({
+        statusCode: 429,
+        body: { error: { code: 'RATE_LIMITED', message: 'slow down' } },
+      });
+
+    const result = await client.callTool({
+      name: 'search_transcripts',
+      arguments: {
+        query: 'launch',
+        response_fields: [
+          'workspaces.workspace_name',
+          'workspaces.results.matched_chunk',
+        ],
+      },
+    });
+
+    expect((result as { isError?: boolean }).isError).toBeFalsy();
+    expect(jsonOf(result as never)).toEqual({
+      needs_workspace_choice: true,
+      workspaces: [
+        { workspace_name: 'Beta', results: [{ matched_chunk: 'chunk b-1' }] },
+        { workspace_name: 'Alpha', results: [{ matched_chunk: 'chunk a-1' }] },
+      ],
+      skipped_workspaces: [
+        {
+          workspace_id: 'ws-c',
+          workspace_name: 'Gamma',
+          reason: 'RATE_LIMITED',
+        },
+      ],
+    });
+  });
+
+  it('keeps scope_capped in single mode under response_fields (STT-13)', async () => {
+    searchTranscripts.mockResolvedValueOnce({
+      results: [],
+      scope_capped: true,
+    });
+
+    const result = await client.callTool({
+      name: 'search_transcripts',
+      arguments: {
+        query: 'launch',
+        workspace_id: 'ws-1',
+        response_fields: ['results.message_id'],
+      },
+    });
+
+    expect(jsonOf(result as never)).toEqual({
+      results: [],
+      scope_capped: true,
+    });
   });
 });

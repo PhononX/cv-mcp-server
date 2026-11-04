@@ -22,7 +22,12 @@ const makeContact = (overrides: Record<string, unknown> = {}) => ({
   last_updated_at: '2024-06-01T00:00:00Z',
   workspace_guids: ['ws-1', 'ws-2'],
   workspace_roles: [
-    { workspace_id: 'ws-1', role: 'admin', joined_at: '2024-01-01T00:00:00Z', sort_order: 0 },
+    {
+      workspace_id: 'ws-1',
+      role: 'admin',
+      joined_at: '2024-01-01T00:00:00Z',
+      sort_order: 0,
+    },
   ],
   is_allowed_to_receive_notification: true,
   user_type: 'user' as const,
@@ -52,7 +57,9 @@ describe('getCarbonVoiceAPI().getContacts', () => {
   it('should forward auth options to mutator', async () => {
     const contact = makeContact();
     mockMutator.mockResolvedValueOnce([contact]);
-    const options: AxiosRequestConfig = { headers: { Authorization: 'Bearer tok' } };
+    const options: AxiosRequestConfig = {
+      headers: { Authorization: 'Bearer tok' },
+    };
 
     await api.getContacts(['user-123'], options);
 
@@ -72,8 +79,12 @@ describe('getCarbonVoiceAPI().getContacts', () => {
     const userInfo = result[0];
     expect(userInfo.id).toBe('user-123');
     expect(userInfo.workspace_ids).toEqual(['ws-1', 'ws-2']);
-    expect((userInfo as unknown as Record<string, unknown>)['user_guid']).toBeUndefined();
-    expect((userInfo as unknown as Record<string, unknown>)['workspace_guids']).toBeUndefined();
+    expect(
+      (userInfo as unknown as Record<string, unknown>)['user_guid'],
+    ).toBeUndefined();
+    expect(
+      (userInfo as unknown as Record<string, unknown>)['workspace_guids'],
+    ).toBeUndefined();
   });
 
   it('should pass through all non-renamed fields', async () => {
@@ -92,13 +103,19 @@ describe('getCarbonVoiceAPI().getContacts', () => {
     expect(userInfo.created_by).toBe(contact.created_by);
     expect(userInfo.last_updated_at).toBe(contact.last_updated_at);
     expect(userInfo.workspace_roles).toEqual(contact.workspace_roles);
-    expect(userInfo.is_allowed_to_receive_notification).toBe(contact.is_allowed_to_receive_notification);
+    expect(userInfo.is_allowed_to_receive_notification).toBe(
+      contact.is_allowed_to_receive_notification,
+    );
     expect(userInfo.user_type).toBe(contact.user_type);
   });
 
   it('should produce valid UserInfo when optional fields are absent', async () => {
     const contact = makeContact();
-    const { last_name: _ln, image_url: _iu, ...contactWithoutOptionals } = contact;
+    const {
+      last_name: _ln,
+      image_url: _iu,
+      ...contactWithoutOptionals
+    } = contact;
     mockMutator.mockResolvedValueOnce([contactWithoutOptionals]);
 
     const result = await api.getContacts(['user-123']);
@@ -111,7 +128,10 @@ describe('getCarbonVoiceAPI().getContacts', () => {
 
   it('should map multiple contacts to UserInfo[]', async () => {
     const contact1 = makeContact({ user_guid: 'user-1' });
-    const contact2 = makeContact({ user_guid: 'user-2', workspace_guids: ['ws-3'] });
+    const contact2 = makeContact({
+      user_guid: 'user-2',
+      workspace_guids: ['ws-3'],
+    });
     mockMutator.mockResolvedValueOnce([contact1, contact2]);
 
     const result = await api.getContacts(['user-1', 'user-2']);
@@ -178,5 +198,62 @@ describe('getCarbonVoiceAPI().createActionItemSuggestionsFromMessage', () => {
     await expect(
       api.createActionItemSuggestionsFromMessage('msg-1'),
     ).rejects.toThrow('API failure');
+  });
+});
+
+describe('getCarbonVoiceAPI().searchTranscripts', () => {
+  const api = getCarbonVoiceAPI();
+  const body = {
+    query: 'launch date decision',
+    workspace_id: 'ws-1',
+    exclude_message_ids: ['m-1'],
+    limit: 5,
+  };
+  const options: AxiosRequestConfig = {
+    headers: { Authorization: 'Bearer tok' },
+  };
+
+  // STT-03: one POST /search/transcripts with the body unchanged. STT-26:
+  // the request carries the log-redaction flag, whatever the URL text.
+  it('should issue one POST /search/transcripts with the body, options and redaction flag', async () => {
+    mockMutator.mockResolvedValueOnce({ results: [], scope_capped: false });
+
+    await api.searchTranscripts(body, options);
+
+    expect(mockMutator).toHaveBeenCalledTimes(1);
+    expect(mockMutator).toHaveBeenCalledWith(
+      { url: '/search/transcripts', method: 'POST', data: body },
+      { ...options, redactLogContent: true },
+    );
+  });
+
+  it('should set the redaction flag when no options are given', async () => {
+    mockMutator.mockResolvedValueOnce({ results: [], scope_capped: false });
+
+    await api.searchTranscripts(body);
+
+    expect(mockMutator).toHaveBeenCalledWith(expect.anything(), {
+      redactLogContent: true,
+    });
+  });
+
+  it('should return the resolved value unchanged', async () => {
+    const response = {
+      results: [{ message_id: 'm-2', score: 0.9, matched_chunk: 'x' }],
+      scope_capped: true,
+    };
+    mockMutator.mockResolvedValueOnce(response);
+
+    await expect(api.searchTranscripts(body, options)).resolves.toBe(response);
+  });
+
+  it('should propagate the rejection unchanged', async () => {
+    const envelope = {
+      statusCode: 429,
+      body: { error: { code: 'RATE_LIMITED' } },
+    };
+    mockMutator.mockRejectedValueOnce(envelope);
+
+    await expect(api.searchTranscripts(body, options)).rejects.toBe(envelope);
   });
 });

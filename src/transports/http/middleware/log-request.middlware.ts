@@ -9,6 +9,33 @@ import { extractClientInfo } from '../utils/extract-client-info';
 
 const ignorePaths = ['/health', '/favicon.ico'];
 
+/**
+ * Tools whose call arguments never reach the HTTP request log: the
+ * `search_transcripts` query is user content. Every other tool's body is
+ * logged as before (the same leak for them is spec D-3, a separate ticket).
+ */
+const REDACTED_ARGUMENT_TOOLS = new Set(['search_transcripts']);
+
+type JsonRpcMessage = { method?: unknown; params?: { name?: unknown } };
+
+const redactMessage = (message: unknown): unknown => {
+  const m = message as JsonRpcMessage | null;
+  if (
+    m?.method !== 'tools/call' ||
+    !REDACTED_ARGUMENT_TOOLS.has(String(m.params?.name))
+  ) {
+    return message;
+  }
+  return { ...m, params: { ...m.params, arguments: '[REDACTED]' } };
+};
+
+/**
+ * Copy of the body for the log line. Never mutates `req.body`, which the SDK
+ * reads after this middleware. Maps JSON-RPC batch arrays element by element.
+ */
+const bodyForLog = (body: unknown): unknown =>
+  Array.isArray(body) ? body.map(redactMessage) : redactMessage(body);
+
 export const logRequest = (req: Request, res: Response, next: NextFunction) => {
   // Skip logging for certain routes
   if (ignorePaths.includes(req.url)) {
@@ -66,7 +93,7 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
       statusCode,
       duration,
       clientInfo,
-      body: req.body,
+      body: bodyForLog(req.body),
     });
 
     if (method === 'POST' && req.body?.method === 'tools/call') {

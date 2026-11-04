@@ -547,6 +547,66 @@ export const TOOL_DOCS: ToolDocRegistry = {
     recommendedFields: ['results', 'total_unread', 'total_results'],
   },
 
+  // No `recommendedFields` (STT-22 removed, design DD-1): any valid projection
+  // keeps `matched_chunk`, the bulk of the payload.
+  search_transcripts: {
+    purpose:
+      'Find messages by meaning (semantic search over transcripts), with the part that matched.',
+    whenToUse:
+      '"Where did we discuss X?" without knowing the date or conversation. ' +
+      'Omitting `workspace_id` searches every workspace, one request each out of 20/min: send it when known.',
+    whenNotToUse:
+      '`search_message_ids` for notified, mentions/tags, labels; `list_messages` for plain history; ' +
+      '`search_messages_by_heard_status` for unread. Exact names, URLs, ticket numbers may be missed.',
+    prerequisites: [
+      {
+        field: 'workspace_id',
+        fromTool: 'get_workspaces_basic_info',
+        fromField: 'id',
+        when: 'searching one workspace',
+      },
+    ],
+    example: { query: 'launch date decision', workspace_id: 'ws-abc' },
+    responseShape:
+      'With `workspace_id`: `{results: [{message_id, conversation_id, conversation_name, score, matched_chunk, ...}], scope_capped}`. ' +
+      'Without: `{needs_workspace_choice, workspaces: [{workspace_id, workspace_name, result_count, best_score, scope_capped, results}], ' +
+      'empty_workspaces, skipped_workspaces: [{workspace_id, workspace_name, reason}]}`. ' +
+      '`needs_workspace_choice` true: ask the user which workspace (name, count, best `matched_chunk`), then call again with its id. ' +
+      '`skipped_workspaces` were NOT searched: tell the user; retry `RATE_LIMITED` ones later by id. ' +
+      'Next page: seen ids in `exclude_message_ids`. ' +
+      '`scope_capped` true: narrow by `conversation_ids` or dates. ' +
+      'Window `[start_date, end_date)`, both with an offset. ' +
+      '`conversation_id: null` = your voice memo. ' +
+      'Full message: `get_message` with `id` = `message_id`.',
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning: 'A bad argument',
+        nextAction: 'fix the one the message names.',
+      },
+      {
+        code: 'FORBIDDEN',
+        meaning: 'Not a member of `workspace_id`',
+        nextAction: 'pick one from `get_workspaces_basic_info`.',
+      },
+      {
+        code: 'RATE_LIMITED',
+        meaning: '20 searches/min used',
+        nextAction: 'wait a minute, or retry with one `workspace_id`.',
+      },
+      {
+        code: 'SERVER_ERROR',
+        meaning: 'Search is down',
+        nextAction: 'retry later and tell the user.',
+      },
+      {
+        code: 'NOT_FOUND',
+        meaning: 'Search not deployed',
+        nextAction: 'tell the user; do not retry.',
+      },
+    ],
+  },
+
   /**********************
    * Messages
    *********************/

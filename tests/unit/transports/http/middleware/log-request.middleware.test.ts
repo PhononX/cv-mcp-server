@@ -230,3 +230,75 @@ describe('Log Request Middleware', () => {
     expect(mockRes.on).not.toHaveBeenCalledWith('finish', expect.any(Function));
   });
 });
+
+// STT-26 (point d): the logged body hides `search_transcripts` arguments,
+// for a single message and inside a JSON-RPC batch, without touching the
+// request the SDK reads. Other tools are logged as before (spec D-3).
+describe('Log Request Middleware: search_transcripts arguments', () => {
+  const toolCall = (id: number, name: string) => ({
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name, arguments: { query: 'secret words' } },
+  });
+
+  const loggedBody = (body: unknown) => {
+    (logger.info as jest.Mock).mockClear();
+    const on = jest.fn();
+    const req = {
+      method: 'POST',
+      url: '/mcp',
+      headers: {},
+      body,
+    } as unknown as Request;
+    logRequest(
+      req,
+      { statusCode: 200, on, end: jest.fn() } as never,
+      jest.fn(),
+    );
+    on.mock.calls.find(([event]) => event === 'finish')[1]();
+    const httpLine = (logger.info as jest.Mock).mock.calls.find(([message]) =>
+      String(message).startsWith('HTTP POST /mcp'),
+    );
+    return httpLine[1].body;
+  };
+
+  it('redacts the arguments of a search_transcripts call', () => {
+    expect(loggedBody(toolCall(1, 'search_transcripts'))).toEqual({
+      ...toolCall(1, 'search_transcripts'),
+      params: { name: 'search_transcripts', arguments: '[REDACTED]' },
+    });
+  });
+
+  it('redacts only the search_transcripts entries of a batch', () => {
+    expect(
+      loggedBody([
+        toolCall(1, 'search_transcripts'),
+        toolCall(2, 'list_messages'),
+      ]),
+    ).toEqual([
+      {
+        ...toolCall(1, 'search_transcripts'),
+        params: { name: 'search_transcripts', arguments: '[REDACTED]' },
+      },
+      toolCall(2, 'list_messages'),
+    ]);
+  });
+
+  it('logs another tool body unchanged', () => {
+    const body = toolCall(3, 'list_messages');
+
+    expect(loggedBody(body)).toBe(body);
+  });
+
+  it('never mutates req.body', () => {
+    const single = toolCall(1, 'search_transcripts');
+    const batch = [toolCall(1, 'search_transcripts')];
+
+    loggedBody(single);
+    loggedBody(batch);
+
+    expect(single).toEqual(toolCall(1, 'search_transcripts'));
+    expect(batch).toEqual([toolCall(1, 'search_transcripts')]);
+  });
+});

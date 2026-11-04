@@ -59,6 +59,8 @@ export const TOOL_NAMES = [
   'search_message_ids',
   'search_messages_by_heard_status',
   'list_inbox_notifications',
+  // Appended last: keeps every existing tool's position in the cached prefix.
+  'search_transcripts',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

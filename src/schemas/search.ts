@@ -127,7 +127,64 @@ export const listInboxNotificationsParams = z.object({
     .describe('Number of notifications to return (max 100).'),
 });
 
+// Same rule as cv-api TranscriptSearchRequest.ts ISO_OFFSET_SUFFIX.
+// `.datetime({ offset: true })` alone also accepts `+0300`; this rejects it.
+export const ISO_OFFSET_SUFFIX = /(Z|[+-]\d{2}:\d{2})$/;
+
+// Not `idList`: that one allows empty strings, which cv-api rejects.
+const nonEmptyIds = (max: number, label: string) =>
+  z
+    .array(z.string().min(1))
+    .max(max)
+    .optional()
+    .describe(`${label} Max ${max}.`);
+
+const offsetDate = (label: string) =>
+  z
+    .string()
+    .datetime({ offset: true })
+    .regex(ISO_OFFSET_SUFFIX)
+    .optional()
+    .describe(`${label}, ISO 8601 with Z or ±HH:MM.`);
+
+export const searchTranscriptsParams = z.object({
+  // Code points, not `.max(500)`: zod counts UTF-16 units, so 300 emoji (600
+  // units) failed here while cv-api's `@MaxLength(500)` (`validator.isLength`)
+  // accepts them. Code points are never fewer than what `isLength` counts, so
+  // this can only be as strict as the API, never looser.
+  query: z
+    .string()
+    .regex(/\S/, 'query must not be blank')
+    .refine((q) => [...q].length <= 500, 'query must be at most 500 characters')
+    .describe('What to look for, in natural language (max 500 chars).'),
+  workspace_id: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Workspace to search. Omit to search all of yours.'),
+  conversation_ids: nonEmptyIds(
+    50,
+    'Only these conversations; skips voice memos. Send their workspace_id too.',
+  ),
+  creator_ids: nonEmptyIds(50, 'Only messages by these users.'),
+  exclude_message_ids: nonEmptyIds(500, 'Message ids to leave out.'),
+  start_date: offsetDate('Inclusive lower bound'),
+  end_date: offsetDate('EXCLUSIVE upper bound'),
+  // No default: single mode must send none (endpoint default 30), fan-out sends 10.
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe(
+      'Rows per workspace, 1-50. Default 30, or 10 per workspace when `workspace_id` is omitted ' +
+        '(100 in total, or 1 each past 100 workspaces).',
+    ),
+});
+
 export type SearchMessageIdsParams = z.infer<typeof searchMessageIdsParams>;
+export type SearchTranscriptsParams = z.infer<typeof searchTranscriptsParams>;
 export type SearchMessagesByHeardStatusParams = z.infer<
   typeof searchMessagesByHeardStatusParams
 >;

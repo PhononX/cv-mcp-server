@@ -28,6 +28,7 @@ jest.mock('../../../src/cv-api', () => {
     searchMessageIds: jest.fn(),
     searchMessagesByHeardStatus: jest.fn(),
     listInboxNotifications: jest.fn(),
+    searchTranscripts: jest.fn(),
   };
   return {
     getCarbonVoiceAPI: jest.fn(() => cvApiMock),
@@ -89,6 +90,14 @@ jest.mock('../../../src/utils', () => ({
   // actually happens, not that a stub was called.
   redactUrlForLog: jest.requireActual('../../../src/utils/redact-url.util')
     .redactUrlForLog,
+  // Real fan-out: its API calls are injected, so the handler tests drive it
+  // through the cv-api and generated mocks above.
+  searchTranscriptsInAllWorkspaces: jest.requireActual(
+    '../../../src/utils/search-transcripts-fan-out',
+  ).searchTranscriptsInAllWorkspaces,
+  describeFailure: jest.requireActual(
+    '../../../src/utils/search-transcripts-fan-out',
+  ).describeFailure,
   logger: {
     error: jest.fn(),
     info: jest.fn(),
@@ -122,6 +131,9 @@ describe('MCP Server', () => {
     listInboxNotifications: jest
       .fn()
       .mockResolvedValue({ results: [], total_results: 0, total_unread: 0 }),
+    searchTranscripts: jest
+      .fn()
+      .mockResolvedValue({ results: [], scope_capped: false }),
   };
 
   const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
@@ -254,6 +266,11 @@ describe('MCP Server', () => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       redactUrlForLog: require('../../../src/utils/redact-url.util')
         .redactUrlForLog,
+      searchTranscriptsInAllWorkspaces:
+        require('../../../src/utils/search-transcripts-fan-out')
+          .searchTranscriptsInAllWorkspaces,
+      describeFailure: require('../../../src/utils/search-transcripts-fan-out')
+        .describeFailure,
       logger: mockLogger,
     }));
 
@@ -349,6 +366,7 @@ describe('MCP Server', () => {
       'search_message_ids',
       'search_messages_by_heard_status',
       'list_inbox_notifications',
+      'search_transcripts',
     ];
 
     it.each(PROJECTED_TOOLS)('%s exposes response_fields', (tool) => {
@@ -454,6 +472,12 @@ describe('MCP Server', () => {
         {},
       ],
       ['search_message_ids', 'cv', 'searchMessageIds', {}],
+      [
+        'search_transcripts',
+        'cv',
+        'searchTranscripts',
+        { query: 'q', workspace_id: 'ws-1' },
+      ],
     ];
 
     it.each(cases)(
@@ -2927,6 +2951,256 @@ describe('MCP Server', () => {
           );
           expect(result).toBeDefined();
         }
+      });
+    });
+
+    describe('search_transcripts tool', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+      const handler = () => findCall('search_transcripts')[2];
+      const auth = { headers: { Authorization: 'Bearer test-token' } };
+      const envelope = (statusCode: number, code: string) => ({
+        statusCode,
+        body: { error: { code, message: code } },
+      });
+
+      // STT-01 (registered shape), STT-25.
+      // STT-18
+      it('registers the description rendered from TOOL_DOCS.search_transcripts', () => {
+        const { renderToolDoc, TOOL_DOCS } = require('../../../src/docs');
+
+        expect(findCall('search_transcripts')[1].description).toBe(
+          renderToolDoc(TOOL_DOCS.search_transcripts),
+        );
+      });
+
+      it('registers the schema shape plus response_fields, read-only and closed', () => {
+        const { searchTranscriptsParams } = require('../../../src/schemas');
+        const [, config] = findCall('search_transcripts');
+
+        expect(Object.keys(config.inputSchema)).toEqual([
+          ...Object.keys(searchTranscriptsParams.shape),
+          'response_fields',
+        ]);
+        Object.keys(searchTranscriptsParams.shape).forEach((key) => {
+          expect(config.inputSchema[key]).toBe(
+            searchTranscriptsParams.shape[key],
+          );
+        });
+        expect(config.annotations).toEqual({
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        });
+      });
+
+      // STT-02
+      describe.each([
+        ['equal', '2026-10-01T10:00:00Z', '2026-10-01T07:00:00-03:00'],
+        ['reversed', '2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z'],
+      ])('%s dates', (_label, start_date, end_date) => {
+        it.each([
+          ['single mode', { workspace_id: 'ws-1' }],
+          ['fan-out mode', {}],
+        ])('%s → BAD_REQUEST with no API call', async (_mode, extra) => {
+          await handler()(
+            { query: 'q', start_date, end_date, ...extra },
+            mockContext,
+          );
+
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+            {
+              statusCode: 400,
+              body: {
+                error: {
+                  code: 'BAD_REQUEST',
+                  message: 'start_date must be before end_date',
+                },
+              },
+            },
+            { isError: true, tool: 'search_transcripts' },
+          );
+          expect(cvApiMock.searchTranscripts).not.toHaveBeenCalled();
+          expect(
+            simplifiedApiMock.getAllWorkspacesWithBasicInfo,
+          ).not.toHaveBeenCalled();
+        });
+      });
+
+      // STT-02 compares instants, not strings: 10:00+05:00 is 05:00Z, before
+      // 08:00Z, although the string sorts after it.
+      it('accepts a window whose start sorts after its end as text but is earlier in time', async () => {
+        await handler()(
+          {
+            query: 'q',
+            workspace_id: 'ws-1',
+            start_date: '2026-10-01T10:00:00+05:00',
+            end_date: '2026-10-01T08:00:00Z',
+          },
+          mockContext,
+        );
+
+        expect(cvApiMock.searchTranscripts).toHaveBeenCalledTimes(1);
+        expect(mockFormatToMCPToolResponse).not.toHaveBeenCalledWith(
+          expect.anything(),
+          { isError: true, tool: 'search_transcripts' },
+        );
+      });
+
+      // STT-03, STT-04
+      it('with workspace_id makes one call with the args unchanged and passes the result through', async () => {
+        const response = {
+          results: [{ message_id: 'm-1', score: 0.8, matched_chunk: 'x' }],
+          scope_capped: true,
+        };
+        cvApiMock.searchTranscripts.mockResolvedValueOnce(response);
+        const args = {
+          query: 'launch date',
+          workspace_id: 'ws-1',
+          conversation_ids: ['c-1'],
+          exclude_message_ids: ['m-0'],
+          start_date: '2026-10-01T00:00:00Z',
+          end_date: '2026-11-01T00:00:00-03:00',
+        };
+
+        await handler()(
+          { ...args, response_fields: ['results.message_id'] },
+          mockContext,
+        );
+
+        expect(cvApiMock.searchTranscripts).toHaveBeenCalledTimes(1);
+        expect(cvApiMock.searchTranscripts).toHaveBeenCalledWith(args, auth);
+        const [body] = cvApiMock.searchTranscripts.mock.calls[0];
+        expect(body).not.toHaveProperty('response_fields');
+        expect(body).not.toHaveProperty('limit');
+        expect(
+          simplifiedApiMock.getAllWorkspacesWithBasicInfo,
+        ).not.toHaveBeenCalled();
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(response, {
+          responseFields: ['results.message_id'],
+        });
+      });
+
+      // STT-06, STT-07, STT-09
+      it('without workspace_id lists workspaces, searches each and passes the grouped result', async () => {
+        simplifiedApiMock.getAllWorkspacesWithBasicInfo.mockResolvedValueOnce([
+          { id: 'ws-a', name: 'Alpha' },
+          { id: 'personal', name: 'Personal' },
+        ]);
+        const rows = [{ message_id: 'm-1', score: 0.6, matched_chunk: 'x' }];
+        cvApiMock.searchTranscripts
+          .mockResolvedValueOnce({ results: rows, scope_capped: false })
+          .mockResolvedValueOnce({ results: [], scope_capped: false });
+
+        await handler()(
+          { query: 'launch date', response_fields: ['workspaces'] },
+          mockContext,
+        );
+
+        expect(
+          simplifiedApiMock.getAllWorkspacesWithBasicInfo,
+        ).toHaveBeenCalledWith(auth);
+        expect(cvApiMock.searchTranscripts.mock.calls).toEqual([
+          [{ query: 'launch date', workspace_id: 'ws-a', limit: 10 }, auth],
+          [{ query: 'launch date', workspace_id: 'personal', limit: 10 }, auth],
+        ]);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            needs_workspace_choice: false,
+            workspaces: [
+              {
+                workspace_id: 'ws-a',
+                workspace_name: 'Alpha',
+                result_count: 1,
+                best_score: 0.6,
+                scope_capped: false,
+                results: rows,
+              },
+            ],
+            empty_workspaces: [
+              { workspace_id: 'personal', workspace_name: 'Personal' },
+            ],
+            skipped_workspaces: [],
+          },
+          { responseFields: ['workspaces'] },
+        );
+      });
+
+      // STT-05, STT-08, STT-16
+      it.each([
+        [
+          'single-mode rejection',
+          { workspace_id: 'ws-1' },
+          () => {
+            const error = envelope(403, 'FORBIDDEN');
+            cvApiMock.searchTranscripts.mockRejectedValueOnce(error);
+            return error;
+          },
+        ],
+        [
+          'basic-info rejection',
+          {},
+          () => {
+            const error = envelope(503, 'SERVER_ERROR');
+            simplifiedApiMock.getAllWorkspacesWithBasicInfo.mockRejectedValueOnce(
+              error,
+            );
+            return error;
+          },
+        ],
+        [
+          'whole fan-out rejection',
+          {},
+          () => {
+            const error = envelope(429, 'RATE_LIMITED');
+            simplifiedApiMock.getAllWorkspacesWithBasicInfo.mockResolvedValueOnce(
+              [{ id: 'ws-a', name: 'Alpha' }],
+            );
+            cvApiMock.searchTranscripts.mockRejectedValueOnce(error);
+            return error;
+          },
+        ],
+      ])(
+        '%s → isError with the original error',
+        async (_label, extra, arrange) => {
+          const error = arrange();
+
+          await handler()({ query: 'q', ...extra }, mockContext);
+
+          expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(error, {
+            isError: true,
+            tool: 'search_transcripts',
+          });
+          // STT-27: tool + status/code only; STT-26: never args or the error.
+          expect(mockLogger.error).toHaveBeenCalledWith(
+            'Error searching transcripts',
+            {
+              tool: 'search_transcripts',
+              status: error.statusCode,
+              code: error.body.error.code,
+            },
+          );
+        },
+      );
+
+      it('logs the name and stack frames, never the message, of a non-API throw', async () => {
+        const bug = new TypeError('secret query words');
+        cvApiMock.searchTranscripts.mockRejectedValueOnce(bug);
+
+        await handler()({ query: 'q', workspace_id: 'ws-1' }, mockContext);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error searching transcripts',
+          expect.objectContaining({
+            tool: 'search_transcripts',
+            code: 'UNKNOWN_ERROR',
+            errorName: 'TypeError',
+            stackFrames: expect.stringMatching(/^\s+at /),
+          }),
+        );
+        expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+          'secret query words',
+        );
       });
     });
 

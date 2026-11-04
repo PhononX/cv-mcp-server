@@ -249,3 +249,87 @@ describe('validation errors through mutator', () => {
     ]);
   });
 });
+
+// STT-26 (points b, c): a request flagged `redactLogContent` (what
+// `cvApi.searchTranscripts` sends) logs no body content, whatever its URL
+// text; every unflagged request logs exactly as before.
+describe('request/error log content by redaction flag', () => {
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  let logger: { debug: jest.Mock; error: jest.Mock };
+  let mutator: (config: object, options?: object) => Promise<unknown>;
+  const body = { query: 'secret words', workspace_id: 'ws-1' };
+  const ERROR_400 = { message: [{ property: 'query', value: 'secret words' }] };
+
+  beforeEach(() => {
+    jest.isolateModules(() => {
+      const realLogger = require('../../../src/utils/logger').logger;
+      logger = {
+        debug: jest.spyOn(realLogger, 'debug').mockImplementation(),
+        error: jest.spyOn(realLogger, 'error').mockImplementation(),
+      } as never;
+      const axiosModule = require('../../../src/utils/axios-instance');
+      const { AxiosError } = require('axios');
+      axiosModule.customAxios.defaults.adapter = async (config: never) => {
+        const response = {
+          data: ERROR_400,
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+          config,
+          request: {},
+        };
+        throw new AxiosError('bad', 'ERR_BAD_REQUEST', config, {}, response);
+      };
+      mutator = axiosModule.mutator;
+    });
+  });
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  const call = (url: string, options?: object) =>
+    mutator({ url, method: 'POST', data: body }, options).catch(
+      () => undefined,
+    );
+  const requestMeta = () => logger.debug.mock.calls[0][1];
+  const errorMeta = () => logger.error.mock.calls[0][1];
+  const FLAG = { redactLogContent: true };
+
+  it('still logs data, requestData and responseData for an unflagged request', async () => {
+    await call('/v3/search');
+
+    expect(requestMeta().data).toEqual(body);
+    expect(JSON.parse(errorMeta().requestData)).toEqual(body);
+    expect(errorMeta().responseData).toEqual(ERROR_400);
+    expect(errorMeta().error.body.message).toBeDefined();
+  });
+
+  it.each([
+    '/search/transcripts',
+    '/search/transcripts?debug=1',
+    '/search/transcripts/',
+    '/v2/search/transcripts',
+  ])(
+    'redacts the request body and drops failure content for a flagged %s',
+    async (url) => {
+      await call(url, FLAG);
+
+      expect(requestMeta().data).toBe('[REDACTED]');
+      expect(requestMeta().url).toBe(url);
+      expect(errorMeta()).not.toHaveProperty('requestData');
+      expect(errorMeta()).not.toHaveProperty('responseData');
+      expect(errorMeta().error.body).not.toHaveProperty('message');
+      expect(JSON.stringify(logger.debug.mock.calls)).not.toContain(
+        'secret words',
+      );
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+        'secret words',
+      );
+      // STT-27: what stays.
+      expect(errorMeta()).toMatchObject({
+        url,
+        method: 'post',
+        status: 400,
+        error: { statusCode: 400, body: { code: 'BAD_REQUEST' } },
+      });
+    },
+  );
+});
