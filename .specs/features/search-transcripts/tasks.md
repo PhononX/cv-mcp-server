@@ -118,11 +118,11 @@ T4 ──→ T5
 
 **Done when**:
 
-- [ ] `mutator` called once with `{ url: '/search/transcripts', method: 'POST', data: body }` and the given options
-- [ ] Resolved value returned unchanged; rejection propagates unchanged
-- [ ] `npm run build:check` exit 0
-- [ ] Gate check passes: `npm run test:unit`
-- [ ] Test count: T1 total + new tests pass
+- [x] `mutator` called once with `{ url: '/search/transcripts', method: 'POST', data: body }` and the given options
+- [x] Resolved value returned unchanged; rejection propagates unchanged
+- [x] `npm run build:check` exit 0
+- [x] Gate check passes: `npm run test:unit`
+- [x] Test count: T1 total + new tests pass
 
 **Tests**: unit
 **Gate**: quick

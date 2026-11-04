@@ -1,7 +1,12 @@
 import { AxiosRequestConfig } from 'axios';
 
 import { env } from './config';
-import { UserInfo, WorkspaceRole } from './interfaces';
+import {
+  TranscriptSearchBody,
+  TranscriptSearchResponse,
+  UserInfo,
+  WorkspaceRole,
+} from './interfaces';
 import {
   ListInboxNotificationsParams,
   SearchMessageIdsParams,
@@ -88,6 +93,22 @@ export const getCarbonVoiceAPI = () => {
     ): Promise<unknown> => {
       return mutator(
         { url: '/v3/search', method: 'POST', data: params },
+        options,
+      );
+    },
+
+    /**
+     * `POST /search/transcripts` — semantic search over transcripts in ONE
+     * workspace. The no-`workspace_id` fan-out lives in
+     * `searchTranscriptsInAllWorkspaces` (src/utils), which calls this once
+     * per workspace.
+     */
+    searchTranscripts: async (
+      body: TranscriptSearchBody,
+      options?: AxiosRequestConfig,
+    ): Promise<TranscriptSearchResponse> => {
+      return mutator(
+        { url: '/search/transcripts', method: 'POST', data: body },
         options,
       );
     },
