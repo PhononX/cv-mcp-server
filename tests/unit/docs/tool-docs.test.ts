@@ -283,6 +283,18 @@ describe('search_transcripts doc', () => {
       'h: skipped workspaces were not searched',
       '`skipped_workspaces` were NOT searched',
     ],
+    [
+      'b: then call again with the chosen workspace id',
+      'ask the user which workspace (name, count, best `matched_chunk`), then call again with its id',
+    ],
+    [
+      'c: page by sending the ids already seen',
+      'Next page: seen ids in `exclude_message_ids`',
+    ],
+    [
+      'h: tell the user and retry RATE_LIMITED later by id',
+      'tell the user; retry `RATE_LIMITED` ones later by id',
+    ],
   ])('%s', (_label, marker) => {
     expect(rendered).toContain(marker);
   });

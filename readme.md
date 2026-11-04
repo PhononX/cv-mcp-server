@@ -352,8 +352,8 @@ The server will create two log files in this directory:
 - **`search_transcripts`** - Find messages by meaning (semantic search over transcripts). Without `workspace_id` it searches every workspace and groups the hits by workspace
 
 > These four call the full Carbon Voice API rather than the simplified surface,
-> since notified state, listened state, and notification records have no
-> simplified-API equivalent.
+> since notified state, listened state, notification records and transcript
+> search have no simplified-API equivalent.
 
 ### Action Items
 

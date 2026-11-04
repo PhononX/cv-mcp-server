@@ -2965,6 +2965,15 @@ describe('MCP Server', () => {
       });
 
       // STT-01 (registered shape), STT-25.
+      // STT-18
+      it('registers the description rendered from TOOL_DOCS.search_transcripts', () => {
+        const { renderToolDoc, TOOL_DOCS } = require('../../../src/docs');
+
+        expect(findCall('search_transcripts')[1].description).toBe(
+          renderToolDoc(TOOL_DOCS.search_transcripts),
+        );
+      });
+
       it('registers the schema shape plus response_fields, read-only and closed', () => {
         const { searchTranscriptsParams } = require('../../../src/schemas');
         const [, config] = findCall('search_transcripts');
@@ -3016,6 +3025,26 @@ describe('MCP Server', () => {
             simplifiedApiMock.getAllWorkspacesWithBasicInfo,
           ).not.toHaveBeenCalled();
         });
+      });
+
+      // STT-02 compares instants, not strings: 10:00+05:00 is 05:00Z, before
+      // 08:00Z, although the string sorts after it.
+      it('accepts a window whose start sorts after its end as text but is earlier in time', async () => {
+        await handler()(
+          {
+            query: 'q',
+            workspace_id: 'ws-1',
+            start_date: '2026-10-01T10:00:00+05:00',
+            end_date: '2026-10-01T08:00:00Z',
+          },
+          mockContext,
+        );
+
+        expect(cvApiMock.searchTranscripts).toHaveBeenCalledTimes(1);
+        expect(mockFormatToMCPToolResponse).not.toHaveBeenCalledWith(
+          expect.anything(),
+          { isError: true, tool: 'search_transcripts' },
+        );
       });
 
       // STT-03, STT-04
@@ -3142,6 +3171,15 @@ describe('MCP Server', () => {
             isError: true,
             tool: 'search_transcripts',
           });
+          // STT-27: tool + status/code only; STT-26: never args or the error.
+          expect(mockLogger.error).toHaveBeenCalledWith(
+            'Error searching transcripts',
+            {
+              tool: 'search_transcripts',
+              status: error.statusCode,
+              code: error.body.error.code,
+            },
+          );
         },
       );
     });
