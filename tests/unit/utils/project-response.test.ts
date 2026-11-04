@@ -207,6 +207,15 @@ describe('projectResponse', () => {
         projectResponse({ results: [], scope_capped: true }, ['results.id']),
       ).toStrictEqual({ results: [], scope_capped: true });
     });
+
+    it('keeps get_messages missing_ids under a projection', () => {
+      expect(
+        projectResponse(
+          { results: [{ id: 'm-1', status: 'active' }], missing_ids: ['m-2'] },
+          ['results.id'],
+        ),
+      ).toStrictEqual({ results: [{ id: 'm-1' }], missing_ids: ['m-2'] });
+    });
   });
 
   describe('tolerance of bad input', () => {

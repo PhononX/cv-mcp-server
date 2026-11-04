@@ -50,6 +50,9 @@ const ALWAYS_PRESERVED = [
   'needs_workspace_choice',
   'skipped_workspaces',
   'scope_capped',
+  // `get_messages`: which requested ids did not come back. Without it a
+  // narrowed response cannot tell "deleted or no access" from "all returned".
+  'missing_ids',
 ] as const;
 
 type Indexable = Record<string, unknown>;

@@ -29,6 +29,7 @@ jest.mock('../../../src/cv-api', () => {
     searchMessagesByHeardStatus: jest.fn(),
     listInboxNotifications: jest.fn(),
     searchTranscripts: jest.fn(),
+    getMessagesByIds: jest.fn(),
   };
   return {
     getCarbonVoiceAPI: jest.fn(() => cvApiMock),
@@ -134,6 +135,7 @@ describe('MCP Server', () => {
     searchTranscripts: jest
       .fn()
       .mockResolvedValue({ results: [], scope_capped: false }),
+    getMessagesByIds: jest.fn().mockResolvedValue([]),
   };
 
   const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
@@ -343,6 +345,7 @@ describe('MCP Server', () => {
     const PROJECTED_TOOLS = [
       'list_messages',
       'get_message',
+      'get_messages',
       'get_recent_messages',
       'get_user',
       'search_users',
@@ -478,6 +481,7 @@ describe('MCP Server', () => {
         'searchTranscripts',
         { query: 'q', workspace_id: 'ws-1' },
       ],
+      ['get_messages', 'cv', 'getMessagesByIds', { message_ids: ['m-1'] }],
     ];
 
     it.each(cases)(
@@ -2951,6 +2955,90 @@ describe('MCP Server', () => {
           );
           expect(result).toBeDefined();
         }
+      });
+    });
+
+    describe('get_messages tool', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+      const handler = () => findCall('get_messages')[2];
+      const auth = { headers: { Authorization: 'Bearer test-token' } };
+      const message = (id: string, status = 'active') => ({
+        id,
+        status,
+        content: { transcript: `transcript of ${id}` },
+      });
+
+      it('registers the description rendered from TOOL_DOCS.get_messages', () => {
+        const { renderToolDoc, TOOL_DOCS } = require('../../../src/docs');
+
+        expect(findCall('get_messages')[1].description).toBe(
+          renderToolDoc(TOOL_DOCS.get_messages),
+        );
+      });
+
+      it('registers the schema shape plus response_fields, read-only and closed', () => {
+        const { getMessagesParams } = require('../../../src/schemas');
+        const [, config] = findCall('get_messages');
+
+        expect(Object.keys(config.inputSchema)).toEqual([
+          ...Object.keys(getMessagesParams.shape),
+          'response_fields',
+        ]);
+        expect(config.annotations).toEqual({
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        });
+      });
+
+      it('sends the args without response_fields and returns results with missing_ids', async () => {
+        cvApiMock.getMessagesByIds.mockResolvedValueOnce([
+          message('m-1'),
+          message('m-3'),
+        ]);
+        const args = {
+          message_ids: ['m-1', 'm-2', 'm-3'],
+          conversation_id: 'c-1',
+          language: 'es',
+        };
+
+        await handler()(
+          { ...args, response_fields: ['results.id'] },
+          mockContext,
+        );
+
+        expect(cvApiMock.getMessagesByIds).toHaveBeenCalledWith(args, auth);
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          { results: [message('m-1'), message('m-3')], missing_ids: ['m-2'] },
+          { responseFields: ['results.id'] },
+        );
+      });
+
+      it('moves every non-active message to missing_ids, in request order', async () => {
+        cvApiMock.getMessagesByIds.mockResolvedValueOnce([
+          message('m-1', 'deleted'),
+          message('m-2'),
+          message('m-3', 'processing'),
+        ]);
+
+        await handler()({ message_ids: ['m-1', 'm-2', 'm-3'] }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          { results: [message('m-2')], missing_ids: ['m-1', 'm-3'] },
+          { responseFields: undefined },
+        );
+      });
+
+      it('lists a repeated missing id once', async () => {
+        cvApiMock.getMessagesByIds.mockResolvedValueOnce([]);
+
+        await handler()({ message_ids: ['m-9', 'm-9'] }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          { results: [], missing_ids: ['m-9'] },
+          { responseFields: undefined },
+        );
       });
     });
 

@@ -65,6 +65,7 @@ import {
   GetByIdParams,
   GetFolderInput,
   GetMessageInput,
+  GetMessagesResponse,
   McpToolResponse,
   MoveFolderInput,
   UpdateFolderNameInput,
@@ -77,6 +78,8 @@ import {
   getAiActionResponsesQueryShape,
   getFolderInputShape,
   getMessageShareLinkParamsShape,
+  GetMessagesParams,
+  getMessagesParams,
   listAiActionsQueryShape,
   ListInboxNotificationsParams,
   listInboxNotificationsParams,
@@ -284,6 +287,52 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'get_message',
+        });
+      }
+    },
+  );
+
+  server.registerTool(
+    'get_messages',
+    {
+      description: renderToolDoc(TOOL_DOCS.get_messages),
+      inputSchema: {
+        ...getMessagesParams.shape,
+        ...responseFieldsShape,
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (
+      input: GetMessagesParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
+      try {
+        const messages = await cvApi.getMessagesByIds(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        );
+        // Only `active`: a deleted message must not be quoted back.
+        const results = messages.filter((m) => m.status === 'active');
+        const returned = new Set(results.map((m) => m.id));
+        const response: GetMessagesResponse = {
+          results,
+          missing_ids: [...new Set(args.message_ids)].filter(
+            (id) => !returned.has(id),
+          ),
+        };
+        return formatToMCPToolResponse(response, {
+          responseFields: response_fields,
+        });
+      } catch (error) {
+        logger.error('Error getting messages by ids:', { args, error });
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_messages',
         });
       }
     },

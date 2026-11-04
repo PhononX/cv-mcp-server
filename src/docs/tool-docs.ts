@@ -578,7 +578,7 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`scope_capped` true: narrow by `conversation_ids` or dates. ' +
       'Window `[start_date, end_date)`, both with an offset. ' +
       '`conversation_id: null` = your voice memo. ' +
-      '`matched_chunk` is usually the whole transcript; `get_message` (`id` = `message_id`) only for more.',
+      '`matched_chunk` is usually the whole transcript; for more, `get_messages` with the `message_id`s.',
     commonErrors: [
       {
         code: 'BAD_REQUEST',
@@ -696,7 +696,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`response_fields` to narrow.',
     whenNotToUse:
       '`list_messages` when you do not have an ID, or need several messages — ' +
-      'it already returns full bodies, so fetching each one again is wasted.',
+      'it already returns full bodies, so fetching each one again is wasted. ' +
+      '`get_messages` for several known IDs in one call.',
     prerequisites: [
       { field: 'id', fromTool: 'list_messages', fromField: 'results[].id' },
     ],
@@ -704,6 +705,42 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape:
       '`{message: {id, transcript?, ai_summary?, audio_url?, creator_id, ' +
       'duration_ms, status, type, attachments?, created_at, ...}}`.',
+  },
+
+  get_messages: {
+    purpose: 'Get up to 500 messages by ID in one call, in the order given.',
+    whenToUse:
+      'You already have several message IDs (from `search_transcripts`, `search_message_ids`, ' +
+      'an AI action) and need their transcripts. One call instead of one `get_message` per ID.',
+    whenNotToUse:
+      '`get_message` for one ID or to expand `conversation`/`creator`/`labels`; ' +
+      '`list_messages` to browse a conversation without IDs.',
+    example: { message_ids: ['msg-abc', 'msg-def'] },
+    responseShape:
+      '`{results: [{id, conversation_id, workspace_id, creator_id, created_at, status, ' +
+      'content: {transcript, ai_summary, time_codes, duration_ms, ...}, attachments, ...}], missing_ids}`. ' +
+      '`missing_ids`: not found, no access, or deleted; never retry them. ' +
+      '`content.time_codes` has one entry per word.',
+    recommendedFields: [
+      'results.id',
+      'results.conversation_id',
+      'results.creator_id',
+      'results.created_at',
+      'results.content.transcript',
+      'results.content.ai_summary',
+    ],
+    commonErrors: [
+      {
+        code: 'BAD_REQUEST',
+        meaning: 'Empty or over 500 `message_ids`',
+        nextAction: 'send 1-500 ids per call.',
+      },
+      {
+        code: 'FORBIDDEN',
+        meaning: 'No access to `conversation_id`',
+        nextAction: 'retry without `conversation_id`.',
+      },
+    ],
   },
 
   get_recent_messages: {

@@ -280,10 +280,9 @@ describe('search_transcripts doc', () => {
     ['e: scope_capped means narrow', '`scope_capped` true: narrow'],
     ['f: half-open date window', '[start_date, end_date)'],
     ['f: both dates need an offset', 'offset'],
-    ['g: get_message for the full message', '`get_message`'],
     [
-      'g: matched_chunk usually already holds the transcript',
-      '`matched_chunk` is usually the whole transcript; `get_message` (`id` = `message_id`) only for more',
+      'g: matched_chunk usually holds the transcript; get_messages for more',
+      '`matched_chunk` is usually the whole transcript; for more, `get_messages` with the `message_id`s',
     ],
     [
       'i: a person goes in creator_ids, not in query',

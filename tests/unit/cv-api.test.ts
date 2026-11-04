@@ -257,3 +257,24 @@ describe('getCarbonVoiceAPI().searchTranscripts', () => {
     await expect(api.searchTranscripts(body, options)).rejects.toBe(envelope);
   });
 });
+
+describe('getCarbonVoiceAPI().getMessagesByIds', () => {
+  const api = getCarbonVoiceAPI();
+
+  it('should issue one POST /v6/messages/by-ids with the body and options, unredacted', async () => {
+    const body = { message_ids: ['m-1', 'm-2'], conversation_id: 'c-1' };
+    const options: AxiosRequestConfig = {
+      headers: { Authorization: 'Bearer tok' },
+    };
+    const response = [{ id: 'm-1', status: 'active' }];
+    mockMutator.mockResolvedValueOnce(response);
+
+    await expect(api.getMessagesByIds(body, options)).resolves.toBe(response);
+
+    expect(mockMutator).toHaveBeenCalledTimes(1);
+    expect(mockMutator).toHaveBeenCalledWith(
+      { url: '/v6/messages/by-ids', method: 'POST', data: body },
+      options,
+    );
+  });
+});

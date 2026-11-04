@@ -293,6 +293,7 @@ The server will create two log files in this directory:
 
 - **`list_messages`** - List messages, filtered by date (max 183-day span), conversation, folder, workspace, creator, or language
 - **`get_message`** - Retrieve a specific message by ID
+- **`get_messages`** - Retrieve up to 500 messages by ID in one call; ids not returned (not found, no access, deleted) are listed in `missing_ids`
 - **`get_recent_messages`** - Get the 10 most recent messages with full context
 - **`create_conversation_message`** - Send a message to a conversation
 - **`create_direct_message`** - Send direct messages to users or groups
@@ -495,7 +496,7 @@ alongside the published `Carbon Voice` entry and you can compare the two.
 > **A missing credential looks like success.** Both `CARBON_VOICE_PAT` and
 > `CARBON_VOICE_API_KEY` are optional in the config schema and `tools/list`
 > never calls the API, so the server
-> connects and shows all 43 tools with no key at all. The failure surfaces
+> connects and shows all 44 tools with no key at all. The failure surfaces
 > only on the first tool call. "It connected" does not mean auth works — make
 > a real call to confirm.
 

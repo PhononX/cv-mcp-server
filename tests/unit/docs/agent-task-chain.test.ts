@@ -147,6 +147,8 @@ describe('every overlapping tool pair points at its counterpart', () => {
     ['search_messages_by_heard_status', 'search_message_ids'],
     ['list_inbox_notifications', 'search_message_ids'],
     ['search_transcripts', 'search_message_ids'],
+    ['get_message', 'get_messages'],
+    ['get_messages', 'get_message'],
     ['delete_folder', 'move_folder'],
     ['move_folder', 'update_folder_name'],
     ['update_folder_name', 'move_folder'],

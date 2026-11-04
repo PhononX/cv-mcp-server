@@ -11,6 +11,7 @@ export const TOOL_NAMES = [
   // Messages
   'list_messages',
   'get_message',
+  'get_messages',
   'get_recent_messages',
   'create_conversation_message',
   'create_direct_message',
