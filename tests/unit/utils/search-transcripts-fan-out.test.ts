@@ -224,6 +224,61 @@ describe('searchTranscriptsInAllWorkspaces', () => {
         25, 25, 25,
       ]);
     });
+
+    // FAN_OUT_MAX_TOTAL_ROWS = 100: the per-workspace limit shrinks to fit.
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `ws-${i}`, name: `W${i}` }));
+    const emptyFor = (ws: { id: string }[]) =>
+      Object.fromEntries(ws.map((w) => [w.id, { ok: EMPTY }]));
+
+    it.each([
+      ['10 workspaces, default', 10, undefined, 10],
+      ['20 workspaces, default', 20, undefined, 5],
+      ['2 workspaces, limit 50', 2, 50, 50],
+      ['3 workspaces, limit 50', 3, 50, 33],
+      ['150 workspaces, default', 150, undefined, 1],
+    ])('%s → limit %s per workspace', async (_l, n, limit, expected) => {
+      const ws = many(n);
+      const deps = makeDeps(ws, emptyFor(ws));
+
+      await searchTranscriptsInAllWorkspaces({ ...args, limit }, deps);
+
+      const limits = new Set(deps.search.mock.calls.map(([b]) => b.limit));
+      expect([...limits]).toEqual([expected]);
+    });
+  });
+
+  describe('malformed 200 (no `results` array)', () => {
+    const MALFORMED = { scope_capped: false } as never;
+
+    it('skips only that workspace as UNKNOWN_ERROR and keeps the others', async () => {
+      const deps = makeDeps([WS.A, WS.B], {
+        [WS.A.id]: { ok: A_RESPONSE },
+        [WS.B.id]: { ok: MALFORMED },
+      });
+
+      const result = await searchTranscriptsInAllWorkspaces(args, deps);
+
+      expect(result.workspaces.map((g) => g.workspace_id)).toEqual([WS.A.id]);
+      expect(result.skipped_workspaces).toEqual([
+        {
+          workspace_id: WS.B.id,
+          workspace_name: WS.B.name,
+          reason: 'UNKNOWN_ERROR',
+        },
+      ]);
+    });
+
+    it('rejects with an UNKNOWN_ERROR envelope when every search is malformed', async () => {
+      const deps = makeDeps([WS.A], { [WS.A.id]: { ok: MALFORMED } });
+
+      await expect(
+        searchTranscriptsInAllWorkspaces(args, deps),
+      ).rejects.toMatchObject({
+        statusCode: 0,
+        body: { error: { code: 'UNKNOWN_ERROR' } },
+      });
+    });
   });
 
   describe('basic-info failure (STT-08)', () => {
@@ -439,8 +494,22 @@ describe('describeFailure', () => {
     });
   });
 
-  it('returns UNKNOWN_ERROR for a non-envelope throw', () => {
-    expect(describeFailure(new Error('query text'))).toStrictEqual({
+  it('returns UNKNOWN_ERROR, the name and stack frames, never the message, for a non-envelope Error', () => {
+    // The second message line imitates a frame without a file:line:col.
+    const error = new TypeError('query text\n    at the launch meeting');
+    const described = describeFailure(error);
+
+    expect(described).toMatchObject({
+      code: 'UNKNOWN_ERROR',
+      errorName: 'TypeError',
+    });
+    expect(described.stackFrames).toMatch(/^\s+at .*:\d+:\d+\)?$/m);
+    expect(JSON.stringify(described)).not.toContain('query text');
+    expect(JSON.stringify(described)).not.toContain('launch meeting');
+  });
+
+  it('returns only UNKNOWN_ERROR for a non-Error, non-envelope throw', () => {
+    expect(describeFailure('query text')).toStrictEqual({
       code: 'UNKNOWN_ERROR',
     });
   });

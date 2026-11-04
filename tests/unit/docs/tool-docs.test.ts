@@ -20,7 +20,7 @@ const MAX_DESCRIPTION_CHARS = 1200;
  * `.specs/features/search-transcripts/design.md`). Its fan-out mode needs the
  * agent to know the rate-limit cost, the workspace-choice step, paging,
  * `scope_capped`, the date window and `skipped_workspaces` (spec STT-20 a-h);
- * the rendered doc measures ~1,854 chars.
+ * the rendered doc measures ~1,890 chars.
  */
 const DESCRIPTION_CHAR_OVERRIDES: Record<string, number> = {
   search_transcripts: 1900,
@@ -316,20 +316,28 @@ describe('search_transcripts doc', () => {
   });
 
   // STT-23
-  it('documents exactly BAD_REQUEST, FORBIDDEN, RATE_LIMITED, SERVER_ERROR', () => {
+  it('documents exactly BAD_REQUEST, FORBIDDEN, RATE_LIMITED, SERVER_ERROR, NOT_FOUND', () => {
     expect(doc.commonErrors?.map((e) => e.code)).toEqual([
       'BAD_REQUEST',
       'FORBIDDEN',
       'RATE_LIMITED',
       'SERVER_ERROR',
+      'NOT_FOUND',
     ]);
   });
 
-  it('tells RATE_LIMITED to wait a minute and retry one workspace', () => {
+  it('tells RATE_LIMITED to wait a minute or retry one workspace', () => {
     const step = doc.commonErrors?.find(
       (e) => e.code === 'RATE_LIMITED',
     )?.nextAction;
-    expect(step).toContain('about a minute');
-    expect(step).toContain('single `workspace_id`');
+    expect(step).toContain('wait a minute');
+    expect(step).toContain('one `workspace_id`');
+  });
+
+  it('tells NOT_FOUND not to retry', () => {
+    const step = doc.commonErrors?.find(
+      (e) => e.code === 'NOT_FOUND',
+    )?.nextAction;
+    expect(step).toContain('do not retry');
   });
 });

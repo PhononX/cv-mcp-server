@@ -148,17 +148,24 @@ const offsetDate = (label: string) =>
     .describe(`${label}, ISO 8601 with Z or ±HH:MM.`);
 
 export const searchTranscriptsParams = z.object({
+  // Code points, not `.max(500)`: zod counts UTF-16 units, so 300 emoji (600
+  // units) failed here while cv-api's `@MaxLength(500)` (`validator.isLength`)
+  // accepts them. Code points are never fewer than what `isLength` counts, so
+  // this can only be as strict as the API, never looser.
   query: z
     .string()
-    .max(500)
     .regex(/\S/, 'query must not be blank')
+    .refine((q) => [...q].length <= 500, 'query must be at most 500 characters')
     .describe('What to look for, in natural language (max 500 chars).'),
   workspace_id: z
     .string()
     .min(1)
     .optional()
     .describe('Workspace to search. Omit to search all of yours.'),
-  conversation_ids: nonEmptyIds(50, 'Only these conversations.'),
+  conversation_ids: nonEmptyIds(
+    50,
+    'Only these conversations; skips voice memos. Send their workspace_id too.',
+  ),
   creator_ids: nonEmptyIds(50, 'Only messages by these users.'),
   exclude_message_ids: nonEmptyIds(500, 'Message ids to leave out.'),
   start_date: offsetDate('Inclusive lower bound'),
@@ -171,7 +178,7 @@ export const searchTranscriptsParams = z.object({
     .max(50)
     .optional()
     .describe(
-      'Rows per workspace, 1-50. Default 30, or 10 per workspace when `workspace_id` is omitted.',
+      'Rows per workspace, 1-50. Default 30, or 10 per workspace (100 in total at most) when `workspace_id` is omitted.',
     ),
 });
 

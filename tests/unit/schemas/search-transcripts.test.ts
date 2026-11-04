@@ -16,6 +16,7 @@ describe('searchTranscriptsParams (STT-01)', () => {
       ['query empty', { query: '' }],
       ['query blank', { query: '   ' }],
       ['query of 501 chars', { query: 'a'.repeat(501) }],
+      ['query of 501 emoji', { query: '😀'.repeat(501) }],
       ['51 conversation_ids', { ...valid, conversation_ids: ids(51) }],
       ['51 creator_ids', { ...valid, creator_ids: ids(51) }],
       ['501 exclude_message_ids', { ...valid, exclude_message_ids: ids(501) }],
@@ -67,6 +68,8 @@ describe('searchTranscriptsParams (STT-01)', () => {
         },
       ],
       ['a 500-char query', { query: 'a'.repeat(500) }],
+      // 1,000 UTF-16 units, 500 characters: cv-api `isLength` counts 500.
+      ['a 500-emoji query', { query: '😀'.repeat(500) }],
       ['50 conversation_ids', { conversation_ids: ids(50) }],
       ['50 creator_ids', { creator_ids: ids(50) }],
       ['500 exclude_message_ids', { exclude_message_ids: ids(500) }],

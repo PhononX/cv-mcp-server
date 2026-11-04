@@ -213,8 +213,9 @@ describe('getCarbonVoiceAPI().searchTranscripts', () => {
     headers: { Authorization: 'Bearer tok' },
   };
 
-  // STT-03: one POST /search/transcripts with the body unchanged.
-  it('should issue one POST /search/transcripts with the body and options', async () => {
+  // STT-03: one POST /search/transcripts with the body unchanged. STT-26:
+  // the request carries the log-redaction flag, whatever the URL text.
+  it('should issue one POST /search/transcripts with the body, options and redaction flag', async () => {
     mockMutator.mockResolvedValueOnce({ results: [], scope_capped: false });
 
     await api.searchTranscripts(body, options);
@@ -222,8 +223,18 @@ describe('getCarbonVoiceAPI().searchTranscripts', () => {
     expect(mockMutator).toHaveBeenCalledTimes(1);
     expect(mockMutator).toHaveBeenCalledWith(
       { url: '/search/transcripts', method: 'POST', data: body },
-      options,
+      { ...options, redactLogContent: true },
     );
+  });
+
+  it('should set the redaction flag when no options are given', async () => {
+    mockMutator.mockResolvedValueOnce({ results: [], scope_capped: false });
+
+    await api.searchTranscripts(body);
+
+    expect(mockMutator).toHaveBeenCalledWith(expect.anything(), {
+      redactLogContent: true,
+    });
   });
 
   it('should return the resolved value unchanged', async () => {

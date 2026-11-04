@@ -592,13 +592,17 @@ export const TOOL_DOCS: ToolDocRegistry = {
       {
         code: 'RATE_LIMITED',
         meaning: '20 searches/min used',
-        nextAction:
-          'wait about a minute; without `workspace_id`, retry with a single `workspace_id`.',
+        nextAction: 'wait a minute, or retry with one `workspace_id`.',
       },
       {
         code: 'SERVER_ERROR',
         meaning: 'Search is down',
         nextAction: 'retry later and tell the user.',
+      },
+      {
+        code: 'NOT_FOUND',
+        meaning: 'Search not deployed',
+        nextAction: 'tell the user; do not retry.',
       },
     ],
   },

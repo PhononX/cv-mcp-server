@@ -101,7 +101,7 @@ export const getCarbonVoiceAPI = () => {
      * `POST /search/transcripts` — semantic search over transcripts in ONE
      * workspace. The no-`workspace_id` fan-out lives in
      * `searchTranscriptsInAllWorkspaces` (src/utils), which calls this once
-     * per workspace.
+     * per workspace. `redactLogContent`: the body is the user's query (STT-26).
      */
     searchTranscripts: async (
       body: TranscriptSearchBody,
@@ -109,7 +109,7 @@ export const getCarbonVoiceAPI = () => {
     ): Promise<TranscriptSearchResponse> => {
       return mutator(
         { url: '/search/transcripts', method: 'POST', data: body },
-        options,
+        { ...options, redactLogContent: true },
       );
     },
 

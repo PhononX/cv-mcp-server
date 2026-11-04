@@ -73,7 +73,7 @@ An LLM agent using the Carbon Voice MCP can only find messages by metadata (noti
 
 Input
 
-1. **STT-01** WHEN the tool is called with arguments outside these bounds THEN the MCP input schema SHALL reject the call and no API request SHALL be made: `query` missing, blank (no non-whitespace character) or longer than 500 characters; `conversation_ids` or `creator_ids` with more than 50 entries; `exclude_message_ids` with more than 500 entries; an empty string inside any of these three lists; `start_date` / `end_date` not an ISO 8601 date-time ending in `Z` or `±HH:MM` (the same rule as cv-api's `ISO_OFFSET_SUFFIX`, so `+0300` is rejected here, not by N backend 400s); `limit` not an integer in 1..50; `workspace_id` present but empty.
+1. **STT-01** WHEN the tool is called with arguments outside these bounds THEN the MCP input schema SHALL reject the call and no API request SHALL be made: `query` missing, blank (no non-whitespace character) or longer than 500 characters (Unicode code points, as cv-api `isLength` counts, not UTF-16 units: PR #9 review); `conversation_ids` or `creator_ids` with more than 50 entries; `exclude_message_ids` with more than 500 entries; an empty string inside any of these three lists; `start_date` / `end_date` not an ISO 8601 date-time ending in `Z` or `±HH:MM` (the same rule as cv-api's `ISO_OFFSET_SUFFIX`, so `+0300` is rejected here, not by N backend 400s); `limit` not an integer in 1..50; `workspace_id` present but empty.
 2. **STT-02** WHEN both `start_date` and `end_date` are given and `start_date >= end_date` THEN the tool SHALL return a tool error with code `BAD_REQUEST` and SHALL make no API request.
 
 Single mode
@@ -97,7 +97,7 @@ Single mode
 Calls
 
 6. **STT-06** WHEN `workspace_id` is omitted THEN the tool SHALL call `GET /simplified/workspaces/basic-info` once, and then make one `POST /search/transcripts` per workspace it returned (`personal` included), all started without waiting for each other, each with that workspace's `id` as `workspace_id` and the same other search arguments.
-7. **STT-07** WHEN `workspace_id` is omitted and `limit` is not given THEN each per-workspace request SHALL carry `limit: 10`; WHEN `limit` is given THEN each per-workspace request SHALL carry that value.
+7. **STT-07** WHEN `workspace_id` is omitted and `limit` is not given THEN each per-workspace request SHALL carry `limit: 10`; WHEN `limit` is given THEN each per-workspace request SHALL carry that value. In both cases the per-workspace value SHALL be lowered to `floor(100 / workspace count)` (never below 1) when that is smaller, so one fan-out returns at most 100 rows (PR #9 review).
 8. **STT-08** WHEN the `basic-info` request fails THEN the tool SHALL return a tool error with that request's error code and SHALL make no `POST /search/transcripts` request.
 
 Grouped response
@@ -106,7 +106,7 @@ Grouped response
 10. **STT-10** WHEN groups are returned THEN `workspaces` SHALL be in descending `best_score` order.
 11. **STT-11** WHEN 2 or more groups are in `workspaces` THEN `needs_workspace_choice` SHALL be `true`; WHEN 0 or 1 groups are in it THEN it SHALL be `false`.
 12. **STT-12** WHEN a per-workspace request succeeds with 0 rows THEN that workspace SHALL appear in `empty_workspaces` as `{ workspace_id, workspace_name }` and not in `workspaces`.
-13. **STT-13** WHEN `response_fields` is given in fan-out mode THEN the projection SHALL be applied to the grouped response.
+13. **STT-13** WHEN `response_fields` is given in fan-out mode THEN the projection SHALL be applied to the grouped response, and the top-level `needs_workspace_choice`, `skipped_workspaces` and (single mode) `scope_capped` SHALL be kept even when not requested, like the paging keys (PR #9 review: dropping `skipped_workspaces` made a partial search read as complete).
 
 Partial failure
 
@@ -132,7 +132,7 @@ Partial failure
 20. **STT-20** WHEN the ToolDoc is read THEN its prose SHALL state each of these, consistent with cv-api: (a) `workspace_id` is optional, omitting it searches every workspace and costs one request per workspace out of 20 per minute, so send it when known; (b) when `needs_workspace_choice` is `true`, ask the user which workspace (showing `workspace_name`, `result_count` and the best `matched_chunk`) and call again with that `workspace_id`; (c) page by sending the ids already seen in `exclude_message_ids`; (d) `conversation_id: null` is the caller's own voice memo; (e) `scope_capped: true` means not all conversations were searched, so narrow with `conversation_ids` or dates; (f) the date window is `[start_date, end_date)` and both need an offset; (g) `get_message` with a `message_id` returns the full message; (h) a workspace in `skipped_workspaces` was NOT searched, so tell the user and, for `RATE_LIMITED`, retry it later with its `workspace_id`.
 21. **STT-21** WHEN the ToolDoc is read THEN `prerequisites` SHALL map `workspace_id` to `get_workspaces_basic_info.id`, and every tool it names SHALL exist (agent-task-chain test).
 22. **STT-22** Removed (Frederico, 2026-11-03, design DD-1 option A): the ToolDoc has no `recommendedFields`. Any valid projection keeps `matched_chunk`, the bulk of the payload, so the list saved almost nothing and cost ~480 description chars per session. `response_fields` stays (STT-04, STT-13).
-23. **STT-23** WHEN the ToolDoc is read THEN `commonErrors` SHALL hold one entry per code `BAD_REQUEST`, `FORBIDDEN`, `RATE_LIMITED`, `SERVER_ERROR`, each with a concrete next step; the `RATE_LIMITED` step SHALL say to wait about a minute and, in fan-out, to retry with a single `workspace_id`.
+23. **STT-23** WHEN the ToolDoc is read THEN `commonErrors` SHALL hold one entry per code `BAD_REQUEST`, `FORBIDDEN`, `RATE_LIMITED`, `SERVER_ERROR`, `NOT_FOUND`, each with a concrete next step; the `RATE_LIMITED` step SHALL say to wait a minute or retry with one `workspace_id`; the `NOT_FOUND` step (endpoint not deployed) SHALL say not to retry.
 24. **STT-24** WHEN the integration suite runs THEN the ToolDoc `example` SHALL be callable (`mcp-protocol.test.ts`).
 25. **STT-25** WHEN the tool is listed THEN its annotations SHALL be `readOnlyHint: true`, `destructiveHint: false`, `openWorldHint: false`.
 

@@ -380,7 +380,8 @@ arrays element-wise, and pagination fields (`total`, `has_next_page`, `has_more`
 `next_cursor`, …) are always kept so the "is there more?" signal survives. So is
 `list_conversations`'s `unfiltered_count`, for the same reason: a projection that
 stripped it would leave an empty result looking like a conversation that does not
-exist.
+exist. `search_transcripts` keeps `needs_workspace_choice`, `skipped_workspaces`
+and `scope_capped` the same way, so a partial search never reads as a full one.
 
 ```json
 { "response_fields": ["total", "has_next_page", "results.id", "results.transcript"] }

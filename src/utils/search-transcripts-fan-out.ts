@@ -14,28 +14,76 @@ import { SearchTranscriptsParams } from '../schemas';
 /** Rows per workspace when the agent gave no `limit` (STT-07). */
 export const FAN_OUT_DEFAULT_LIMIT = 10;
 
+/**
+ * Most rows one fan-out call can return across all workspaces (STT-07): the
+ * per-workspace `limit` shrinks to fit, so 20 workspaces x `limit` 50 cannot
+ * put 1,000 `matched_chunk`s into one tool result. It never drops below 1
+ * per workspace, so past 100 workspaces the total is one row per workspace.
+ */
+export const FAN_OUT_MAX_TOTAL_ROWS = 100;
+
 export interface FanOutDeps {
   listWorkspaces: () => Promise<{ id: string; name: string }[]>;
   search: (body: TranscriptSearchBody) => Promise<TranscriptSearchResponse>;
 }
 
+/** A V8 stack frame line (`    at fn (file.js:12:3)`), never a message line. */
+const STACK_FRAME = /^\s+at .*:\d+:\d+\)?$/;
+
 /**
  * HTTP status and code of a thrown `handleAxiosError` envelope. Never the
  * message or details: a cv-api 400 echoes the query back in them (STT-26).
+ *
+ * A plain `Error` with no envelope is a bug in this process (the mutator
+ * wraps every request failure in an envelope). Its name and stack FRAMES are
+ * kept so it can be debugged; its message is not, since nothing guarantees
+ * it never quotes a value (the first stack line repeats it, so it is cut).
  */
 export function describeFailure(error: unknown): {
   status?: number;
   code: string;
+  errorName?: string;
+  stackFrames?: string;
 } {
   const envelope = error as {
     statusCode?: unknown;
     body?: { error?: { code?: unknown } };
   } | null;
   const code = envelope?.body?.error?.code;
-  if (typeof code !== 'string') return { code: 'UNKNOWN_ERROR' };
+  if (typeof code !== 'string') {
+    return error instanceof Error
+      ? {
+          code: 'UNKNOWN_ERROR',
+          errorName: error.name,
+          stackFrames: error.stack
+            ?.split('\n')
+            .filter((line) => STACK_FRAME.test(line))
+            .join('\n'),
+        }
+      : { code: 'UNKNOWN_ERROR' };
+  }
   const status = envelope?.statusCode;
   return typeof status === 'number' && status > 0 ? { status, code } : { code };
 }
+
+/**
+ * A 200 whose body has no `results` array (cv-api version skew, a proxy
+ * page) fails only its own workspace, as an envelope like any other failure.
+ */
+const assertSearchResponse = (
+  response: TranscriptSearchResponse,
+): TranscriptSearchResponse => {
+  if (Array.isArray(response?.results)) return response;
+  throw {
+    statusCode: 0,
+    body: {
+      error: {
+        code: 'UNKNOWN_ERROR',
+        message: 'Unexpected search response from the API',
+      },
+    },
+  };
+};
 
 const isForbidden = (error: unknown) =>
   (error as { statusCode?: unknown } | null)?.statusCode === 403;
@@ -52,10 +100,17 @@ export async function searchTranscriptsInAllWorkspaces(
   deps: FanOutDeps,
 ): Promise<TranscriptSearchFanOutResponse> {
   const workspaces = await deps.listWorkspaces();
-  const limit = args.limit ?? FAN_OUT_DEFAULT_LIMIT;
+  const limit = Math.min(
+    args.limit ?? FAN_OUT_DEFAULT_LIMIT,
+    Math.max(1, Math.floor(FAN_OUT_MAX_TOTAL_ROWS / workspaces.length)),
+  );
   // `map` starts every call before any is awaited (STT-06).
   const settled = await Promise.allSettled(
-    workspaces.map((w) => deps.search({ ...args, workspace_id: w.id, limit })),
+    workspaces.map((w) =>
+      deps
+        .search({ ...args, workspace_id: w.id, limit })
+        .then(assertSearchResponse),
+    ),
   );
 
   const groups: TranscriptSearchGroup[] = [];

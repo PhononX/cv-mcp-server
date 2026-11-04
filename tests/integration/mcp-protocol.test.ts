@@ -969,10 +969,14 @@ describe('search_transcripts over the protocol', () => {
     expect(searchTranscripts).not.toHaveBeenCalled();
   });
 
-  it('narrows the grouped fan-out payload with response_fields (STT-13)', async () => {
+  // STT-13: the projection narrows the groups but always keeps the
+  // completeness signals (`needs_workspace_choice`, `skipped_workspaces`), so
+  // a partial fan-out never reads as a full one.
+  it('narrows the grouped fan-out payload with response_fields, keeping skipped_workspaces (STT-13)', async () => {
     getAllWorkspacesWithBasicInfo.mockResolvedValueOnce([
       { id: 'ws-a', name: 'Alpha' },
       { id: 'ws-b', name: 'Beta' },
+      { id: 'ws-c', name: 'Gamma' },
     ]);
     const row = (id: string, score: number) => ({
       message_id: id,
@@ -994,6 +998,10 @@ describe('search_transcripts over the protocol', () => {
       .mockResolvedValueOnce({
         results: [row('b-1', 0.9)],
         scope_capped: true,
+      })
+      .mockRejectedValueOnce({
+        statusCode: 429,
+        body: { error: { code: 'RATE_LIMITED', message: 'slow down' } },
       });
 
     const result = await client.callTool({
@@ -1001,7 +1009,6 @@ describe('search_transcripts over the protocol', () => {
       arguments: {
         query: 'launch',
         response_fields: [
-          'needs_workspace_choice',
           'workspaces.workspace_name',
           'workspaces.results.matched_chunk',
         ],
@@ -1015,6 +1022,34 @@ describe('search_transcripts over the protocol', () => {
         { workspace_name: 'Beta', results: [{ matched_chunk: 'chunk b-1' }] },
         { workspace_name: 'Alpha', results: [{ matched_chunk: 'chunk a-1' }] },
       ],
+      skipped_workspaces: [
+        {
+          workspace_id: 'ws-c',
+          workspace_name: 'Gamma',
+          reason: 'RATE_LIMITED',
+        },
+      ],
+    });
+  });
+
+  it('keeps scope_capped in single mode under response_fields (STT-13)', async () => {
+    searchTranscripts.mockResolvedValueOnce({
+      results: [],
+      scope_capped: true,
+    });
+
+    const result = await client.callTool({
+      name: 'search_transcripts',
+      arguments: {
+        query: 'launch',
+        workspace_id: 'ws-1',
+        response_fields: ['results.message_id'],
+      },
+    });
+
+    expect(jsonOf(result as never)).toEqual({
+      results: [],
+      scope_capped: true,
     });
   });
 });

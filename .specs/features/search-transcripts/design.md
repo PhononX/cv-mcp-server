@@ -254,7 +254,7 @@ async (input, { authInfo }) => {
 | # | Change | Keyed on | Kept for STT-27 |
 | --- | --- | --- | --- |
 | a | The new handler logs `{ tool, status, code }` from `describeFailure(error)` — never `args`, never `error`. Other handlers untouched. | the new handler | tool name, HTTP status or code |
-| b, c | `CONTENT_REDACTED_ROUTES = ['/search/transcripts']` next to `NOT_LOG_ROUTES`. For a matching `config.url` (exact match, as `NOT_LOG_ROUTES` does): request log `data: '[REDACTED]'`; error log drops `requestData`, `responseData` and `error.body.message`. | request URL | url, method, status, statusText, duration, `error.statusCode`, `error.body.code` |
+| b, c | A per-request `redactLogContent: true` axios config flag (module augmentation in `axios-instance.ts`), set by `cvApi.searchTranscripts`, so it follows the call whatever the URL text (PR #9 review replaced the first `CONTENT_REDACTED_ROUTES` exact-URL match). For a flagged request: request log `data: '[REDACTED]'`; error log drops `requestData`, `responseData` and `error.body.message`. | request URL | url, method, status, statusText, duration, `error.statusCode`, `error.body.code` |
 | d | `REDACTED_ARGUMENT_TOOLS = new Set(['search_transcripts'])` in the middleware; the logged `body` is a COPY where a `tools/call` message for that tool has `params.arguments: '[REDACTED]'`; arrays are mapped element by element. `req.body` itself is never mutated (the SDK reads it). | JSON-RPC `params.name` | method, url, statusCode, duration, `TOOL_CALL_HTTP_COMPLETE.toolName` |
 
 Exact-match URL keys mean `/search`, `/v3/search` and `/search/message-ids` keep logging exactly as today, and tool-name keys mean every other tool's arguments are logged exactly as today (spec D-3 stays a separate ticket).

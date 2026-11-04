@@ -3182,6 +3182,26 @@ describe('MCP Server', () => {
           );
         },
       );
+
+      it('logs the name and stack frames, never the message, of a non-API throw', async () => {
+        const bug = new TypeError('secret query words');
+        cvApiMock.searchTranscripts.mockRejectedValueOnce(bug);
+
+        await handler()({ query: 'q', workspace_id: 'ws-1' }, mockContext);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Error searching transcripts',
+          expect.objectContaining({
+            tool: 'search_transcripts',
+            code: 'UNKNOWN_ERROR',
+            errorName: 'TypeError',
+            stackFrames: expect.stringMatching(/^\s+at /),
+          }),
+        );
+        expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+          'secret query words',
+        );
+      });
     });
 
     describe('action item tools', () => {
