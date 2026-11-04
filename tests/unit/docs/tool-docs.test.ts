@@ -12,6 +12,20 @@ import { ToolDoc } from '../../../src/docs/types';
 /** Per-tool ceiling on rendered description length. See spec Part 3. */
 const MAX_DESCRIPTION_CHARS = 1200;
 
+/**
+ * Per-tool exceptions to MAX_DESCRIPTION_CHARS. Each one is a decision, not
+ * drift: raise one only with the decision that justifies it.
+ *
+ * `search_transcripts`: design DD-1 option A (2026-11-03,
+ * `.specs/features/search-transcripts/design.md`). Its fan-out mode needs the
+ * agent to know the rate-limit cost, the workspace-choice step, paging,
+ * `scope_capped`, the date window and `skipped_workspaces` (spec STT-20 a-h);
+ * the rendered doc measures ~1,854 chars.
+ */
+const DESCRIPTION_CHAR_OVERRIDES: Record<string, number> = {
+  search_transcripts: 1900,
+};
+
 const entries = Object.entries(TOOL_DOCS);
 
 describe('TOOL_DOCS registry', () => {
@@ -59,10 +73,9 @@ describe('TOOL_DOCS registry', () => {
       });
     });
 
-    it(`renders within the ${MAX_DESCRIPTION_CHARS}-char budget`, () => {
-      expect(renderToolDoc(doc).length).toBeLessThanOrEqual(
-        MAX_DESCRIPTION_CHARS,
-      );
+    const budget = DESCRIPTION_CHAR_OVERRIDES[name] ?? MAX_DESCRIPTION_CHARS;
+    it(`renders within the ${budget}-char budget`, () => {
+      expect(renderToolDoc(doc).length).toBeLessThanOrEqual(budget);
     });
   });
 });
@@ -215,5 +228,96 @@ describe('summarize_conversation limit bounds', () => {
       prompt_id: 'p',
     });
     expect(parsed.limit).toBe(50);
+  });
+});
+
+describe('search_transcripts doc', () => {
+  const doc = TOOL_DOCS.search_transcripts;
+  const rendered = renderToolDoc(doc);
+
+  it('has an override only for itself (DD-1)', () => {
+    expect(Object.keys(DESCRIPTION_CHAR_OVERRIDES)).toEqual([
+      'search_transcripts',
+    ]);
+  });
+
+  // STT-19
+  it('says it finds a discussed topic by meaning without date or conversation', () => {
+    expect(doc.purpose).toMatch(/by meaning/);
+    expect(doc.whenToUse).toContain('Where did we discuss');
+    expect(doc.whenToUse).toContain('without knowing the date or conversation');
+  });
+
+  it.each([
+    'search_message_ids',
+    'list_messages',
+    'search_messages_by_heard_status',
+  ])('points at `%s` instead (STT-19)', (tool) => {
+    expect(doc.whenNotToUse).toContain(`\`${tool}\``);
+  });
+
+  it('warns that exact names, URLs and ticket numbers may be missed (STT-19)', () => {
+    expect(doc.whenNotToUse).toContain(
+      'Exact names, URLs, ticket numbers may be missed',
+    );
+  });
+
+  // STT-20 (a)-(h)
+  it.each([
+    ['a: omitting workspace_id costs one of 20/min per workspace', '20/min'],
+    ['a: send workspace_id when known', 'send it when known'],
+    [
+      'b: ask the user when needs_workspace_choice',
+      '`needs_workspace_choice` true: ask the user',
+    ],
+    ['c: page with exclude_message_ids', 'exclude_message_ids'],
+    [
+      'd: null conversation_id is a voice memo',
+      '`conversation_id: null` = your voice memo',
+    ],
+    ['e: scope_capped means narrow', '`scope_capped` true: narrow'],
+    ['f: half-open date window', '[start_date, end_date)'],
+    ['f: both dates need an offset', 'offset'],
+    ['g: get_message for the full message', '`get_message`'],
+    [
+      'h: skipped workspaces were not searched',
+      '`skipped_workspaces` were NOT searched',
+    ],
+  ])('%s', (_label, marker) => {
+    expect(rendered).toContain(marker);
+  });
+
+  // STT-21
+  it('maps workspace_id to get_workspaces_basic_info.id', () => {
+    expect(doc.prerequisites).toEqual([
+      expect.objectContaining({
+        field: 'workspace_id',
+        fromTool: 'get_workspaces_basic_info',
+        fromField: 'id',
+      }),
+    ]);
+  });
+
+  // STT-22 removed (DD-1)
+  it('has no recommendedFields', () => {
+    expect(doc.recommendedFields).toBeUndefined();
+  });
+
+  // STT-23
+  it('documents exactly BAD_REQUEST, FORBIDDEN, RATE_LIMITED, SERVER_ERROR', () => {
+    expect(doc.commonErrors?.map((e) => e.code)).toEqual([
+      'BAD_REQUEST',
+      'FORBIDDEN',
+      'RATE_LIMITED',
+      'SERVER_ERROR',
+    ]);
+  });
+
+  it('tells RATE_LIMITED to wait a minute and retry one workspace', () => {
+    const step = doc.commonErrors?.find(
+      (e) => e.code === 'RATE_LIMITED',
+    )?.nextAction;
+    expect(step).toContain('about a minute');
+    expect(step).toContain('single `workspace_id`');
   });
 });

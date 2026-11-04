@@ -88,6 +88,8 @@ import {
   searchMessageIdsParams,
   SearchMessagesByHeardStatusParams,
   searchMessagesByHeardStatusParams,
+  SearchTranscriptsParams,
+  searchTranscriptsParams,
   sendDirectMessageBodyShape,
   SuggestActionItemsFromMessageParams,
   suggestActionItemsFromMessageParams,
@@ -102,6 +104,7 @@ import {
   formatToMCPToolResponse,
   logger,
   redactUrlForLog,
+  searchTranscriptsInAllWorkspaces,
   withAudioFetchPermit,
 } from './utils';
 
@@ -1992,6 +1995,72 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'list_inbox_notifications',
+        });
+      }
+    },
+  );
+
+  // `POST /search/transcripts` takes ONE workspace. Without `workspace_id`
+  // the tool fans out over every workspace (`searchTranscriptsInAllWorkspaces`)
+  // and groups the hits, so the agent can ask the user which one they meant.
+  server.registerTool(
+    'search_transcripts',
+    {
+      description: renderToolDoc(TOOL_DOCS.search_transcripts),
+      inputSchema: {
+        ...searchTranscriptsParams.shape,
+        ...responseFieldsShape,
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (
+      input: SearchTranscriptsParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
+      // Here, not in the schema: `registerTool` wraps the raw shape in
+      // `z.object`, so an object-level refine cannot be passed. In fan-out
+      // mode the API would answer N identical 400s, each a rate-limit slot.
+      if (
+        args.start_date &&
+        args.end_date &&
+        Date.parse(args.start_date) >= Date.parse(args.end_date)
+      ) {
+        return formatToMCPToolResponse(
+          {
+            statusCode: 400,
+            body: {
+              error: {
+                code: 'BAD_REQUEST',
+                message: 'start_date must be before end_date',
+              },
+            },
+          },
+          { isError: true, tool: 'search_transcripts' },
+        );
+      }
+      const auth = setCarbonVoiceAuthHeader(authInfo?.token);
+      try {
+        const { workspace_id, ...rest } = args;
+        const data = workspace_id
+          ? await cvApi.searchTranscripts({ ...rest, workspace_id }, auth)
+          : await searchTranscriptsInAllWorkspaces(rest, {
+              listWorkspaces: () =>
+                simplifiedApi.getAllWorkspacesWithBasicInfo(auth),
+              search: (body) => cvApi.searchTranscripts(body, auth),
+            });
+        return formatToMCPToolResponse(data, {
+          responseFields: response_fields,
+        });
+      } catch (error) {
+        logger.error('Error searching transcripts:', { args, error });
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'search_transcripts',
         });
       }
     },

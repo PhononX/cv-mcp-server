@@ -175,22 +175,24 @@ Merged by necessity: `tool-docs.test.ts` requires every `TOOL_DOCS` key in `TOOL
 
 **Done when**:
 
-- [ ] `server.test.ts`: cv-api mock gains `searchTranscripts`; utils mock gains `searchTranscriptsInAllWorkspaces` and `describeFailure` via `jest.requireActual`
-- [ ] `server.test.ts`: registered `inputSchema` = `searchTranscriptsParams.shape` + `response_fields`; annotations read-only/closed
-- [ ] `server.test.ts`: equal and reversed dates → `BAD_REQUEST` `isError`, no API call, both modes
-- [ ] `server.test.ts`: with `workspace_id` → one `searchTranscripts(body, auth)`, body without `response_fields`, no `limit` key when not given, `getAllWorkspacesWithBasicInfo` not called; result passed with `{ responseFields }`
-- [ ] `server.test.ts`: without `workspace_id` → `getAllWorkspacesWithBasicInfo` then `searchTranscripts` per workspace; grouped result passed with `{ responseFields }`
-- [ ] `server.test.ts`: rejection (single, `basic-info`, whole fan-out) → `{ isError: true, tool: 'search_transcripts' }`; tool added to the "Error responses" table and `PROJECTED_TOOLS`
-- [ ] `tool-docs.test.ts`: new `search_transcripts doc` block checks STT-19 tool names + exact-strings caveat, STT-20 (a)-(h) markers (incl. `offset` for f), STT-21 prerequisite, STT-23 four codes and the `RATE_LIMITED` step
-- [ ] DD-1 (Option A): `tool-docs.test.ts` gets a per-tool cap of 1,900 chars for `search_transcripts` only, with a comment citing DD-1 and the measured size; `mcp-protocol.test.ts` `MAX_WIRE_BYTES` → 75,000 with the new measured total in the comment
-- [ ] `agent-task-chain.test.ts`: `['search_transcripts', 'search_message_ids']` added to `PAIRS`
-- [ ] `mcp-protocol.test.ts`: cv-api double gains `searchTranscripts`; `callTool` with the ToolDoc example returns non-error (STT-24); a no-offset date returns a protocol error and the double is not called (STT-01 wire); fan-out with `response_fields` narrows the grouped payload through the real formatter (STT-13); tool absent from `OPEN_WORLD_TOOLS` / `DESTRUCTIVE_TOOLS` (STT-25)
-- [ ] Gate check passes: `npm run test:unit && npm run test:integration`
-- [ ] Test count: unit T3 total + new; integration 452 + new (the `describe.each` over tools adds its per-tool cases)
+- [x] `server.test.ts`: cv-api mock gains `searchTranscripts`; utils mock gains `searchTranscriptsInAllWorkspaces` and `describeFailure` via `jest.requireActual`
+- [x] `server.test.ts`: registered `inputSchema` = `searchTranscriptsParams.shape` + `response_fields`; annotations read-only/closed
+- [x] `server.test.ts`: equal and reversed dates → `BAD_REQUEST` `isError`, no API call, both modes
+- [x] `server.test.ts`: with `workspace_id` → one `searchTranscripts(body, auth)`, body without `response_fields`, no `limit` key when not given, `getAllWorkspacesWithBasicInfo` not called; result passed with `{ responseFields }`
+- [x] `server.test.ts`: without `workspace_id` → `getAllWorkspacesWithBasicInfo` then `searchTranscripts` per workspace; grouped result passed with `{ responseFields }`
+- [x] `server.test.ts`: rejection (single, `basic-info`, whole fan-out) → `{ isError: true, tool: 'search_transcripts' }`; tool added to the "Error responses" table and `PROJECTED_TOOLS`
+- [x] `tool-docs.test.ts`: new `search_transcripts doc` block checks STT-19 tool names + exact-strings caveat, STT-20 (a)-(h) markers (incl. `offset` for f), STT-21 prerequisite, STT-23 four codes and the `RATE_LIMITED` step
+- [x] DD-1 (Option A): `tool-docs.test.ts` gets a per-tool cap of 1,900 chars for `search_transcripts` only, with a comment citing DD-1 and the measured size; `mcp-protocol.test.ts` `MAX_WIRE_BYTES` → 75,000 with the new measured total in the comment
+- [x] `agent-task-chain.test.ts`: `['search_transcripts', 'search_message_ids']` added to `PAIRS`
+- [x] `mcp-protocol.test.ts`: cv-api double gains `searchTranscripts`; `callTool` with the ToolDoc example returns non-error (STT-24); a no-offset date returns a protocol error and the double is not called (STT-01 wire); fan-out with `response_fields` narrows the grouped payload through the real formatter (STT-13); tool absent from `OPEN_WORLD_TOOLS` / `DESTRUCTIVE_TOOLS` (STT-25)
+- [x] Gate check passes: `npm run test:unit && npm run test:integration`
+- [x] Test count: unit T3 total + new; integration 452 + new (the `describe.each` over tools adds its per-tool cases)
 
 **Tests**: unit, integration
 **Gate**: full
 **Commit**: `feat(search): register search_transcripts tool [CV-14191]`
+
+**Notes**: Deviation: `readme.md` also changed (not in **Where**). `mcp-protocol.test.ts` `readme tool inventory` requires every registered tool in the README's Available Tools section and the right tool count, so the gate cannot pass without it. Measured: ToolDoc 1,854 chars; tool 3,470 B on the wire; `tools/list` 43 tools / 73,494 B.
 
 ---
 

@@ -349,8 +349,9 @@ The server will create two log files in this directory:
 - **`search_message_ids`** - Find message IDs by notified state, mentions, labels, creator, conversation, or workspace (cursor-paginated, IDs only)
 - **`search_messages_by_heard_status`** - Find unheard/heard messages, with per-conversation unheard counts
 - **`list_inbox_notifications`** - List inbox notifications (including the `mentions` category) with a total unread count
+- **`search_transcripts`** - Find messages by meaning (semantic search over transcripts). Without `workspace_id` it searches every workspace and groups the hits by workspace
 
-> These three call the full Carbon Voice API rather than the simplified surface,
+> These four call the full Carbon Voice API rather than the simplified surface,
 > since notified state, listened state, and notification records have no
 > simplified-API equivalent.
 
@@ -493,7 +494,7 @@ alongside the published `Carbon Voice` entry and you can compare the two.
 > **A missing credential looks like success.** Both `CARBON_VOICE_PAT` and
 > `CARBON_VOICE_API_KEY` are optional in the config schema and `tools/list`
 > never calls the API, so the server
-> connects and shows all 42 tools with no key at all. The failure surfaces
+> connects and shows all 43 tools with no key at all. The failure surfaces
 > only on the first tool call. "It connected" does not mean auth works — make
 > a real call to confirm.
 
