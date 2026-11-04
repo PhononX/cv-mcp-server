@@ -95,10 +95,10 @@ T4 ──→ T5
 
 **Done when**:
 
-- [ ] Rejects: query missing, `''`, `'   '`, 501 chars; 51 `conversation_ids`; 51 `creator_ids`; 501 `exclude_message_ids`; `''` inside each list; dates `2026-10-01T10:00:00`, `2026-10-01T10:00:00+0300`; `limit` 0, 51, 2.5; `workspace_id: ''`
-- [ ] Accepts: dates ending `Z` and `-03:00`; 500-char query; 50 / 500 list entries; omitted optionals; `limit` absent stays absent (no default)
-- [ ] Gate check passes: `npm run test:unit`
-- [ ] Test count: 822 + new tests pass (no silent deletions)
+- [x] Rejects: query missing, `''`, `'   '`, 501 chars; 51 `conversation_ids`; 51 `creator_ids`; 501 `exclude_message_ids`; `''` inside each list; dates `2026-10-01T10:00:00`, `2026-10-01T10:00:00+0300`; `limit` 0, 51, 2.5; `workspace_id: ''`
+- [x] Accepts: dates ending `Z` and `-03:00`; 500-char query; 50 / 500 list entries; omitted optionals; `limit` absent stays absent (no default)
+- [x] Gate check passes: `npm run test:unit`
+- [x] Test count: 822 + new tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
