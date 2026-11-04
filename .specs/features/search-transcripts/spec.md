@@ -97,7 +97,7 @@ Single mode
 Calls
 
 6. **STT-06** WHEN `workspace_id` is omitted THEN the tool SHALL call `GET /simplified/workspaces/basic-info` once, and then make one `POST /search/transcripts` per workspace it returned (`personal` included), all started without waiting for each other, each with that workspace's `id` as `workspace_id` and the same other search arguments.
-7. **STT-07** WHEN `workspace_id` is omitted and `limit` is not given THEN each per-workspace request SHALL carry `limit: 10`; WHEN `limit` is given THEN each per-workspace request SHALL carry that value. In both cases the per-workspace value SHALL be lowered to `floor(100 / workspace count)` (never below 1) when that is smaller, so one fan-out returns at most 100 rows (PR #9 review).
+7. **STT-07** WHEN `workspace_id` is omitted and `limit` is not given THEN each per-workspace request SHALL carry `limit: 10`; WHEN `limit` is given THEN each per-workspace request SHALL carry that value. In both cases the per-workspace value SHALL be lowered to `floor(100 / workspace count)` (never below 1) when that is smaller, so one fan-out returns at most 100 rows, or one row per workspace past 100 workspaces (PR #9 review). The rows are never trimmed after the fact: that would drop whole workspaces with no entry in `skipped_workspaces`.
 8. **STT-08** WHEN the `basic-info` request fails THEN the tool SHALL return a tool error with that request's error code and SHALL make no `POST /search/transcripts` request.
 
 Grouped response
