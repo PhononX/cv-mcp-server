@@ -116,10 +116,11 @@ export const getCarbonVoiceAPI = () => {
     },
 
     /**
-     * `POST /v6/messages/by-ids` — up to 500 messages in one call, in request
-     * order. cv-api leaves out ids that do not exist or the caller cannot
-     * access, but its status filter is not guaranteed (soft-delete gap in the
-     * spec), so `get_messages` keeps only `active` ones.
+     * `POST /v6/messages/by-ids` — up to 500 messages in one call (the
+     * `get_messages` schema caps it at 100), in request order. cv-api leaves
+     * out ids that do not exist or the caller cannot access, but it does not
+     * filter by status (soft-delete gap in the spec), so `get_messages` drops
+     * `deleted`, `canceled` and `account-deleted` ones.
      */
     getMessagesByIds: async (
       body: GetMessagesParams,

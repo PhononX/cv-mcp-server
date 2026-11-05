@@ -262,7 +262,7 @@ describe('getCarbonVoiceAPI().getMessagesByIds', () => {
   const api = getCarbonVoiceAPI();
 
   it('should issue one POST /v6/messages/by-ids with the body and options, unredacted', async () => {
-    const body = { message_ids: ['m-1', 'm-2'], conversation_id: 'c-1' };
+    const body = { message_ids: ['m-1', 'm-2'], language: 'es' };
     const options: AxiosRequestConfig = {
       headers: { Authorization: 'Bearer tok' },
     };

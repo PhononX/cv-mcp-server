@@ -489,7 +489,8 @@ describe('tools/list payload budget', () => {
    *
    * Raised 75,000 -> 78,000 for `get_messages` (CV-14191, 2026-11-04): one
    * batch read replaces a `get_message` call per id after a search, so it
-   * pays for its ~2 KB in the first multi-hit answer. 75,895 bytes for 44.
+   * pays for its ~2 KB in the first multi-hit answer. 75,590 bytes for 44
+   * (`npm run mcp:size`, 2026-11-05, after dropping `conversation_id`).
    */
   const MAX_WIRE_BYTES = 78_000;
   const MAX_PER_TOOL_BYTES = 4_000;
@@ -925,34 +926,63 @@ describe('list_conversations name filter over the protocol', () => {
 describe('get_messages over the protocol', () => {
   beforeEach(() => getMessagesByIds.mockReset());
 
-  it('calls the documented example and lists a deleted id in missing_ids', async () => {
+  it('calls the documented example, narrows to the default fields and lists a deleted id in missing_ids', async () => {
     const { TOOL_DOCS } = require('../../src/docs');
     getMessagesByIds.mockResolvedValueOnce([
-      { id: 'msg-abc', status: 'active', content: { transcript: 'hi' } },
+      {
+        id: 'msg-abc',
+        status: 'active',
+        creator_id: 'u-1',
+        content: { transcript: 'hi', time_codes: [{ t: 0, w: 'hi' }] },
+        attachments: [],
+      },
       { id: 'msg-def', status: 'deleted', content: { transcript: 'gone' } },
     ]);
 
     const result = await client.callTool({
       name: 'get_messages',
-      arguments: {
-        ...TOOL_DOCS.get_messages.example,
-        response_fields: TOOL_DOCS.get_messages.recommendedFields,
-      },
+      arguments: TOOL_DOCS.get_messages.example,
     });
 
     expect((result as { isError?: boolean }).isError).toBeFalsy();
     expect(jsonOf(result as never)).toEqual({
-      results: [{ id: 'msg-abc', content: { transcript: 'hi' } }],
+      results: [
+        {
+          id: 'msg-abc',
+          status: 'active',
+          creator_id: 'u-1',
+          content: { transcript: 'hi' },
+        },
+      ],
       missing_ids: ['msg-def'],
     });
   });
 
-  it('rejects 501 ids at the protocol and calls nothing', async () => {
+  it('returns whole messages when response_fields asks for results', async () => {
+    const full = {
+      id: 'msg-abc',
+      status: 'processing',
+      content: { transcript: '', time_codes: [] },
+    };
+    getMessagesByIds.mockResolvedValueOnce([full]);
+
+    const result = await client.callTool({
+      name: 'get_messages',
+      arguments: { message_ids: ['msg-abc'], response_fields: ['results'] },
+    });
+
+    expect(jsonOf(result as never)).toEqual({
+      results: [full],
+      missing_ids: [],
+    });
+  });
+
+  it('rejects 101 ids at the protocol and calls nothing', async () => {
     await expect(
       client.callTool({
         name: 'get_messages',
         arguments: {
-          message_ids: Array.from({ length: 501 }, (_, i) => `m-${i}`),
+          message_ids: Array.from({ length: 101 }, (_, i) => `m-${i}`),
         },
       }),
     ).rejects.toThrow();

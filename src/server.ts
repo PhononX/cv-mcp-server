@@ -75,6 +75,8 @@ import {
   createActionItemBodyShape,
   createConversationMessageBodyShape,
   createVoicememoBodyShape,
+  GET_MESSAGES_DEFAULT_FIELDS,
+  GET_MESSAGES_GONE_STATUSES,
   getAiActionResponsesQueryShape,
   getFolderInputShape,
   getMessageShareLinkParamsShape,
@@ -109,6 +111,7 @@ import {
   logger,
   redactUrlForLog,
   searchTranscriptsInAllWorkspaces,
+  unexpectedResponseError,
   withAudioFetchPermit,
 } from './utils';
 
@@ -298,7 +301,11 @@ function registerCarbonVoiceTools(server: McpServer): void {
       description: renderToolDoc(TOOL_DOCS.get_messages),
       inputSchema: {
         ...getMessagesParams.shape,
-        ...responseFieldsShape,
+        // Own wording: the shared one says "omit for the full payload", but
+        // this tool narrows to GET_MESSAGES_DEFAULT_FIELDS when omitted.
+        response_fields: responseFieldsShape.response_fields.describe(
+          'Dot-path allowlist. Omit for the default fields in RETURNS; ["results"] for whole messages.',
+        ),
       },
       annotations: {
         readOnlyHint: true,
@@ -316,8 +323,12 @@ function registerCarbonVoiceTools(server: McpServer): void {
           args,
           setCarbonVoiceAuthHeader(authInfo?.token),
         );
-        // Only `active`: a deleted message must not be quoted back.
-        const results = messages.filter((m) => m.status === 'active');
+        if (!Array.isArray(messages)) {
+          throw unexpectedResponseError('get_messages');
+        }
+        const results = messages.filter(
+          (m) => !GET_MESSAGES_GONE_STATUSES.has(m.status),
+        );
         const returned = new Set(results.map((m) => m.id));
         const response: GetMessagesResponse = {
           results,
@@ -326,7 +337,7 @@ function registerCarbonVoiceTools(server: McpServer): void {
           ),
         };
         return formatToMCPToolResponse(response, {
-          responseFields: response_fields,
+          responseFields: response_fields ?? GET_MESSAGES_DEFAULT_FIELDS,
         });
       } catch (error) {
         logger.error('Error getting messages by ids:', { args, error });

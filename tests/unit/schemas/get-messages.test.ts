@@ -1,6 +1,6 @@
 /**
  * `get_messages` input bounds, enforced by the MCP SDK's zod validation
- * before the handler runs. They mirror cv-api `GetMessagesByIdsV5Payload`.
+ * before the handler runs. Why they differ from cv-api: see the schema JSDoc.
  */
 import { getMessagesParams } from '../../../src/schemas';
 
@@ -10,9 +10,8 @@ describe('getMessagesParams', () => {
   it.each([
     ['message_ids missing', {}],
     ['no message_ids', { message_ids: [] }],
-    ['501 message_ids', { message_ids: ids(501) }],
+    ['101 message_ids', { message_ids: ids(101) }],
     ["'' inside message_ids", { message_ids: ['a', ''] }],
-    ["conversation_id ''", { message_ids: ['a'], conversation_id: '' }],
     ["language ''", { message_ids: ['a'], language: '' }],
   ])('rejects %s', (_label, input) => {
     expect(getMessagesParams.safeParse(input).success).toBe(false);
@@ -20,14 +19,17 @@ describe('getMessagesParams', () => {
 
   it.each([
     ['1 id', { message_ids: ['a'] }],
-    ['500 ids', { message_ids: ids(500) }],
-    [
-      'every field',
-      { message_ids: ['a', 'b'], conversation_id: 'c-1', language: 'es' },
-    ],
+    ['100 ids', { message_ids: ids(100) }],
+    ['every field', { message_ids: ['a', 'b'], language: 'es' }],
   ])('accepts %s unchanged', (_label, input) => {
     const parsed = getMessagesParams.safeParse(input);
     expect(parsed.success).toBe(true);
     expect(parsed.data).toEqual(input);
+  });
+
+  it('has no conversation_id', () => {
+    expect(Object.keys(getMessagesParams.shape)).not.toContain(
+      'conversation_id',
+    );
   });
 });

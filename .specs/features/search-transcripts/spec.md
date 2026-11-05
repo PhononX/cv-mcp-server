@@ -20,7 +20,7 @@ An LLM agent using the Carbon Voice MCP can only find messages by metadata (noti
 | Feature | Reason |
 | --- | --- |
 | Any change to cv-api | Rule of this journey; endpoint gaps are recorded under Dependencies |
-| A batch `get_messages` tool (`POST /v6/messages/by-ids`) | Separate later feature of CV-14191 (cv-api context.md), with its own rule that a status other than `active` goes to `missing_ids` (cv-api context.md, soft-delete gap). This tool pointed to the existing `get_message` until `get_messages` shipped; its PR updated STT-20(g) to point to `get_messages` (`agent-task-chain.test.ts` forbids naming a tool before it exists) |
+| A batch `get_messages` tool (`POST /v6/messages/by-ids`) | Separate later feature of CV-14191 (cv-api context.md), with its own rule that a gone message goes to `missing_ids` (cv-api context.md, soft-delete gap); the `get_messages` PR narrowed "gone" to `deleted`, `canceled` and `account-deleted` (Frederico, 2026-11-05), so a message still `processing` comes back with its `status`. This tool pointed to the existing `get_message` until `get_messages` shipped; its PR updated STT-20(g) to point to `get_messages` (`agent-task-chain.test.ts` forbids naming a tool before it exists) |
 | One merged cross-workspace list sorted by score | Replaced by the grouped response (decided 2026-11-03, context.md) |
 | Asking the user through MCP elicitation | The agent asks the user; client support for elicitation varies and no tool here uses it |
 | Capping how many workspaces one fan-out call searches | Decided: no cap, documented cost instead (context.md) |

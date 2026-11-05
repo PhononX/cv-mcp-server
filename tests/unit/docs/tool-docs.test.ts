@@ -350,3 +350,30 @@ describe('search_transcripts doc', () => {
     expect(step).toContain('do not retry');
   });
 });
+
+describe('get_messages doc', () => {
+  const doc = TOOL_DOCS.get_messages;
+  const { GET_MESSAGES_DEFAULT_FIELDS } = require('../../../src/schemas');
+
+  it('states the 100-id limit', () => {
+    expect(doc.purpose).toContain('100');
+  });
+
+  // The server narrows by default, so a "pass response_fields" hint would
+  // tell the agent to do what already happens.
+  it('names every default field instead of recommending a projection', () => {
+    expect(doc.recommendedFields).toBeUndefined();
+    (GET_MESSAGES_DEFAULT_FIELDS as string[]).forEach((field) =>
+      expect(doc.responseShape).toContain(field.replace(/^results\./, '')),
+    );
+  });
+
+  it('takes message_ids from search_transcripts', () => {
+    expect(doc.prerequisites).toContainEqual(
+      expect.objectContaining({
+        field: 'message_ids',
+        fromTool: 'search_transcripts',
+      }),
+    );
+  });
+});

@@ -708,40 +708,29 @@ export const TOOL_DOCS: ToolDocRegistry = {
   },
 
   get_messages: {
-    purpose: 'Get up to 500 messages by ID in one call, in the order given.',
+    purpose: 'Get up to 100 messages by ID in one call, in the order given.',
     whenToUse:
       'You already have several message IDs (from `search_transcripts`, `search_message_ids`, ' +
       'an AI action) and need their transcripts. One call instead of one `get_message` per ID.',
     whenNotToUse:
       '`get_message` for one ID or to expand `conversation`/`creator`/`labels`; ' +
       '`list_messages` to browse a conversation without IDs.',
+    prerequisites: [
+      {
+        field: 'message_ids',
+        fromTool: 'search_transcripts',
+        fromField: 'results[].message_id, or workspaces[].results[].message_id',
+      },
+    ],
     example: { message_ids: ['msg-abc', 'msg-def'] },
+    // No `recommendedFields`: the server already narrows to these by default
+    // (GET_MESSAGES_DEFAULT_FIELDS), so a "pass response_fields" hint is noise.
     responseShape:
-      '`{results: [{id, conversation_id, workspace_id, creator_id, created_at, status, ' +
-      'content: {transcript, ai_summary, time_codes, duration_ms, ...}, attachments, ...}], missing_ids}`. ' +
-      '`missing_ids`: not found, no access, deleted, or still processing. ' +
-      'Retry one later only if that message was just created. ' +
-      '`content.time_codes` has one entry per word.',
-    recommendedFields: [
-      'results.id',
-      'results.conversation_id',
-      'results.creator_id',
-      'results.created_at',
-      'results.content.transcript',
-      'results.content.ai_summary',
-    ],
-    commonErrors: [
-      {
-        code: 'BAD_REQUEST',
-        meaning: 'Empty or over 500 `message_ids`',
-        nextAction: 'send 1-500 ids per call.',
-      },
-      {
-        code: 'FORBIDDEN',
-        meaning: 'No access to `conversation_id`',
-        nextAction: 'retry without `conversation_id`.',
-      },
-    ],
+      'By default `{results: [{id, conversation_id, creator_id, created_at, status, ' +
+      'content.transcript, content.ai_summary}], missing_ids}`; `response_fields: ["results"]` ' +
+      'for whole messages (`content.time_codes` has one entry per word). ' +
+      '`status` not `active` (e.g. `processing`): not ready, call again later. ' +
+      '`missing_ids`: not found, no access, or deleted; do not retry them.',
   },
 
   get_recent_messages: {

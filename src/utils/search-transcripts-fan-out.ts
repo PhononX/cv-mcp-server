@@ -69,22 +69,26 @@ export function describeFailure(error: unknown): {
 }
 
 /**
- * A 200 whose body has no `results` array (cv-api version skew, a proxy
- * page) fails only its own workspace, as an envelope like any other failure.
+ * The envelope thrown for a 200 whose body is not the expected shape (cv-api
+ * version skew, a proxy page), so it is handled like any other API failure
+ * rather than surfacing as a TypeError.
  */
+export const unexpectedResponseError = (what: string) => ({
+  statusCode: 0,
+  body: {
+    error: {
+      code: 'UNKNOWN_ERROR',
+      message: `Unexpected ${what} response from the API`,
+    },
+  },
+});
+
+/** A search 200 without a `results` array fails only its own workspace. */
 const assertSearchResponse = (
   response: TranscriptSearchResponse,
 ): TranscriptSearchResponse => {
   if (Array.isArray(response?.results)) return response;
-  throw {
-    statusCode: 0,
-    body: {
-      error: {
-        code: 'UNKNOWN_ERROR',
-        message: 'Unexpected search response from the API',
-      },
-    },
-  };
+  throw unexpectedResponseError('search');
 };
 
 const isForbidden = (error: unknown) =>

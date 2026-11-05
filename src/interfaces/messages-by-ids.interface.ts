@@ -9,8 +9,8 @@ export interface MessageV6 {
 }
 
 export interface GetMessagesResponse {
-  /** `active` messages, in request order. */
+  /** Messages that exist (any status but a gone one), in request order. */
   results: MessageV6[];
-  /** Requested ids not in `results`: unknown, not accessible, or not `active`. */
+  /** Requested ids not in `results`: unknown, not accessible, or gone. */
   missing_ids: string[];
 }

@@ -99,6 +99,9 @@ jest.mock('../../../src/utils', () => ({
   describeFailure: jest.requireActual(
     '../../../src/utils/search-transcripts-fan-out',
   ).describeFailure,
+  unexpectedResponseError: jest.requireActual(
+    '../../../src/utils/search-transcripts-fan-out',
+  ).unexpectedResponseError,
   logger: {
     error: jest.fn(),
     info: jest.fn(),
@@ -273,6 +276,9 @@ describe('MCP Server', () => {
           .searchTranscriptsInAllWorkspaces,
       describeFailure: require('../../../src/utils/search-transcripts-fan-out')
         .describeFailure,
+      unexpectedResponseError:
+        require('../../../src/utils/search-transcripts-fan-out')
+          .unexpectedResponseError,
       logger: mockLogger,
     }));
 
@@ -2997,11 +3003,7 @@ describe('MCP Server', () => {
           message('m-1'),
           message('m-3'),
         ]);
-        const args = {
-          message_ids: ['m-1', 'm-2', 'm-3'],
-          conversation_id: 'c-1',
-          language: 'es',
-        };
+        const args = { message_ids: ['m-1', 'm-2', 'm-3'], language: 'es' };
 
         await handler()(
           { ...args, response_fields: ['results.id'] },
@@ -3015,18 +3017,39 @@ describe('MCP Server', () => {
         );
       });
 
-      it('moves every non-active message to missing_ids, in request order', async () => {
+      it('moves deleted, canceled and account-deleted messages to missing_ids, in request order', async () => {
         cvApiMock.getMessagesByIds.mockResolvedValueOnce([
           message('m-1', 'deleted'),
           message('m-2'),
-          message('m-3', 'processing'),
+          message('m-3', 'canceled'),
+          message('m-4', 'account-deleted'),
         ]);
 
-        await handler()({ message_ids: ['m-1', 'm-2', 'm-3'] }, mockContext);
+        await handler()(
+          { message_ids: ['m-1', 'm-2', 'm-3', 'm-4'] },
+          mockContext,
+        );
 
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
-          { results: [message('m-2')], missing_ids: ['m-1', 'm-3'] },
-          { responseFields: undefined },
+          {
+            results: [message('m-2')],
+            missing_ids: ['m-1', 'm-3', 'm-4'],
+          },
+          expect.anything(),
+        );
+      });
+
+      it('keeps a message that is not ready yet in results, with its status', async () => {
+        const notReady = ['processing', 'scheduled', 'failed'].map((s, i) =>
+          message(`m-${i}`, s),
+        );
+        cvApiMock.getMessagesByIds.mockResolvedValueOnce(notReady);
+
+        await handler()({ message_ids: ['m-0', 'm-1', 'm-2'] }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          { results: notReady, missing_ids: [] },
+          expect.anything(),
         );
       });
 
@@ -3037,7 +3060,32 @@ describe('MCP Server', () => {
 
         expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
           { results: [], missing_ids: ['m-9'] },
-          { responseFields: undefined },
+          expect.anything(),
+        );
+      });
+
+      it('narrows to the default fields when response_fields is omitted', async () => {
+        const { GET_MESSAGES_DEFAULT_FIELDS } = require('../../../src/schemas');
+
+        await handler()({ message_ids: ['m-1'] }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.anything(),
+          { responseFields: GET_MESSAGES_DEFAULT_FIELDS },
+        );
+      });
+
+      it('returns an UNKNOWN_ERROR tool error when cv-api does not answer with an array', async () => {
+        cvApiMock.getMessagesByIds.mockResolvedValueOnce({ data: [] });
+
+        await handler()({ message_ids: ['m-1'] }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            statusCode: 0,
+            body: { error: expect.objectContaining({ code: 'UNKNOWN_ERROR' }) },
+          },
+          { isError: true, tool: 'get_messages' },
         );
       });
     });
