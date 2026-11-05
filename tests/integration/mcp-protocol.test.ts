@@ -90,6 +90,7 @@ const createActionItemSuggestionsFromMessage = jest.fn();
 const getAllConversations = jest.fn();
 const getAllWorkspacesWithBasicInfo = jest.fn();
 const searchTranscripts = jest.fn();
+const getMessagesByIds = jest.fn();
 
 jest.mock('../../src/generated', () => {
   const explicit: Record<string, unknown> = {};
@@ -127,6 +128,7 @@ jest.mock('../../src/cv-api', () => ({
       .mockResolvedValue({ results: [], total_results: 0, total_unread: 0 }),
     createActionItemSuggestionsFromMessage,
     searchTranscripts,
+    getMessagesByIds,
   }),
   getCarbonVoiceApiStatus: jest.fn(),
 }));
@@ -484,8 +486,13 @@ describe('tools/list payload budget', () => {
    * Raised 72,000 -> 75,000 for `search_transcripts` (design DD-1 option A,
    * 2026-11-03, `.specs/features/search-transcripts/design.md`): 70,023 bytes
    * for 42 tools before it, 73,494 bytes for 43 after (measured 2026-11-04).
+   *
+   * Raised 75,000 -> 78,000 for `get_messages` (CV-14191, 2026-11-04): one
+   * batch read replaces a `get_message` call per id after a search, so it
+   * pays for its ~2 KB in the first multi-hit answer. 75,590 bytes for 44
+   * (`npm run mcp:size`, 2026-11-05, after dropping `conversation_id`).
    */
-  const MAX_WIRE_BYTES = 75_000;
+  const MAX_WIRE_BYTES = 78_000;
   const MAX_PER_TOOL_BYTES = 4_000;
 
   const wire = (v: unknown) => Buffer.byteLength(JSON.stringify(v), 'utf8');
@@ -909,6 +916,77 @@ describe('list_conversations name filter over the protocol', () => {
     expect(body.results).toEqual([]);
     expect(body.results_count).toBe(0);
     expect(body.unfiltered_count).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// get_messages over the protocol
+// ---------------------------------------------------------------------------
+
+describe('get_messages over the protocol', () => {
+  beforeEach(() => getMessagesByIds.mockReset());
+
+  it('calls the documented example, narrows to the default fields and lists a deleted id in missing_ids', async () => {
+    const { TOOL_DOCS } = require('../../src/docs');
+    getMessagesByIds.mockResolvedValueOnce([
+      {
+        id: 'msg-abc',
+        status: 'active',
+        creator_id: 'u-1',
+        content: { transcript: 'hi', time_codes: [{ t: 0, w: 'hi' }] },
+        attachments: [],
+      },
+      { id: 'msg-def', status: 'deleted', content: { transcript: 'gone' } },
+    ]);
+
+    const result = await client.callTool({
+      name: 'get_messages',
+      arguments: TOOL_DOCS.get_messages.example,
+    });
+
+    expect((result as { isError?: boolean }).isError).toBeFalsy();
+    expect(jsonOf(result as never)).toEqual({
+      results: [
+        {
+          id: 'msg-abc',
+          status: 'active',
+          creator_id: 'u-1',
+          content: { transcript: 'hi' },
+        },
+      ],
+      missing_ids: ['msg-def'],
+    });
+  });
+
+  it('returns whole messages when response_fields asks for results', async () => {
+    const full = {
+      id: 'msg-abc',
+      status: 'processing',
+      content: { transcript: '', time_codes: [] },
+    };
+    getMessagesByIds.mockResolvedValueOnce([full]);
+
+    const result = await client.callTool({
+      name: 'get_messages',
+      arguments: { message_ids: ['msg-abc'], response_fields: ['results'] },
+    });
+
+    expect(jsonOf(result as never)).toEqual({
+      results: [full],
+      missing_ids: [],
+    });
+  });
+
+  it('rejects 101 ids at the protocol and calls nothing', async () => {
+    await expect(
+      client.callTool({
+        name: 'get_messages',
+        arguments: {
+          message_ids: Array.from({ length: 101 }, (_, i) => `m-${i}`),
+        },
+      }),
+    ).rejects.toThrow();
+    expect(getMessagesByIds).not.toHaveBeenCalled();
   });
 });
 

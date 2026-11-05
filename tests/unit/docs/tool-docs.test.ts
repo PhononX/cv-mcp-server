@@ -280,10 +280,9 @@ describe('search_transcripts doc', () => {
     ['e: scope_capped means narrow', '`scope_capped` true: narrow'],
     ['f: half-open date window', '[start_date, end_date)'],
     ['f: both dates need an offset', 'offset'],
-    ['g: get_message for the full message', '`get_message`'],
     [
-      'g: matched_chunk usually already holds the transcript',
-      '`matched_chunk` is usually the whole transcript; `get_message` (`id` = `message_id`) only for more',
+      'g: matched_chunk usually holds the transcript; get_messages for more',
+      '`matched_chunk` is usually the whole transcript; for more, `get_messages` with the `message_id`s',
     ],
     [
       'i: a person goes in creator_ids, not in query',
@@ -349,5 +348,32 @@ describe('search_transcripts doc', () => {
       (e) => e.code === 'NOT_FOUND',
     )?.nextAction;
     expect(step).toContain('do not retry');
+  });
+});
+
+describe('get_messages doc', () => {
+  const doc = TOOL_DOCS.get_messages;
+  const { GET_MESSAGES_DEFAULT_FIELDS } = require('../../../src/schemas');
+
+  it('states the 100-id limit', () => {
+    expect(doc.purpose).toContain('100');
+  });
+
+  // The server narrows by default, so a "pass response_fields" hint would
+  // tell the agent to do what already happens.
+  it('names every default field instead of recommending a projection', () => {
+    expect(doc.recommendedFields).toBeUndefined();
+    (GET_MESSAGES_DEFAULT_FIELDS as string[]).forEach((field) =>
+      expect(doc.responseShape).toContain(field.replace(/^results\./, '')),
+    );
+  });
+
+  it('takes message_ids from search_transcripts', () => {
+    expect(doc.prerequisites).toContainEqual(
+      expect.objectContaining({
+        field: 'message_ids',
+        fromTool: 'search_transcripts',
+      }),
+    );
   });
 });

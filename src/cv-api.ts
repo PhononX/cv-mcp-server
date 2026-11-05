@@ -2,12 +2,14 @@ import { AxiosRequestConfig } from 'axios';
 
 import { env } from './config';
 import {
+  MessageV6,
   TranscriptSearchBody,
   TranscriptSearchResponse,
   UserInfo,
   WorkspaceRole,
 } from './interfaces';
 import {
+  GetMessagesParams,
   ListInboxNotificationsParams,
   SearchMessageIdsParams,
   SearchMessagesByHeardStatusParams,
@@ -110,6 +112,23 @@ export const getCarbonVoiceAPI = () => {
       return mutator(
         { url: '/search/transcripts', method: 'POST', data: body },
         { ...options, redactLogContent: true },
+      );
+    },
+
+    /**
+     * `POST /v6/messages/by-ids` — up to 500 messages in one call (the
+     * `get_messages` schema caps it at 100), in request order. cv-api leaves
+     * out ids that do not exist or the caller cannot access, but it does not
+     * filter by status (soft-delete gap in the spec), so `get_messages` drops
+     * `deleted`, `canceled` and `account-deleted` ones.
+     */
+    getMessagesByIds: async (
+      body: GetMessagesParams,
+      options?: AxiosRequestConfig,
+    ): Promise<MessageV6[]> => {
+      return mutator(
+        { url: '/v6/messages/by-ids', method: 'POST', data: body },
+        options,
       );
     },
 

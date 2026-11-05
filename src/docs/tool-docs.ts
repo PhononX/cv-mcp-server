@@ -578,7 +578,7 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`scope_capped` true: narrow by `conversation_ids` or dates. ' +
       'Window `[start_date, end_date)`, both with an offset. ' +
       '`conversation_id: null` = your voice memo. ' +
-      '`matched_chunk` is usually the whole transcript; `get_message` (`id` = `message_id`) only for more.',
+      '`matched_chunk` is usually the whole transcript; for more, `get_messages` with the `message_id`s.',
     commonErrors: [
       {
         code: 'BAD_REQUEST',
@@ -696,7 +696,8 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`response_fields` to narrow.',
     whenNotToUse:
       '`list_messages` when you do not have an ID, or need several messages — ' +
-      'it already returns full bodies, so fetching each one again is wasted.',
+      'it already returns full bodies, so fetching each one again is wasted. ' +
+      '`get_messages` for several known IDs in one call.',
     prerequisites: [
       { field: 'id', fromTool: 'list_messages', fromField: 'results[].id' },
     ],
@@ -704,6 +705,32 @@ export const TOOL_DOCS: ToolDocRegistry = {
     responseShape:
       '`{message: {id, transcript?, ai_summary?, audio_url?, creator_id, ' +
       'duration_ms, status, type, attachments?, created_at, ...}}`.',
+  },
+
+  get_messages: {
+    purpose: 'Get up to 100 messages by ID in one call, in the order given.',
+    whenToUse:
+      'You already have several message IDs (from `search_transcripts`, `search_message_ids`, ' +
+      'an AI action) and need their transcripts. One call instead of one `get_message` per ID.',
+    whenNotToUse:
+      '`get_message` for one ID or to expand `conversation`/`creator`/`labels`; ' +
+      '`list_messages` to browse a conversation without IDs.',
+    prerequisites: [
+      {
+        field: 'message_ids',
+        fromTool: 'search_transcripts',
+        fromField: 'results[].message_id, or workspaces[].results[].message_id',
+      },
+    ],
+    example: { message_ids: ['msg-abc', 'msg-def'] },
+    // No `recommendedFields`: the server already narrows to these by default
+    // (GET_MESSAGES_DEFAULT_FIELDS), so a "pass response_fields" hint is noise.
+    responseShape:
+      'By default `{results: [{id, conversation_id, creator_id, created_at, status, ' +
+      'content.transcript, content.ai_summary}], missing_ids}`; `response_fields: ["results"]` ' +
+      'for whole messages (`content.time_codes` has one entry per word). ' +
+      '`status` not `active` (e.g. `processing`): not ready, call again later. ' +
+      '`missing_ids`: not found, no access, or deleted; do not retry them.',
   },
 
   get_recent_messages: {

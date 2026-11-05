@@ -65,6 +65,7 @@ import {
   GetByIdParams,
   GetFolderInput,
   GetMessageInput,
+  GetMessagesResponse,
   McpToolResponse,
   MoveFolderInput,
   UpdateFolderNameInput,
@@ -74,9 +75,13 @@ import {
   createActionItemBodyShape,
   createConversationMessageBodyShape,
   createVoicememoBodyShape,
+  GET_MESSAGES_DEFAULT_FIELDS,
+  GET_MESSAGES_GONE_STATUSES,
   getAiActionResponsesQueryShape,
   getFolderInputShape,
   getMessageShareLinkParamsShape,
+  GetMessagesParams,
+  getMessagesParams,
   listAiActionsQueryShape,
   ListInboxNotificationsParams,
   listInboxNotificationsParams,
@@ -106,6 +111,7 @@ import {
   logger,
   redactUrlForLog,
   searchTranscriptsInAllWorkspaces,
+  unexpectedResponseError,
   withAudioFetchPermit,
 } from './utils';
 
@@ -284,6 +290,60 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'get_message',
+        });
+      }
+    },
+  );
+
+  server.registerTool(
+    'get_messages',
+    {
+      description: renderToolDoc(TOOL_DOCS.get_messages),
+      inputSchema: {
+        ...getMessagesParams.shape,
+        // Own wording: the shared one says "omit for the full payload", but
+        // this tool narrows to GET_MESSAGES_DEFAULT_FIELDS when omitted.
+        response_fields: responseFieldsShape.response_fields.describe(
+          'Dot-path allowlist. Omit for the default fields in RETURNS; ["results"] for whole messages.',
+        ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (
+      input: GetMessagesParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, ...args } = input;
+      try {
+        const messages = await cvApi.getMessagesByIds(
+          args,
+          setCarbonVoiceAuthHeader(authInfo?.token),
+        );
+        if (!Array.isArray(messages)) {
+          throw unexpectedResponseError('get_messages');
+        }
+        const results = messages.filter(
+          (m) => !GET_MESSAGES_GONE_STATUSES.has(m.status),
+        );
+        const returned = new Set(results.map((m) => m.id));
+        const response: GetMessagesResponse = {
+          results,
+          missing_ids: [...new Set(args.message_ids)].filter(
+            (id) => !returned.has(id),
+          ),
+        };
+        return formatToMCPToolResponse(response, {
+          responseFields: response_fields ?? GET_MESSAGES_DEFAULT_FIELDS,
+        });
+      } catch (error) {
+        logger.error('Error getting messages by ids:', { args, error });
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_messages',
         });
       }
     },
