@@ -5,3 +5,4 @@ export * from './folder.interface';
 export * from './user-info.interface';
 export * from './transcript-search.interface';
 export * from './messages-by-ids.interface';
+export * from './message-interactions.interface';

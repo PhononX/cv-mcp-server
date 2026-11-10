@@ -69,16 +69,20 @@ import {
   McpToolResponse,
   MoveFolderInput,
   UpdateFolderNameInput,
+  UserInfo,
 } from './interfaces';
 import { SummarizeConversationParams } from './interfaces/conversation.interface';
 import {
   createActionItemBodyShape,
   createConversationMessageBodyShape,
   createVoicememoBodyShape,
+  GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS,
   GET_MESSAGES_DEFAULT_FIELDS,
   GET_MESSAGES_GONE_STATUSES,
   getAiActionResponsesQueryShape,
   getFolderInputShape,
+  GetMessageInteractionsParams,
+  getMessageInteractionsParams,
   getMessageShareLinkParamsShape,
   GetMessagesParams,
   getMessagesParams,
@@ -111,6 +115,7 @@ import {
   logger,
   redactUrlForLog,
   searchTranscriptsInAllWorkspaces,
+  toMessageInteractionsResponse,
   unexpectedResponseError,
   withAudioFetchPermit,
 } from './utils';
@@ -2127,6 +2132,78 @@ function registerCarbonVoiceTools(server: McpServer): void {
         return formatToMCPToolResponse(error, {
           isError: true,
           tool: 'search_transcripts',
+        });
+      }
+    },
+  );
+
+  // `GET /v6/message/:message_id/interactions`: who listened, how much, who
+  // still has it unread and who reacted. Names come from one `POST /contacts`
+  // for the whole audience, so "who" needs no `get_user` call per row.
+  server.registerTool(
+    'get_message_interactions',
+    {
+      description: renderToolDoc(TOOL_DOCS.get_message_interactions),
+      inputSchema: {
+        ...getMessageInteractionsParams.shape,
+        // Own wording: this tool narrows to
+        // GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS when omitted.
+        response_fields: responseFieldsShape.response_fields.describe(
+          'Dot-path allowlist. Omit for the default fields in RETURNS; ["message", "interactions"] for the whole message.',
+        ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (
+      input: GetMessageInteractionsParams & { response_fields?: string[] },
+      { authInfo },
+    ): Promise<McpToolResponse> => {
+      const { response_fields, message_id } = input;
+      const auth = setCarbonVoiceAuthHeader(authInfo?.token);
+      try {
+        const data = await cvApi.getMessageInteractions(message_id, auth);
+        if (!data?.message || !Array.isArray(data.interactions)) {
+          throw unexpectedResponseError('get_message_interactions');
+        }
+        const userIds = [
+          ...new Set(
+            data.interactions
+              .map((i) => i.user_id)
+              .filter((id) => id !== data.message.creator_id),
+          ),
+        ];
+        let contacts: UserInfo[] = [];
+        if (userIds.length > 0) {
+          try {
+            contacts = await cvApi.getContacts(userIds, auth);
+          } catch (error) {
+            // Names are a convenience: the rows still answer "how much" by
+            // user_id, so a failed lookup must not fail the call.
+            logger.warn('Could not resolve interaction user names', {
+              tool: 'get_message_interactions',
+              error,
+            });
+          }
+        }
+        return formatToMCPToolResponse(
+          toMessageInteractionsResponse(data, contacts),
+          {
+            responseFields:
+              response_fields ?? GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS,
+          },
+        );
+      } catch (error) {
+        logger.error('Error getting message interactions:', {
+          message_id,
+          error,
+        });
+        return formatToMCPToolResponse(error, {
+          isError: true,
+          tool: 'get_message_interactions',
         });
       }
     },

@@ -91,6 +91,7 @@ const getAllConversations = jest.fn();
 const getAllWorkspacesWithBasicInfo = jest.fn();
 const searchTranscripts = jest.fn();
 const getMessagesByIds = jest.fn();
+const getMessageInteractions = jest.fn();
 
 jest.mock('../../src/generated', () => {
   const explicit: Record<string, unknown> = {};
@@ -129,6 +130,7 @@ jest.mock('../../src/cv-api', () => ({
     createActionItemSuggestionsFromMessage,
     searchTranscripts,
     getMessagesByIds,
+    getMessageInteractions,
   }),
   getCarbonVoiceApiStatus: jest.fn(),
 }));
@@ -491,6 +493,9 @@ describe('tools/list payload budget', () => {
    * batch read replaces a `get_message` call per id after a search, so it
    * pays for its ~2 KB in the first multi-hit answer. 75,590 bytes for 44
    * (`npm run mcp:size`, 2026-11-05, after dropping `conversation_id`).
+   *
+   * `get_message_interactions` (2026-11-10) fits without a raise: 77,324
+   * bytes for 45. The next tool will need one.
    */
   const MAX_WIRE_BYTES = 78_000;
   const MAX_PER_TOOL_BYTES = 4_000;
@@ -987,6 +992,84 @@ describe('get_messages over the protocol', () => {
       }),
     ).rejects.toThrow();
     expect(getMessagesByIds).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// get_message_interactions over the protocol
+// ---------------------------------------------------------------------------
+
+describe('get_message_interactions over the protocol', () => {
+  beforeEach(() => getMessageInteractions.mockReset());
+
+  it('calls the documented example and narrows the v6 message to the default fields', async () => {
+    const { TOOL_DOCS } = require('../../src/docs');
+    getMessageInteractions.mockResolvedValueOnce({
+      message: {
+        id: 'msg-abc',
+        status: 'active',
+        conversation_id: 'conv-1',
+        creator_id: 'u-creator',
+        created_at: '2026-11-01T10:00:00.000Z',
+        users_caught_up: 'some',
+        content: {
+          duration_ms: 8_000,
+          transcript: 'hi',
+          time_codes: [{ t: 0, w: 'hi' }],
+        },
+      },
+      interactions: [
+        {
+          user_id: 'u-creator',
+          heard_ms: 8_000,
+          is_notified: false,
+          reaction_ids: [],
+        },
+        {
+          user_id: 'u-1',
+          heard_ms: 2_000,
+          is_notified: true,
+          reaction_ids: [],
+        },
+      ],
+    });
+
+    const result = await client.callTool({
+      name: 'get_message_interactions',
+      arguments: TOOL_DOCS.get_message_interactions.example,
+    });
+
+    expect((result as { isError?: boolean }).isError).toBeFalsy();
+    expect(getMessageInteractions).toHaveBeenCalledWith(
+      'msg-abc',
+      expect.anything(),
+    );
+    expect(jsonOf(result as never)).toEqual({
+      message: {
+        id: 'msg-abc',
+        conversation_id: 'conv-1',
+        creator_id: 'u-creator',
+        created_at: '2026-11-01T10:00:00.000Z',
+        users_caught_up: 'some',
+        content: { duration_ms: 8_000 },
+      },
+      interactions: [
+        {
+          user_id: 'u-1',
+          heard_ms: 2_000,
+          heard_percent: 25,
+          is_notified: true,
+          reaction_ids: [],
+        },
+      ],
+    });
+  });
+
+  it('rejects a call without message_id at the protocol and calls nothing', async () => {
+    await expect(
+      client.callTool({ name: 'get_message_interactions', arguments: {} }),
+    ).rejects.toThrow();
+    expect(getMessageInteractions).not.toHaveBeenCalled();
   });
 });
 

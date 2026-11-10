@@ -62,6 +62,7 @@ export const TOOL_NAMES = [
   'list_inbox_notifications',
   // Appended last: keeps every existing tool's position in the cached prefix.
   'search_transcripts',
+  'get_message_interactions',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

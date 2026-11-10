@@ -733,6 +733,45 @@ export const TOOL_DOCS: ToolDocRegistry = {
       '`missing_ids`: not found, no access, or deleted; do not retry them.',
   },
 
+  get_message_interactions: {
+    purpose:
+      'Who listened to a message and how much, who still has it unread, and who reacted.',
+    whenToUse:
+      'You have a message ID and need per-person engagement: "who heard my message", ' +
+      '"did X listen to the end", "who has not caught up".',
+    whenNotToUse:
+      '`search_messages_by_heard_status` for YOUR OWN unheard messages across conversations; ' +
+      '`get_message` for the message content.',
+    prerequisites: [
+      {
+        field: 'message_id',
+        fromTool: 'list_messages',
+        fromField: 'results[].id',
+      },
+    ],
+    example: { message_id: 'msg-abc' },
+    // No `recommendedFields`: the server already narrows the message by default.
+    responseShape:
+      '`{message: {id, conversation_id, creator_id, created_at, users_caught_up, content.duration_ms}, ' +
+      'interactions: [{user_id, name?, heard_ms, heard_percent, is_notified, reaction_ids}]}`. ' +
+      'One row per conversation member except the creator; `heard_ms: 0` = never played. ' +
+      '`heard_percent` is null for a text message. `is_notified: true` = still unread. ' +
+      'Outside a conversation, rows exist only for your own messages.',
+    commonErrors: [
+      {
+        code: 'NOT_FOUND',
+        meaning: 'No message with this ID.',
+        nextAction:
+          'Get a valid ID from `list_messages`; do not retry this one.',
+      },
+      {
+        code: 'FORBIDDEN',
+        meaning: 'You cannot see this message.',
+        nextAction: 'Do not retry; tell the user you have no access to it.',
+      },
+    ],
+  },
+
   get_recent_messages: {
     purpose:
       'Get up to 10 of the most recent messages, each with its conversation, creator and labels.',

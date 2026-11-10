@@ -30,6 +30,7 @@ jest.mock('../../../src/cv-api', () => {
     listInboxNotifications: jest.fn(),
     searchTranscripts: jest.fn(),
     getMessagesByIds: jest.fn(),
+    getMessageInteractions: jest.fn(),
   };
   return {
     getCarbonVoiceAPI: jest.fn(() => cvApiMock),
@@ -102,6 +103,9 @@ jest.mock('../../../src/utils', () => ({
   unexpectedResponseError: jest.requireActual(
     '../../../src/utils/search-transcripts-fan-out',
   ).unexpectedResponseError,
+  toMessageInteractionsResponse: jest.requireActual(
+    '../../../src/utils/message-interactions',
+  ).toMessageInteractionsResponse,
   logger: {
     error: jest.fn(),
     info: jest.fn(),
@@ -139,6 +143,10 @@ describe('MCP Server', () => {
       .fn()
       .mockResolvedValue({ results: [], scope_capped: false }),
     getMessagesByIds: jest.fn().mockResolvedValue([]),
+    getMessageInteractions: jest.fn().mockResolvedValue({
+      message: { id: 'm-1', status: 'active', creator_id: 'creator' },
+      interactions: [],
+    }),
   };
 
   const mockGetCarbonVoiceAPI = jest.fn().mockReturnValue(cvApiMock);
@@ -279,6 +287,9 @@ describe('MCP Server', () => {
       unexpectedResponseError:
         require('../../../src/utils/search-transcripts-fan-out')
           .unexpectedResponseError,
+      toMessageInteractionsResponse:
+        require('../../../src/utils/message-interactions')
+          .toMessageInteractionsResponse,
       logger: mockLogger,
     }));
 
@@ -376,6 +387,7 @@ describe('MCP Server', () => {
       'search_messages_by_heard_status',
       'list_inbox_notifications',
       'search_transcripts',
+      'get_message_interactions',
     ];
 
     it.each(PROJECTED_TOOLS)('%s exposes response_fields', (tool) => {
@@ -488,6 +500,12 @@ describe('MCP Server', () => {
         { query: 'q', workspace_id: 'ws-1' },
       ],
       ['get_messages', 'cv', 'getMessagesByIds', { message_ids: ['m-1'] }],
+      [
+        'get_message_interactions',
+        'cv',
+        'getMessageInteractions',
+        { message_id: 'm-1' },
+      ],
     ];
 
     it.each(cases)(
@@ -3086,6 +3104,171 @@ describe('MCP Server', () => {
             body: { error: expect.objectContaining({ code: 'UNKNOWN_ERROR' }) },
           },
           { isError: true, tool: 'get_messages' },
+        );
+      });
+    });
+
+    describe('get_message_interactions tool', () => {
+      const findCall = (name: string) =>
+        mockRegisterTool.mock.calls.find((c: any) => c[0] === name);
+      const handler = () => findCall('get_message_interactions')[2];
+      const auth = { headers: { Authorization: 'Bearer test-token' } };
+      const message = {
+        id: 'm-1',
+        status: 'active',
+        creator_id: 'creator',
+        content: { duration_ms: 20_000 },
+      };
+      const row = (user_id: string, heard_ms: number, is_notified = false) => ({
+        user_id,
+        heard_ms,
+        is_notified,
+        reaction_ids: [],
+      });
+
+      it('registers the description rendered from TOOL_DOCS.get_message_interactions', () => {
+        const { renderToolDoc, TOOL_DOCS } = require('../../../src/docs');
+
+        expect(findCall('get_message_interactions')[1].description).toBe(
+          renderToolDoc(TOOL_DOCS.get_message_interactions),
+        );
+      });
+
+      it('registers the schema shape plus response_fields, read-only and closed', () => {
+        const {
+          getMessageInteractionsParams,
+        } = require('../../../src/schemas');
+        const [, config] = findCall('get_message_interactions');
+
+        expect(Object.keys(config.inputSchema)).toEqual([
+          ...Object.keys(getMessageInteractionsParams.shape),
+          'response_fields',
+        ]);
+        expect(config.annotations).toEqual({
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        });
+      });
+
+      it('calls the v6 endpoint, names the audience in one contacts call and drops the creator', async () => {
+        cvApiMock.getMessageInteractions.mockResolvedValueOnce({
+          message,
+          interactions: [
+            row('creator', 20_000),
+            row('u-1', 5_000),
+            row('u-2', 0, true),
+          ],
+        });
+        cvApiMock.getContacts.mockResolvedValueOnce([
+          { id: 'u-1', first_name: 'Ada', last_name: 'Lovelace' },
+        ]);
+
+        await handler()(
+          { message_id: 'm-1', response_fields: ['interactions'] },
+          mockContext,
+        );
+
+        expect(cvApiMock.getMessageInteractions).toHaveBeenCalledWith(
+          'm-1',
+          auth,
+        );
+        expect(cvApiMock.getContacts).toHaveBeenCalledTimes(1);
+        expect(cvApiMock.getContacts).toHaveBeenCalledWith(
+          ['u-1', 'u-2'],
+          auth,
+        );
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            message,
+            interactions: [
+              {
+                user_id: 'u-1',
+                name: 'Ada Lovelace',
+                heard_ms: 5_000,
+                heard_percent: 25,
+                is_notified: false,
+                reaction_ids: [],
+              },
+              {
+                user_id: 'u-2',
+                heard_ms: 0,
+                heard_percent: 0,
+                is_notified: true,
+                reaction_ids: [],
+              },
+            ],
+          },
+          { responseFields: ['interactions'] },
+        );
+      });
+
+      it('still answers, without names, when the contacts lookup fails', async () => {
+        cvApiMock.getMessageInteractions.mockResolvedValueOnce({
+          message,
+          interactions: [row('u-1', 20_000)],
+        });
+        cvApiMock.getContacts.mockRejectedValueOnce(new Error('contacts down'));
+
+        await handler()({ message_id: 'm-1' }, mockContext);
+
+        expect(mockLogger.warn).toHaveBeenCalled();
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            message,
+            interactions: [
+              {
+                user_id: 'u-1',
+                heard_ms: 20_000,
+                heard_percent: 100,
+                is_notified: false,
+                reaction_ids: [],
+              },
+            ],
+          },
+          expect.anything(),
+        );
+      });
+
+      it('skips the contacts call when only the creator has a row', async () => {
+        cvApiMock.getMessageInteractions.mockResolvedValueOnce({
+          message,
+          interactions: [row('creator', 20_000)],
+        });
+
+        await handler()({ message_id: 'm-1' }, mockContext);
+
+        expect(cvApiMock.getContacts).not.toHaveBeenCalled();
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          { message, interactions: [] },
+          expect.anything(),
+        );
+      });
+
+      it('narrows to the default fields when response_fields is omitted', async () => {
+        const {
+          GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS,
+        } = require('../../../src/schemas');
+
+        await handler()({ message_id: 'm-1' }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.anything(),
+          { responseFields: GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS },
+        );
+      });
+
+      it('returns an UNKNOWN_ERROR tool error when cv-api answers without interactions', async () => {
+        cvApiMock.getMessageInteractions.mockResolvedValueOnce({ message });
+
+        await handler()({ message_id: 'm-1' }, mockContext);
+
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          {
+            statusCode: 0,
+            body: { error: expect.objectContaining({ code: 'UNKNOWN_ERROR' }) },
+          },
+          { isError: true, tool: 'get_message_interactions' },
         );
       });
     });

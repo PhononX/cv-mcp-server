@@ -278,3 +278,39 @@ describe('getCarbonVoiceAPI().getMessagesByIds', () => {
     );
   });
 });
+
+describe('getCarbonVoiceAPI().getMessageInteractions', () => {
+  const api = getCarbonVoiceAPI();
+
+  it('should issue one GET /v6/message/{id}/interactions with the options', async () => {
+    const options: AxiosRequestConfig = {
+      headers: { Authorization: 'Bearer tok' },
+    };
+    const response = {
+      message: { id: 'm-1', status: 'active' },
+      interactions: [],
+    };
+    mockMutator.mockResolvedValueOnce(response);
+
+    await expect(api.getMessageInteractions('m-1', options)).resolves.toBe(
+      response,
+    );
+
+    expect(mockMutator).toHaveBeenCalledTimes(1);
+    expect(mockMutator).toHaveBeenCalledWith(
+      { url: '/v6/message/m-1/interactions', method: 'GET' },
+      options,
+    );
+  });
+
+  it('should encode the id so it cannot change the path', async () => {
+    mockMutator.mockResolvedValueOnce({ message: {}, interactions: [] });
+
+    await api.getMessageInteractions('../m 1');
+
+    expect(mockMutator).toHaveBeenCalledWith(
+      { url: '/v6/message/..%2Fm%201/interactions', method: 'GET' },
+      undefined,
+    );
+  });
+});
