@@ -35,7 +35,7 @@ describe('toMessageInteractionsResponse', () => {
     expect(result.interactions.map((r) => r.user_id)).toEqual(['u-1']);
   });
 
-  it('adds heard_percent from content.duration_ms, rounded and capped at 100', () => {
+  it('adds heard_percent from content.duration_ms, rounded down and capped at 100', () => {
     const response: MessageInteractionsV6Response = {
       message: message(),
       interactions: [
@@ -44,13 +44,15 @@ describe('toMessageInteractionsResponse', () => {
         row('u-2', 10_000),
         // heard_ms can run past the duration (seek to the end, replays).
         row('u-3', 12_500),
+        // Short of the end must never read as 100 ("listened to the end").
+        row('u-4', 9_960),
       ],
     };
 
     const result = toMessageInteractionsResponse(response, []);
 
     expect(result.interactions.map((r) => r.heard_percent)).toEqual([
-      0, 33, 100, 100,
+      0, 33, 100, 100, 99,
     ]);
   });
 

@@ -2149,7 +2149,8 @@ function registerCarbonVoiceTools(server: McpServer): void {
         // Own wording: this tool narrows to
         // GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS when omitted.
         response_fields: responseFieldsShape.response_fields.describe(
-          'Dot-path allowlist. Omit for the default fields in RETURNS; ["message", "interactions"] for the whole message.',
+          'Dot-path allowlist. Omit for the default fields in RETURNS; ' +
+            '["message", "interactions"] for the whole message, transcript and per-word time codes included (large).',
         ),
       },
       annotations: {
@@ -2163,8 +2164,10 @@ function registerCarbonVoiceTools(server: McpServer): void {
       { authInfo },
     ): Promise<McpToolResponse> => {
       const { response_fields, message_id } = input;
-      const auth = setCarbonVoiceAuthHeader(authInfo?.token);
       try {
+        const auth = setCarbonVoiceAuthHeader(authInfo?.token);
+        // shortcut: one row per conversation member, no cap or pagination; add an
+        // unheard-only filter or a cap once agents hit conversations past ~200 members.
         const data = await cvApi.getMessageInteractions(message_id, auth);
         if (!data?.message || !Array.isArray(data.interactions)) {
           throw unexpectedResponseError('get_message_interactions');

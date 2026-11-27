@@ -734,14 +734,13 @@ export const TOOL_DOCS: ToolDocRegistry = {
   },
 
   get_message_interactions: {
-    purpose:
-      'Who listened to a message and how much, who still has it unread, and who reacted.',
+    purpose: 'Who listened to a message, how much, and who reacted.',
     whenToUse:
-      'You have a message ID and need per-person engagement: "who heard my message", ' +
-      '"did X listen to the end", "who has not caught up".',
+      'Per-person engagement on one message: "who heard it", ' +
+      '"did X listen to the end", "who has not played it".',
     whenNotToUse:
-      '`search_messages_by_heard_status` for YOUR OWN unheard messages across conversations; ' +
-      '`get_message` for the message content.',
+      '`search_messages_by_heard_status` for YOUR OWN unheard messages; ' +
+      '`get_message` for the content or a yes/no "has everyone heard it".',
     prerequisites: [
       {
         field: 'message_id',
@@ -752,11 +751,12 @@ export const TOOL_DOCS: ToolDocRegistry = {
     example: { message_id: 'msg-abc' },
     // No `recommendedFields`: the server already narrows the message by default.
     responseShape:
-      '`{message: {id, conversation_id, creator_id, created_at, users_caught_up, content.duration_ms}, ' +
+      '`{message: {id, conversation_id, creator_id, created_at, status, users_caught_up, content.duration_ms}, ' +
       'interactions: [{user_id, name?, heard_ms, heard_percent, is_notified, reaction_ids}]}`. ' +
-      'One row per conversation member except the creator; `heard_ms: 0` = never played. ' +
-      '`heard_percent` is null for a text message. `is_notified: true` = still unread. ' +
-      'Outside a conversation, rows exist only for your own messages.',
+      'One row per current member but the creator. `heard_ms: 0` = never played (0 for text too); ' +
+      '`heard_percent` null without audio. `is_notified: false` = read OR never notified, not proof of listening. ' +
+      '`reaction_ids`: slugs or emoji. ' +
+      '`[]` is not "nobody listened": outside a conversation only your own messages have rows.',
     commonErrors: [
       {
         code: 'NOT_FOUND',

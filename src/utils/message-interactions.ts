@@ -51,7 +51,8 @@ export const toMessageInteractionsResponse = (
           heard_ms: row.heard_ms,
           heard_percent:
             durationMs && durationMs > 0
-              ? Math.min(100, Math.round((row.heard_ms / durationMs) * 100))
+              ? // floor, so only reaching the end reads as 100
+                Math.min(100, Math.floor((row.heard_ms / durationMs) * 100))
               : null,
           is_notified: row.is_notified,
           reaction_ids: row.reaction_ids,

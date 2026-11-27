@@ -3258,6 +3258,30 @@ describe('MCP Server', () => {
         );
       });
 
+      it('keeps message.status in the default fields so a deleted message is visible', () => {
+        const {
+          GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS,
+        } = require('../../../src/schemas');
+
+        expect(GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS).toContain(
+          'message.status',
+        );
+      });
+
+      it('returns a tool error, not a throw, when the auth header cannot be built', async () => {
+        mockSetCarbonVoiceAuthHeader.mockImplementationOnce(() => {
+          throw new Error('no token');
+        });
+
+        await handler()({ message_id: 'm-1' }, mockContext);
+
+        expect(cvApiMock.getMessageInteractions).not.toHaveBeenCalled();
+        expect(mockFormatToMCPToolResponse).toHaveBeenCalledWith(
+          expect.anything(),
+          { isError: true, tool: 'get_message_interactions' },
+        );
+      });
+
       it('returns an UNKNOWN_ERROR tool error when cv-api answers without interactions', async () => {
         cvApiMock.getMessageInteractions.mockResolvedValueOnce({ message });
 

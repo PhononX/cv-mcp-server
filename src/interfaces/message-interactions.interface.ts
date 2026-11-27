@@ -8,8 +8,13 @@ export interface MessageInteraction {
   user_id: string;
   /** Furthest point the user has heard, in ms. 0 when they never played it. */
   heard_ms: number;
-  /** True while the message is still unread (notified) for the user. */
+  /**
+   * cv-api `user_message.notified`: true while the conversation is unread for
+   * the user. Opening the conversation clears it, playing the message does
+   * not; false also when the user has no row (joined after it was posted).
+   */
   is_notified: boolean;
+  /** Curated reaction slugs (`love`, `lol`, ...) mixed with raw emoji strings. */
   reaction_ids: string[];
 }
 

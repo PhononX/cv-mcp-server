@@ -1050,6 +1050,7 @@ describe('get_message_interactions over the protocol', () => {
         conversation_id: 'conv-1',
         creator_id: 'u-creator',
         created_at: '2026-11-01T10:00:00.000Z',
+        status: 'active',
         users_caught_up: 'some',
         content: { duration_ms: 8_000 },
       },

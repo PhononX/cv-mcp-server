@@ -24,6 +24,8 @@ export const GET_MESSAGE_INTERACTIONS_DEFAULT_FIELDS = [
   'message.conversation_id',
   'message.creator_id',
   'message.created_at',
+  // cv-api still answers for deleted/canceled messages; this is the signal.
+  'message.status',
   'message.users_caught_up',
   'message.content.duration_ms',
   'interactions',
