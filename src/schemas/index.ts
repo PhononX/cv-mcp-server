@@ -4,3 +4,4 @@ export * from './search';
 export * from './param-overrides';
 export * from './action-item';
 export * from './messages-by-ids';
+export * from './message-interactions';

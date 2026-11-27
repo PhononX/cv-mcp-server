@@ -2,6 +2,7 @@ import { AxiosRequestConfig } from 'axios';
 
 import { env } from './config';
 import {
+  MessageInteractionsV6Response,
   MessageV6,
   TranscriptSearchBody,
   TranscriptSearchResponse,
@@ -128,6 +129,26 @@ export const getCarbonVoiceAPI = () => {
     ): Promise<MessageV6[]> => {
       return mutator(
         { url: '/v6/messages/by-ids', method: 'POST', data: body },
+        options,
+      );
+    },
+
+    /**
+     * `GET /v6/message/{message_id}/interactions` — per-user heard, notified
+     * and reaction state for one message, with the message in the v6 shape.
+     * cv-api lists every member of the message's conversation (0 ms for one
+     * who never played it); for a message outside a conversation it lists only
+     * those who opened it, and only to the message's creator.
+     */
+    getMessageInteractions: async (
+      messageId: string,
+      options?: AxiosRequestConfig,
+    ): Promise<MessageInteractionsV6Response> => {
+      return mutator(
+        {
+          url: `/v6/message/${encodeURIComponent(messageId)}/interactions`,
+          method: 'GET',
+        },
         options,
       );
     },
